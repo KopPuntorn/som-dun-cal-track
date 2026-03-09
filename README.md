@@ -62,8 +62,8 @@
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/yourusername/somdun.git
-   cd somdun
+   git clone https://github.com/KopPuntorn/som-dun-cal-track
+   cd som-dun-cal-track
    ```
 
 2. **Backend Setup**
