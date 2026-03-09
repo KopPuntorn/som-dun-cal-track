@@ -1,0 +1,638 @@
+"use client";
+
+import { useState, useEffect, useMemo } from 'react';
+import Link from 'next/link';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import {
+    BarChart,
+    Bar,
+    XAxis,
+    YAxis,
+    CartesianGrid,
+    Tooltip,
+    Legend,
+    ResponsiveContainer,
+    LineChart,
+    Line,
+    ReferenceLine
+} from 'recharts';
+import { format, subDays, startOfDay, endOfDay, isBefore, isAfter, eachDayOfInterval } from 'date-fns';
+import { useAuth } from "@/context/AuthContext";
+import { useLanguage } from "@/context/LanguageContext";
+
+type Food = {
+    id: string;
+    name: string;
+    calories: number;
+    protein: number;
+    fat: number;
+    date: string;
+    mealCategory?: string;
+};
+
+type ExerciseRecord = {
+    id?: string;
+    date: string;
+    name: string;
+    durationMinutes: number;
+    caloriesBurned: number;
+};
+
+type SleepRecord = {
+    id?: string;
+    date: string;
+    durationHours: number;
+    quality: string;
+};
+
+type Goals = {
+    calories: number;
+    protein: number;
+    fat: number;
+};
+
+type UserProfile = {
+    name: string;
+    age: number;
+    weight: number;
+    height: number;
+    sex: string;
+};
+
+type WeightRecord = {
+    id?: string;
+    weight: number;
+    date: string;
+};
+
+const API_BASE = "http://localhost:8080/api";
+
+type RangeType = 'today' | 'week' | 'month' | 'all' | 'custom';
+
+export default function DashboardPage() {
+    const { logout, isLoading: authLoading } = useAuth();
+    const { t } = useLanguage();
+    const [foods, setFoods] = useState<Food[]>([]);
+    const [goals, setGoals] = useState<Goals>({ calories: 2000, protein: 150, fat: 70 });
+    const [user, setUser] = useState<UserProfile | null>(null);
+    const [loading, setLoading] = useState(true);
+    const [range, setRange] = useState<RangeType>('week');
+    const [error, setError] = useState<string | null>(null);
+
+    const [weights, setWeights] = useState<WeightRecord[]>([]);
+    const [weightInput, setWeightInput] = useState<string>('');
+
+    const [water, setWater] = useState<number>(0);
+
+    const [exercises, setExercises] = useState<ExerciseRecord[]>([]);
+    const [exerciseInput, setExerciseInput] = useState({ name: '', durationMinutes: 30, caloriesBurned: 0 });
+
+    const [sleeps, setSleeps] = useState<SleepRecord[]>([]);
+    const [sleepInput, setSleepInput] = useState({ durationHours: 8, quality: 'Good' });
+
+    // Custom Date States
+    const [customStart, setCustomStart] = useState<string>(format(subDays(new Date(), 7), 'yyyy-MM-dd'));
+    const [customEnd, setCustomEnd] = useState<string>(format(new Date(), 'yyyy-MM-dd'));
+
+    const [aiLoading, setAiLoading] = useState(false);
+    const [aiAdvice, setAiAdvice] = useState<string | null>(null);
+
+    const handleGetAiAdvice = async () => {
+        if (!chartData.length) return;
+        setAiLoading(true);
+        setAiAdvice(null);
+        setError(null);
+
+        // Calculate averages/totals for context
+        const days = chartData.length;
+        const totalCals = chartData.reduce((sum, d) => sum + d.calories, 0);
+        const avgCals = Math.round(totalCals / days);
+        const totalPro = Math.round(chartData.reduce((sum, d) => sum + d.protein, 0) * 10) / 10;
+
+        const summary = `ข้อมูลย้อนหลัง (${range}): มีข้อมูล ${days} วัน. กินเฉลี่ยวันละ ${avgCals} kcal, โปรตีนรวม ${totalPro}g. เป้าหมายแคลอรี่: ${goals.calories} kcal. ช่วยวิเคราะห์และให้คำแนะนำหน่อยครับ`;
+
+        try {
+            const res = await fetch(`${API_BASE}/consult`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ summary }),
+            });
+
+            if (res.ok) {
+                const advice = await res.text();
+                setAiAdvice(advice);
+            } else {
+                setError("Failed to get AI advice");
+            }
+        } catch (err) {
+            console.error(err);
+            setError("AI Consultant unavailable");
+        } finally {
+            setAiLoading(false);
+        }
+    };
+
+    const handleLogWeight = async () => {
+        const w = parseFloat(weightInput);
+        if (isNaN(w) || w <= 0) return;
+
+        try {
+            const res = await fetch(`${API_BASE}/weight`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    weight: w,
+                    date: new Date().toISOString()
+                })
+            });
+
+            if (res.ok) {
+                // Refresh weights for the current range
+                setWeightInput('');
+                // re-trigger fetch somehow, or just append optimally 
+                // A quick fetch all is fine for prototype
+                const updatedRes = await fetch(`${API_BASE}/weight`);
+                if (updatedRes.ok) {
+                    const ws = await updatedRes.json();
+                    setWeights(ws || []);
+                }
+            }
+        } catch (err) {
+            console.error(err);
+        }
+    };
+
+    const handleUpdateWater = async (amount: number) => {
+        const newTotal = Math.max(0, water + amount);
+        try {
+            const today = new Date().toISOString().split('T')[0];
+            const res = await fetch(`${API_BASE}/water`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ date: today, glasses: newTotal })
+            });
+            if (res.ok) setWater(newTotal);
+        } catch (err) {
+            console.error(err);
+        }
+    };
+
+    const handleLogExercise = async () => {
+        if (!exerciseInput.name) {
+            setError("Please enter an activity name.");
+            return;
+        }
+        if (!exerciseInput.durationMinutes || exerciseInput.durationMinutes <= 0 || isNaN(exerciseInput.durationMinutes)) {
+            setError("Please enter a valid duration.");
+            return;
+        }
+        try {
+            setError(null);
+            const res = await fetch(`${API_BASE}/exercise`, {
+                method: 'POST',
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(exerciseInput)
+            });
+            if (res.ok) {
+                const newEx = await res.json();
+                setExercises([newEx, ...exercises]);
+                setExerciseInput({ name: '', durationMinutes: 30, caloriesBurned: 0 });
+            } else {
+                setError("Failed to save activity.");
+            }
+        } catch (err) {
+            console.error(err);
+            setError("Error saving activity.");
+        }
+    };
+
+    const handleLogSleep = async () => {
+        if (!sleepInput.durationHours || sleepInput.durationHours <= 0 || isNaN(sleepInput.durationHours)) {
+            setError("Please enter valid sleep hours.");
+            return;
+        }
+        try {
+            setError(null);
+            const res = await fetch(`${API_BASE}/sleep`, {
+                method: 'POST',
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(sleepInput)
+            });
+            if (res.ok) {
+                const newSl = await res.json();
+                setSleeps([newSl, ...sleeps]);
+                setSleepInput({ durationHours: 8, quality: 'Good' });
+            } else {
+                setError("Failed to save sleep data.");
+            }
+        } catch (err) {
+            console.error(err);
+            setError("Error saving sleep data.");
+        }
+    };
+
+    const handleExport = async () => {
+        try {
+            const res = await fetch(`${API_BASE}/export`);
+            if (!res.ok) {
+                const text = await res.text();
+                throw new Error(text || "Export failed");
+            }
+            const blob = await res.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.style.display = 'none';
+            a.href = url;
+            a.download = `Calorie_Track_Export_${format(new Date(), 'yyyy-MM-dd')}.csv`;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+        } catch (err: any) {
+            console.error("Export error:", err);
+            setError("Failed to export: " + (err.message || "Missing token or server error"));
+        }
+    };
+
+    useEffect(() => {
+        if (authLoading) return; // Wait for AuthContext to setup fetch interceptor
+
+        async function fetchData() {
+            setLoading(true);
+            setError(null);
+            try {
+                let url = `${API_BASE}/foods`;
+
+                // Calculate date ranges
+                const now = new Date();
+                let start: Date | null = null;
+                let end: Date = endOfDay(now);
+
+                switch (range) {
+                    case 'today':
+                        start = startOfDay(now);
+                        break;
+                    case 'week':
+                        start = startOfDay(subDays(now, 6)); // Last 7 days including today
+                        break;
+                    case 'month':
+                        start = startOfDay(subDays(now, 29)); // Last 30 days
+                        break;
+                    case 'custom':
+                        if (customStart && customEnd) {
+                            start = startOfDay(new Date(customStart));
+                            end = endOfDay(new Date(customEnd));
+                        } else {
+                            start = startOfDay(now); // Fallback if dates not picked yet
+                        }
+                        break;
+                    case 'all':
+                        start = null; // Fetch everything
+                        break;
+                }
+
+                if (start) {
+                    url += `?start=${start.toISOString()}&end=${end.toISOString()}`;
+                }
+
+                const [goalsRes, foodsRes, userRes, weightsRes, waterRes, exerciseRes, sleepRes] = await Promise.all([
+                    fetch(`${API_BASE}/goals`),
+                    fetch(url),
+                    fetch(`${API_BASE}/user`),
+                    fetch(`${API_BASE}/weight${start ? `?start=${start.toISOString()}&end=${end.toISOString()}` : ''}`),
+                    fetch(`${API_BASE}/water?date=${end.toISOString().split('T')[0]}`),
+                    fetch(`${API_BASE}/exercise${start ? `?start=${start.toISOString()}&end=${end.toISOString()}` : ''}`),
+                    fetch(`${API_BASE}/sleep${start ? `?start=${start.toISOString()}&end=${end.toISOString()}` : ''}`)
+                ]);
+
+                if (goalsRes.ok) {
+                    const g = await goalsRes.json();
+                    setGoals({
+                        calories: g.calories || 2000,
+                        protein: g.protein || 150,
+                        fat: g.fat || 70
+                    });
+                }
+
+                if (userRes.ok) {
+                    const u = await userRes.json();
+                    setUser(u);
+                }
+
+                if (foodsRes.ok) {
+                    const f = await foodsRes.json();
+                    setFoods(f || []);
+                } else {
+                    console.error("Failed to fetch foods", foodsRes.status);
+                }
+
+                if (weightsRes.ok) {
+                    const w = await weightsRes.json();
+                    setWeights(w || []);
+                }
+
+                if (waterRes.ok) {
+                    const w = await waterRes.json();
+                    setWater(w?.glasses || 0);
+                }
+
+                if (exerciseRes.ok) {
+                    const ex = await exerciseRes.json();
+                    setExercises(ex || []);
+                }
+
+                if (sleepRes.ok) {
+                    const s = await sleepRes.json();
+                    setSleeps(s || []);
+                }
+            } catch (err) {
+                console.error("Failed to fetch data", err);
+                setError("Failed to reach the server.");
+            } finally {
+                setLoading(false);
+            }
+        }
+
+        fetchData();
+    }, [range, authLoading]);
+
+    // Aggregate data by day for charts
+    const chartData = useMemo(() => {
+        if (!foods.length) return [];
+
+        // Create a map of date strings to grouped data
+        const grouped = foods.reduce((acc, food) => {
+            // Format date to local YYYY-MM-DD
+            const dateObj = new Date(food.date);
+            const dateStr = format(dateObj, 'MMM dd');
+            const sortKey = format(dateObj, 'yyyy-MM-dd');
+
+            if (!acc[sortKey]) {
+                acc[sortKey] = { date: dateStr, sortKey: sortKey, calories: 0, protein: 0, fat: 0 };
+            }
+            acc[sortKey].calories += food.calories;
+            acc[sortKey].protein += food.protein;
+            acc[sortKey].fat += (food.fat || 0);
+            return acc;
+        }, {} as Record<string, { date: string, sortKey: string, calories: number, protein: number, fat: number }>);
+
+        // If viewing a specific range (week/month/custom), fill in missing days with 0
+        if (range === 'week' || range === 'month' || (range === 'custom' && customStart && customEnd)) {
+            let start: Date, end: Date;
+
+            if (range === 'week') {
+                start = startOfDay(subDays(new Date(), 6));
+                end = startOfDay(new Date());
+            } else if (range === 'month') {
+                start = startOfDay(subDays(new Date(), 29));
+                end = startOfDay(new Date());
+            } else {
+                start = startOfDay(new Date(customStart));
+                end = startOfDay(new Date(customEnd));
+            }
+
+            if (isBefore(start, end) || start.getTime() === end.getTime()) {
+                const allDays = eachDayOfInterval({ start, end });
+                const completeData = allDays.map(d => {
+                    const sortKey = format(d, 'yyyy-MM-dd');
+                    const dateStr = format(d, 'MMM dd');
+                    return grouped[sortKey] || { date: dateStr, sortKey: sortKey, calories: 0, protein: 0, fat: 0 };
+                });
+                return completeData;
+            }
+        }
+
+        // Return the grouped values sorted chronologically
+        return Object.values(grouped).sort((a, b) => a.sortKey.localeCompare(b.sortKey));
+    }, [foods, range, customStart, customEnd]);
+
+    const chartDataWeights = useMemo(() => {
+        if (!weights.length) return [];
+        return weights.map(w => ({
+            date: format(new Date(w.date), 'MMM dd'),
+            sortKey: format(new Date(w.date), 'yyyy-MM-dd'),
+            weight: w.weight
+        })).sort((a, b) => a.sortKey.localeCompare(b.sortKey));
+    }, [weights]);
+
+    return (
+        <div className="app-container">
+            <header className="main-header glass-panel" style={{ display: 'flex', gap: '16px', justifyContent: 'flex-start' }}>
+                <Link href="/" className="icon-btn" style={{ textDecoration: 'none' }} title={t('back')}>
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
+                </Link>
+                <div>
+                    <h1 style={{ marginBottom: 0 }}>{user?.name ? `${user.name}'s ${t('navDashboard')}` : t('analyticsTitle')}</h1>
+                    <p className="date-display">{t('historyTrends')}</p>
+                </div>
+                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                    <button onClick={logout} className="icon-btn" title={t('logout')} style={{ color: "var(--danger)" }}>
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+                    </button>
+                </div>
+            </header>
+
+            {/* AI Advisor Card */}
+            <section className="glass-panel" style={{ padding: '20px', position: 'relative', overflow: 'hidden' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: aiAdvice ? '12px' : '0' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <div className="icon-btn" style={{ background: 'var(--accent-cal-gradient)', border: 'none', width: '36px', height: '36px' }}>
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2a10 10 0 1 0 10 10H12V2z"></path><path d="M12 2a10 10 0 0 1 10 10"></path><path d="M12 12L2.7 16.5"></path></svg>
+                        </div>
+                        <h3 style={{ margin: 0, fontSize: '16px' }}>{t('aiAnalyst')}</h3>
+                    </div>
+                    <button
+                        onClick={handleGetAiAdvice}
+                        className="primary-btn"
+                        disabled={aiLoading || loading}
+                        style={{ margin: 0, padding: '8px 16px', fontSize: '13px' }}
+                    >
+                        {aiLoading ? t('analyzing') : t('getInsights')}
+                    </button>
+                </div>
+                {aiAdvice && (
+                    <div className="markdown-content" style={{ fontSize: '14px', lineHeight: '1.6', color: 'var(--text-primary)', background: 'rgba(255,255,255,0.03)', padding: '12px', borderRadius: '12px', borderLeft: '3px solid var(--accent-cal)' }}>
+                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                            {aiAdvice!}
+                        </ReactMarkdown>
+                    </div>
+                )}
+            </section>
+
+            {error && (
+                <div style={{ background: "var(--danger)", padding: "12px", borderRadius: "12px", fontSize: "14px", color: "white" }}>
+                    {error}
+                </div>
+            )}
+
+            {/* Controls */}
+            <section className="glass-panel" style={{ padding: '16px 24px' }}>
+                <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '4px', flexWrap: 'wrap' }}>
+                    <button
+                        className={`primary-btn ${range === 'today' ? '' : 'outline'}`}
+                        onClick={() => setRange('today')}
+                        style={{ padding: '8px 16px', fontSize: '14px', background: range === 'today' ? 'var(--text-primary)' : 'transparent', color: range === 'today' ? '#000' : 'var(--text-primary)', border: range !== 'today' ? '1px solid var(--panel-border)' : 'none' }}
+                    >Today</button>
+                    <button
+                        className={`primary-btn ${range === 'week' ? '' : 'outline'}`}
+                        onClick={() => setRange('week')}
+                        style={{ padding: '8px 16px', fontSize: '14px', background: range === 'week' ? 'var(--text-primary)' : 'transparent', color: range === 'week' ? '#000' : 'var(--text-primary)', border: range !== 'week' ? '1px solid var(--panel-border)' : 'none' }}
+                    >Past 7 Days</button>
+                    <button
+                        className={`primary-btn ${range === 'month' ? '' : 'outline'}`}
+                        onClick={() => setRange('month')}
+                        style={{ padding: '8px 16px', fontSize: '14px', background: range === 'month' ? 'var(--text-primary)' : 'transparent', color: range === 'month' ? '#000' : 'var(--text-primary)', border: range !== 'month' ? '1px solid var(--panel-border)' : 'none' }}
+                    >Past 30 Days</button>
+                    <button
+                        className={`primary-btn ${range === 'all' ? '' : 'outline'}`}
+                        onClick={() => setRange('all')}
+                        style={{ padding: '8px 16px', fontSize: '14px', background: range === 'all' ? 'var(--text-primary)' : 'transparent', color: range === 'all' ? '#000' : 'var(--text-primary)', border: range !== 'all' ? '1px solid var(--panel-border)' : 'none' }}
+                    >All Time</button>
+                    <button
+                        className={`primary-btn ${range === 'custom' ? '' : 'outline'}`}
+                        onClick={() => setRange('custom')}
+                        style={{ padding: '8px 16px', fontSize: '14px', background: range === 'custom' ? 'var(--text-primary)' : 'transparent', color: range === 'custom' ? '#000' : 'var(--text-primary)', border: range !== 'custom' ? '1px solid var(--panel-border)' : 'none' }}
+                    >Custom Range</button>
+                </div>
+
+                {/* Custom Date Pickers */}
+                {range === 'custom' && (
+                    <div style={{ display: 'flex', gap: '16px', marginTop: '16px', alignItems: 'center', flexWrap: 'wrap' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                            <label style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Start Date</label>
+                            <input
+                                type="date"
+                                value={customStart}
+                                onChange={(e) => setCustomStart(e.target.value)}
+                                style={{ padding: '8px 12px', borderRadius: '8px', fontSize: '14px', color: 'var(--text-primary)' }}
+                            />
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                            <label style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>End Date</label>
+                            <input
+                                type="date"
+                                value={customEnd}
+                                onChange={(e) => setCustomEnd(e.target.value)}
+                                min={customStart}
+                                style={{ padding: '8px 12px', borderRadius: '8px', fontSize: '14px', color: 'var(--text-primary)' }}
+                            />
+                        </div>
+                    </div>
+                )}
+            </section>
+
+            {/* Charts */}
+            {loading ? (
+                <div className="glass-panel" style={{ height: '300px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)' }}>
+                    Loading Analytics...
+                </div>
+            ) : chartData.length === 0 ? (
+                <div className="glass-panel" style={{ height: '300px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)' }}>
+                    No data available for the selected period.
+                </div>
+            ) : (
+                <div className="responsive-layout">
+
+                    {/* Weight Tracking Removed */}
+
+                    {/* Water Tracking */}
+                    <div className="glass-panel" style={{ height: '350px', padding: '24px', display: 'flex', flexDirection: 'column' }}>
+                        <h3 style={{ marginBottom: '24px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <span style={{ display: 'inline-block', width: '12px', height: '12px', borderRadius: '50%', background: '#0ea5e9' }}></span>
+                            Water Intake (Today)
+                        </h3>
+                        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+                            <div style={{ fontSize: '48px', fontWeight: 'bold', color: '#0ea5e9', marginBottom: '8px' }}>
+                                {water} <span style={{ fontSize: '20px', color: 'var(--text-secondary)', fontWeight: 'normal' }}>glasses</span>
+                            </div>
+                            <p style={{ color: 'var(--text-secondary)', fontSize: '14px', marginBottom: '24px' }}>
+                                ~ {water * 250} ml
+                            </p>
+                            <div style={{ display: 'flex', gap: '16px' }}>
+                                <button onClick={() => handleUpdateWater(-1)} className="primary-btn outline" style={{ width: '40px', height: '40px', padding: 0, borderRadius: '50%', fontSize: '20px' }}>-</button>
+                                <button onClick={() => handleUpdateWater(1)} className="primary-btn" style={{ width: '40px', height: '40px', padding: 0, borderRadius: '50%', fontSize: '20px', background: '#0ea5e9', border: 'none' }}>+</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Sleep Tracking Removed */}
+
+                    {/* Calories Chart */}
+                    <div className="glass-panel" style={{ height: '350px', padding: '24px 24px 8px 24px', gridColumn: '1 / -1' }}>
+                        <h3 style={{ marginBottom: '24px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <span style={{ display: 'inline-block', width: '12px', height: '12px', borderRadius: '50%', background: 'var(--accent-cal)' }}></span>
+                            Calorie Intake vs Goal
+                        </h3>
+                        <ResponsiveContainer width="100%" height="85%">
+                            <BarChart data={chartData} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
+                                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
+                                <XAxis dataKey="date" stroke="var(--text-secondary)" fontSize={12} tickLine={false} axisLine={false} dy={10} />
+                                <YAxis stroke="var(--text-secondary)" fontSize={12} tickLine={false} axisLine={false} />
+                                <Tooltip
+                                    contentStyle={{ background: 'rgba(22, 27, 34, 0.9)', border: '1px solid var(--panel-border)', borderRadius: '12px', backdropFilter: 'blur(10px)' }}
+                                    itemStyle={{ color: 'var(--text-primary)', fontWeight: 600 }}
+                                    cursor={{ fill: 'rgba(255,255,255,0.05)' }}
+                                />
+                                <ReferenceLine y={goals.calories} stroke="var(--danger)" strokeDasharray="3 3" label={{ position: 'top', value: 'Goal', fill: 'var(--danger)', fontSize: 12 }} />
+                                <Bar dataKey="calories" name="Consumed (kcal)" fill="var(--accent-cal)" radius={[6, 6, 0, 0]} maxBarSize={40} />
+                            </BarChart>
+                        </ResponsiveContainer>
+                    </div>
+
+                    {/* Protein Chart */}
+                    <div className="glass-panel" style={{ height: '350px', padding: '24px 24px 8px 24px' }}>
+                        <h3 style={{ marginBottom: '24px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <span style={{ display: 'inline-block', width: '12px', height: '12px', borderRadius: '50%', background: 'var(--accent-pro)' }}></span>
+                            Protein Trends
+                        </h3>
+                        <ResponsiveContainer width="100%" height="85%">
+                            <LineChart data={chartData} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
+                                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
+                                <XAxis dataKey="date" stroke="var(--text-secondary)" fontSize={12} tickLine={false} axisLine={false} dy={10} />
+                                <YAxis stroke="var(--text-secondary)" fontSize={12} tickLine={false} axisLine={false} />
+                                <Tooltip
+                                    contentStyle={{ background: 'rgba(22, 27, 34, 0.9)', border: '1px solid var(--panel-border)', borderRadius: '12px', backdropFilter: 'blur(10px)' }}
+                                    itemStyle={{ color: 'var(--text-primary)', fontWeight: 600 }}
+                                />
+                                <ReferenceLine y={goals.protein} stroke="var(--accent-pro)" strokeDasharray="3 3" label={{ position: 'top', value: 'Goal', fill: 'var(--accent-pro)', fontSize: 12 }} />
+                                <Line type="monotone" dataKey="protein" name="Protein (g)" stroke="var(--accent-pro)" strokeWidth={3} dot={{ fill: 'var(--bg-color)', strokeWidth: 2, r: 4 }} activeDot={{ r: 6, fill: 'var(--text-primary)' }} />
+                            </LineChart>
+                        </ResponsiveContainer>
+                    </div>
+
+                    {/* Fat Chart */}
+                    <div className="glass-panel" style={{ height: '350px', padding: '24px 24px 8px 24px' }}>
+                        <h3 style={{ marginBottom: '24px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <span style={{ display: 'inline-block', width: '12px', height: '12px', borderRadius: '50%', background: 'var(--accent-fat)' }}></span>
+                            Fat Trends
+                        </h3>
+                        <ResponsiveContainer width="100%" height="85%">
+                            <LineChart data={chartData} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
+                                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
+                                <XAxis dataKey="date" stroke="var(--text-secondary)" fontSize={12} tickLine={false} axisLine={false} dy={10} />
+                                <YAxis stroke="var(--text-secondary)" fontSize={12} tickLine={false} axisLine={false} />
+                                <Tooltip
+                                    contentStyle={{ background: 'rgba(22, 27, 34, 0.9)', border: '1px solid var(--panel-border)', borderRadius: '12px', backdropFilter: 'blur(10px)' }}
+                                    itemStyle={{ color: 'var(--text-primary)', fontWeight: 600 }}
+                                />
+                                <ReferenceLine y={goals.fat} stroke="var(--accent-fat)" strokeDasharray="3 3" label={{ position: 'top', value: 'Goal', fill: 'var(--accent-fat)', fontSize: 12 }} />
+                                <Line type="monotone" dataKey="fat" name="Fat (g)" stroke="var(--accent-fat)" strokeWidth={3} dot={{ fill: 'var(--bg-color)', strokeWidth: 2, r: 4 }} activeDot={{ r: 6, fill: 'var(--text-primary)' }} />
+                            </LineChart>
+                        </ResponsiveContainer>
+                    </div>
+
+                    {/* Exercise Tracking Removed */}
+
+                </div>
+            )}
+
+            <section style={{ textAlign: 'center', marginTop: '32px', paddingBottom: '32px' }}>
+                <button onClick={handleExport} className="primary-btn outline" style={{ padding: '12px 24px', display: 'inline-flex', alignItems: 'center', gap: '8px' }}>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>
+                    Export Data (CSV)
+                </button>
+            </section>
+        </div>
+    );
+}
