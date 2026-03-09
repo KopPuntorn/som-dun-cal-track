@@ -1,0 +1,351 @@
+package handlers
+
+import (
+	"context"
+	"net/http"
+	"time"
+
+	"backend/internal/db"
+	"backend/internal/models"
+
+	"github.com/labstack/echo/v4"
+	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/mongo"
+	"go.mongodb.org/mongo-driver/mongo/options"
+)
+
+// --- Water Handlers ---
+
+func GetWater(c echo.Context) error {
+	dateStr := c.QueryParam("date")
+	if dateStr == "" {
+		dateStr = time.Now().Format("2006-01-02")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	userID := c.Get("userID").(primitive.ObjectID)
+	var w models.WaterIntake
+	err := db.WaterCollection.FindOne(ctx, bson.M{"date": dateStr, "userId": userID}).Decode(&w)
+	if err != nil {
+		if err == mongo.ErrNoDocuments {
+			return c.JSON(http.StatusOK, models.WaterIntake{Date: dateStr, Glasses: 0})
+		}
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+	}
+
+	return c.JSON(http.StatusOK, w)
+}
+
+func UpdateWater(c echo.Context) error {
+	var req struct {
+		Date    string `json:"date"`
+		Glasses int    `json:"glasses"`
+	}
+	if err := c.Bind(&req); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid request body"})
+	}
+	if req.Date == "" {
+		req.Date = time.Now().Format("2006-01-02")
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	userID := c.Get("userID").(primitive.ObjectID)
+	opts := options.Update().SetUpsert(true)
+	filter := bson.M{"date": req.Date, "userId": userID}
+	update := bson.M{"$set": bson.M{"glasses": req.Glasses}}
+
+	_, err := db.WaterCollection.UpdateOne(ctx, filter, update, opts)
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+	}
+
+	return c.JSON(http.StatusOK, map[string]string{"message": "updated successfully"})
+}
+
+// --- Weight Handlers ---
+
+func GetWeightHistory(c echo.Context) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	startStr := c.QueryParam("start")
+	endStr := c.QueryParam("end")
+
+	filter := bson.M{}
+	dateFilter := bson.M{}
+
+	if startStr != "" {
+		if start, err := time.Parse(time.RFC3339, startStr); err == nil {
+			dateFilter["$gte"] = start
+		}
+	} else {
+		dateFilter["$gte"] = time.Now().AddDate(0, -1, 0) // Last 1 month
+	}
+
+	if endStr != "" {
+		if end, err := time.Parse(time.RFC3339, endStr); err == nil {
+			dateFilter["$lte"] = end
+		}
+	}
+
+	if len(dateFilter) > 0 {
+		filter["date"] = dateFilter
+	}
+
+	filter["userId"] = c.Get("userID").(primitive.ObjectID)
+
+	opts := options.Find().SetSort(bson.D{{Key: "date", Value: 1}}) // Ascending
+	cursor, err := db.WeightCollection.Find(ctx, filter, opts)
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+	}
+	defer cursor.Close(ctx)
+
+	var weights []models.WeightRecord
+	if err := cursor.All(ctx, &weights); err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+	}
+
+	if weights == nil {
+		weights = []models.WeightRecord{}
+	}
+
+	return c.JSON(http.StatusOK, weights)
+}
+
+func AddWeight(c echo.Context) error {
+	var req struct {
+		Weight float64 `json:"weight"`
+		Date   string  `json:"date"` // optional
+	}
+	if err := c.Bind(&req); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid request body"})
+	}
+
+	recordDate := time.Now()
+	if req.Date != "" {
+		parsed, err := time.Parse(time.RFC3339, req.Date)
+		if err == nil {
+			recordDate = parsed
+		}
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	// Upsert based on YYYY-MM-DD
+	startOfDay := time.Date(recordDate.Year(), recordDate.Month(), recordDate.Day(), 0, 0, 0, 0, recordDate.Location())
+	endOfDay := startOfDay.AddDate(0, 0, 1).Add(-time.Nanosecond)
+
+	userID := c.Get("userID").(primitive.ObjectID)
+
+	filter := bson.M{
+		"userId": userID,
+		"date": bson.M{
+			"$gte": startOfDay,
+			"$lte": endOfDay,
+		},
+	}
+
+	update := bson.M{
+		"$set": bson.M{
+			"date":   recordDate,
+			"weight": req.Weight,
+		},
+	}
+
+	opts := options.Update().SetUpsert(true)
+	_, err := db.WeightCollection.UpdateOne(ctx, filter, update, opts)
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+	}
+
+	return c.JSON(http.StatusOK, map[string]string{"message": "logged successfully"})
+}
+
+// --- Exercise Handlers ---
+
+func GetExerciseHistory(c echo.Context) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	filter := bson.M{}
+	startStr := c.QueryParam("start")
+	endStr := c.QueryParam("end")
+
+	dateFilter := bson.M{}
+	if startStr != "" {
+		if start, err := time.Parse(time.RFC3339, startStr); err == nil {
+			dateFilter["$gte"] = start
+		}
+	}
+	if endStr != "" {
+		if end, err := time.Parse(time.RFC3339, endStr); err == nil {
+			dateFilter["$lte"] = end
+		}
+	}
+
+	if len(dateFilter) > 0 {
+		filter["date"] = dateFilter
+	}
+	filter["userId"] = c.Get("userID").(primitive.ObjectID)
+
+	opts := options.Find().SetSort(bson.D{{Key: "date", Value: -1}})
+	cursor, err := db.ExerciseCollection.Find(ctx, filter, opts)
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+	}
+	defer cursor.Close(ctx)
+
+	var records []models.ExerciseRecord
+	if err := cursor.All(ctx, &records); err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+	}
+
+	if records == nil {
+		records = []models.ExerciseRecord{}
+	}
+
+	return c.JSON(http.StatusOK, records)
+}
+
+func AddExercise(c echo.Context) error {
+	var record models.ExerciseRecord
+	if err := c.Bind(&record); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid request body"})
+	}
+
+	if record.Date.IsZero() {
+		record.Date = time.Now()
+	}
+	record.UserID = c.Get("userID").(primitive.ObjectID)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	result, err := db.ExerciseCollection.InsertOne(ctx, record)
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+	}
+
+	record.ID = result.InsertedID.(primitive.ObjectID)
+	return c.JSON(http.StatusCreated, record)
+}
+
+func DeleteExercise(c echo.Context) error {
+	idStr := c.Param("id")
+	objID, err := primitive.ObjectIDFromHex(idStr)
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid id format"})
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	filter := bson.M{"_id": objID, "userId": c.Get("userID").(primitive.ObjectID)}
+	result, err := db.ExerciseCollection.DeleteOne(ctx, filter)
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+	}
+
+	if result.DeletedCount == 0 {
+		return c.JSON(http.StatusNotFound, map[string]string{"error": "record not found"})
+	}
+	return c.JSON(http.StatusOK, map[string]string{"message": "deleted successfully"})
+}
+
+// --- Sleep Handlers ---
+
+func GetSleepHistory(c echo.Context) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	filter := bson.M{}
+	startStr := c.QueryParam("start")
+	endStr := c.QueryParam("end")
+
+	dateFilter := bson.M{}
+	if startStr != "" {
+		if start, err := time.Parse(time.RFC3339, startStr); err == nil {
+			dateFilter["$gte"] = start
+		}
+	}
+	if endStr != "" {
+		if end, err := time.Parse(time.RFC3339, endStr); err == nil {
+			dateFilter["$lte"] = end
+		}
+	}
+
+	if len(dateFilter) > 0 {
+		filter["date"] = dateFilter
+	}
+	filter["userId"] = c.Get("userID").(primitive.ObjectID)
+
+	opts := options.Find().SetSort(bson.D{{Key: "date", Value: -1}})
+	cursor, err := db.SleepCollection.Find(ctx, filter, opts)
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+	}
+	defer cursor.Close(ctx)
+
+	var records []models.SleepRecord
+	if err := cursor.All(ctx, &records); err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+	}
+
+	if records == nil {
+		records = []models.SleepRecord{}
+	}
+
+	return c.JSON(http.StatusOK, records)
+}
+
+func AddSleep(c echo.Context) error {
+	var record models.SleepRecord
+	if err := c.Bind(&record); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid request body"})
+	}
+
+	if record.Date.IsZero() {
+		record.Date = time.Now()
+	}
+	record.UserID = c.Get("userID").(primitive.ObjectID)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	result, err := db.SleepCollection.InsertOne(ctx, record)
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+	}
+
+	record.ID = result.InsertedID.(primitive.ObjectID)
+	return c.JSON(http.StatusCreated, record)
+}
+
+func DeleteSleep(c echo.Context) error {
+	idStr := c.Param("id")
+	objID, err := primitive.ObjectIDFromHex(idStr)
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid id format"})
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	filter := bson.M{"_id": objID, "userId": c.Get("userID").(primitive.ObjectID)}
+	result, err := db.SleepCollection.DeleteOne(ctx, filter)
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+	}
+
+	if result.DeletedCount == 0 {
+		return c.JSON(http.StatusNotFound, map[string]string{"error": "record not found"})
+	}
+	return c.JSON(http.StatusOK, map[string]string{"message": "deleted successfully"})
+}

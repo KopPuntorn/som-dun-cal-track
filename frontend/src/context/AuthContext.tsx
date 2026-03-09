@@ -62,7 +62,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                     };
                 }
             }
-            return originalFetch(input, init);
+
+            const response = await originalFetch(input, init);
+
+            const isAuthEndpoint = url.includes('/auth/');
+            const isUserEndpoint = url.includes('/api/user');
+
+            if ((response.status === 401 && !isAuthEndpoint) || (response.status === 404 && isUserEndpoint)) {
+                // Token likely expired, invalid, or user was deleted from DB
+                console.warn(`Auth failure (${response.status}) at ${url}. Logging out...`);
+                localStorage.removeItem("auth_token");
+                localStorage.removeItem("auth_user");
+                // Use window.location as a fallback if the app state isn't immediately reactive
+                window.location.href = "/login";
+            }
+
+            return response;
         };
 
         return () => {
