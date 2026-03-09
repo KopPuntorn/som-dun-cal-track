@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CalTrack Premium</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="index.css">
+</head>
+<body>
+    <div class="app-container">
+        <header class="glass-panel main-header">
+            <div>
+                <h1>CalTrack</h1>
+                <p class="date-display" id="current-date">Today</p>
+            </div>
+            <button id="settings-btn" class="icon-btn" title="Settings">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+            </button>
+        </header>
+
+        <!-- Goals Dashboard -->
+        <section class="dashboard">
+            <!-- Calories Ring -->
+            <div class="glass-panel cal-card">
+                <h2>Calories</h2>
+                <div class="ring-container">
+                    <svg class="progress-ring" width="160" height="160">
+                        <circle class="ring-bg" stroke-width="12" fill="transparent" r="70" cx="80" cy="80"/>
+                        <circle class="ring-progress" id="cal-progress-ring" stroke-width="12" fill="transparent" r="70" cx="80" cy="80"/>
+                    </svg>
+                    <div class="ring-content">
+                        <span class="consumed" id="cal-consumed">0</span>
+                        <span class="label">/ <span id="cal-goal">2000</span> kcal</span>
+                    </div>
+                </div>
+                <div class="cal-stats">
+                    <div class="stat">
+                        <span class="stat-value" id="cal-remaining">2000</span>
+                        <span class="stat-label">Remaining</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Protein Bar -->
+            <div class="glass-panel pro-card">
+                <div class="pro-header">
+                    <h2>Protein</h2>
+                    <div class="pro-values">
+                        <span class="consumed" id="pro-consumed">0</span>
+                        <span class="label">/ <span id="pro-goal">150</span>g</span>
+                    </div>
+                </div>
+                <div class="progress-bar-bg">
+                    <div class="progress-bar-fill" id="pro-progress-bar"></div>
+                </div>
+                <p class="pro-remaining"><span id="pro-remaining-val">150</span>g left</p>
+            </div>
+        </section>
+
+        <!-- Add Food Form -->
+        <section class="glass-panel add-food-section">
+            <h3>Add Entry</h3>
+            <form id="add-food-form">
+                <div class="input-group">
+                    <input type="text" id="food-name" required placeholder="What did you eat?">
+                </div>
+                <div class="input-row">
+                    <div class="input-group">
+                        <input type="number" id="food-cal" required min="0" placeholder="Calories (kcal)">
+                    </div>
+                    <div class="input-group">
+                        <input type="number" id="food-pro" required min="0" step="0.1" placeholder="Protein (g)">
+                    </div>
+                </div>
+                <button type="submit" class="primary-btn">
+                    <span>Add Food</span>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                </button>
+            </form>
+        </section>
+
+        <!-- Today's Foods -->
+        <section class="foods-list-section">
+            <h3 class="section-title">Today's Intake</h3>
+            <div id="foods-list" class="foods-list">
+                <!-- Food items will be injected here via JS -->
+            </div>
+        </section>
+        
+        <!-- Settings Modal (Hidden by default) -->
+        <div id="settings-modal" class="modal">
+            <div class="glass-panel modal-content">
+                <div class="modal-header">
+                    <h3>Daily Goals</h3>
+                    <button id="close-modal" class="icon-btn">&times;</button>
+                </div>
+                <form id="settings-form">
+                    <div class="input-group">
+                        <label for="goal-cal">Calories Goal (kcal)</label>
+                        <input type="number" id="goal-cal" required min="500" value="2000">
+                    </div>
+                    <div class="input-group">
+                        <label for="goal-pro">Protein Goal (g)</label>
+                        <input type="number" id="goal-pro" required min="10" value="150">
+                    </div>
+                    <button type="submit" class="primary-btn">Save Goals</button>
+                </form>
+            </div>
+        </div>
+    </div>
+    <script src="app.js"></script>
+</body>
+</html>
