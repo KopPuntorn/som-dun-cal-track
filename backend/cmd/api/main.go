@@ -34,10 +34,22 @@ func main() {
 	// Middleware
 	e.Use(middleware.Logger())
 	e.Use(middleware.Recover())
+
+	// Security Middleware
+	e.Use(middleware.BodyLimit("5M"))                                       // Max 5MB payload to prevent memory exhaustion
+	e.Use(middleware.RateLimiter(middleware.NewRateLimiterMemoryStore(20))) // Max 20 requests per second per IP
+
+	frontendURL := os.Getenv("FRONTEND_URL")
+	if frontendURL == "" {
+		log.Println("FRONTEND_URL not set, falling back to http://localhost:3000")
+		frontendURL = "http://localhost:3000"
+	}
+
 	e.Use(middleware.CORSWithConfig(middleware.CORSConfig{
-		AllowOrigins: []string{"*"}, // Allow all origins for the prototype
+		AllowOrigins: []string{frontendURL},
 		AllowMethods: []string{echo.GET, echo.PUT, echo.POST, echo.DELETE, echo.OPTIONS},
 		AllowHeaders: []string{echo.HeaderOrigin, echo.HeaderContentType, echo.HeaderAccept, echo.HeaderAuthorization},
+		MaxAge:       86400, // Cache preflight requests for 24 hours
 	}))
 
 	// Setup Routes

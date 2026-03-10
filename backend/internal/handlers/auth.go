@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"os"
 	"time"
@@ -46,7 +47,7 @@ func GenerateJWT(user models.User) (string, error) {
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	secret := os.Getenv("JWT_SECRET")
 	if secret == "" {
-		secret = "default-secret-key-change-me"
+		return "", fmt.Errorf("JWT_SECRET environment variable is not set")
 	}
 	return token.SignedString([]byte(secret))
 }
