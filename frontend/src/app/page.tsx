@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { startOfDay, endOfDay } from 'date-fns';
@@ -67,6 +67,45 @@ export default function Home() {
   const [editingFood, setEditingFood] = useState<Food | null>(null);
   const [editInputs, setEditInputs] = useState({ name: "", calories: "", protein: "", carbs: "", fat: "", sugar: "", sodium: "", fiber: "", mealCategory: "Breakfast" });
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const dataFetchedRef = useRef(false);
+
+  // Helper for image compression
+  const compressImage = (file: File, maxWidth = 1024, quality = 0.7): Promise<Blob> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = (event) => {
+        const img = new (window as any).Image();
+        img.src = event.target?.result as string;
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          let width = img.width;
+          let height = img.height;
+
+          if (width > maxWidth) {
+            height = (maxWidth / width) * height;
+            width = maxWidth;
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx?.drawImage(img, 0, 0, width, height);
+
+          canvas.toBlob(
+            (blob) => {
+              if (blob) resolve(blob);
+              else reject(new Error('Canvas toBlob failed'));
+            },
+            'image/jpeg',
+            quality
+          );
+        };
+        img.onerror = (err: any) => reject(err);
+      };
+      reader.onerror = (err: any) => reject(err);
+    });
+  };
 
   // Scanner State
   const [isScanning, setIsScanning] = useState(false);
@@ -136,6 +175,9 @@ export default function Home() {
     window.addEventListener('openAddFoodModal', handleOpenModal);
 
     async function fetchData() {
+      if (dataFetchedRef.current) return;
+      dataFetchedRef.current = true;
+
       try {
         const now = new Date();
         const start = startOfDay(now).toISOString();
@@ -385,7 +427,13 @@ export default function Home() {
     setError(null);
 
     const formData = new FormData();
-    formData.append("image", file);
+    try {
+      const compressedBlob = await compressImage(file);
+      formData.append("image", compressedBlob, "image.jpg");
+    } catch (err) {
+      console.warn("Compression failed, uploading original:", err);
+      formData.append("image", file);
+    }
 
     try {
       const res = await fetch(`${API_BASE}/analyze-image`, {
