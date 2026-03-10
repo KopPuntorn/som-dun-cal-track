@@ -40,11 +40,12 @@ func UpdateUserProfile(c echo.Context) error {
 
 	update := bson.M{
 		"$set": bson.M{
-			"name":   u.Name,
-			"age":    u.Age,
-			"weight": u.Weight,
-			"height": u.Height,
-			"sex":    u.Sex,
+			"name":      u.Name,
+			"age":       u.Age,
+			"weight":    u.Weight,
+			"height":    u.Height,
+			"sex":       u.Sex,
+			"onboarded": u.Onboarded,
 		},
 	}
 

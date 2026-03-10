@@ -534,30 +534,6 @@ export default function DashboardPage() {
             ) : (
                 <div className="responsive-layout">
 
-                    {/* Weight Tracking Removed */}
-
-                    {/* Water Tracking */}
-                    <div className="glass-panel" style={{ height: '350px', padding: '24px', display: 'flex', flexDirection: 'column' }}>
-                        <h3 style={{ marginBottom: '24px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            <span style={{ display: 'inline-block', width: '12px', height: '12px', borderRadius: '50%', background: '#0ea5e9' }}></span>
-                            Water Intake (Today)
-                        </h3>
-                        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-                            <div style={{ fontSize: '48px', fontWeight: 'bold', color: '#0ea5e9', marginBottom: '8px' }}>
-                                {water} <span style={{ fontSize: '20px', color: 'var(--text-secondary)', fontWeight: 'normal' }}>glasses</span>
-                            </div>
-                            <p style={{ color: 'var(--text-secondary)', fontSize: '14px', marginBottom: '24px' }}>
-                                ~ {water * 250} ml
-                            </p>
-                            <div style={{ display: 'flex', gap: '16px' }}>
-                                <button onClick={() => handleUpdateWater(-1)} className="primary-btn outline" style={{ width: '40px', height: '40px', padding: 0, borderRadius: '50%', fontSize: '20px' }}>-</button>
-                                <button onClick={() => handleUpdateWater(1)} className="primary-btn" style={{ width: '40px', height: '40px', padding: 0, borderRadius: '50%', fontSize: '20px', background: '#0ea5e9', border: 'none' }}>+</button>
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Sleep Tracking Removed */}
-
                     {/* Calories Chart */}
                     <div className="glass-panel" style={{ height: '350px', padding: '24px 24px 8px 24px', gridColumn: '1 / -1' }}>
                         <h3 style={{ marginBottom: '24px', display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -579,6 +555,8 @@ export default function DashboardPage() {
                             </BarChart>
                         </ResponsiveContainer>
                     </div>
+
+                    {/* Weight Tracking Removed */}
 
                     {/* Protein Chart */}
                     <div className="glass-panel" style={{ height: '350px', padding: '24px 24px 8px 24px' }}>
@@ -620,6 +598,26 @@ export default function DashboardPage() {
                                 <Line type="monotone" dataKey="fat" name="Fat (g)" stroke="var(--accent-fat)" strokeWidth={3} dot={{ fill: 'var(--bg-color)', strokeWidth: 2, r: 4 }} activeDot={{ r: 6, fill: 'var(--text-primary)' }} />
                             </LineChart>
                         </ResponsiveContainer>
+                    </div>
+
+                    {/* Water Tracking */}
+                    <div className="glass-panel" style={{ height: '350px', padding: '24px', display: 'flex', flexDirection: 'column' }}>
+                        <h3 style={{ marginBottom: '24px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <span style={{ display: 'inline-block', width: '12px', height: '12px', borderRadius: '50%', background: '#0ea5e9' }}></span>
+                            Water Intake (Today)
+                        </h3>
+                        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
+                            <div style={{ fontSize: '48px', fontWeight: 'bold', color: '#0ea5e9', marginBottom: '8px' }}>
+                                {water} <span style={{ fontSize: '20px', color: 'var(--text-secondary)', fontWeight: 'normal' }}>glasses</span>
+                            </div>
+                            <p style={{ color: 'var(--text-secondary)', fontSize: '14px', marginBottom: '24px' }}>
+                                ~ {water * 250} ml
+                            </p>
+                            <div style={{ display: 'flex', gap: '16px' }}>
+                                <button onClick={() => handleUpdateWater(-1)} className="primary-btn outline" style={{ width: '40px', height: '40px', padding: 0, borderRadius: '50%', fontSize: '20px' }}>-</button>
+                                <button onClick={() => handleUpdateWater(1)} className="primary-btn" style={{ width: '40px', height: '40px', padding: 0, borderRadius: '50%', fontSize: '20px', background: '#0ea5e9', border: 'none' }}>+</button>
+                            </div>
+                        </div>
                     </div>
 
                     {/* Exercise Tracking Removed */}

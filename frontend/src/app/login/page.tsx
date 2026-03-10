@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import { GoogleLogin } from "@react-oauth/google";
 import { useAuth } from "@/context/AuthContext";
 import { useLanguage } from "@/context/LanguageContext";
@@ -14,6 +15,7 @@ export default function LoginPage() {
     const [name, setName] = useState("");
     const [error, setError] = useState<string | null>(null);
     const [loading, setLoading] = useState(false);
+    const [acceptedPolicy, setAcceptedPolicy] = useState(false);
 
     const { login } = useAuth();
     const { t } = useLanguage();
@@ -22,6 +24,11 @@ export default function LoginPage() {
         e.preventDefault();
         if (!email || !password || (!isLogin && !name)) {
             setError("Please fill all fields");
+            return;
+        }
+
+        if (!isLogin && !acceptedPolicy) {
+            setError("Please accept the Privacy Policy to continue");
             return;
         }
 
@@ -90,13 +97,23 @@ export default function LoginPage() {
 
             <div className="glass-panel login-panel" style={{ width: "100%", maxWidth: "420px", zIndex: 1, display: "flex", flexDirection: "column", gap: "24px" }}>
 
-                <div style={{ textAlign: "center", marginBottom: "8px" }}>
-                    <h1 style={{ fontSize: "32px", marginBottom: "8px", background: "var(--accent-cal-gradient)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
-                        SomDun
-                    </h1>
-                    <p style={{ color: "var(--text-secondary)", fontSize: "15px" }}>
-                        Sign in to your personalized dashboard
-                    </p>
+                <div style={{ textAlign: "center", marginBottom: "8px", display: "flex", flexDirection: "column", alignItems: "center", gap: "16px" }}>
+                    <div style={{ position: 'relative', width: '80px', height: '80px', borderRadius: '20px', overflow: 'hidden', background: '#fff', boxShadow: '0 10px 25px rgba(0,0,0,0.2)' }}>
+                        <Image
+                            src="/logo.png"
+                            alt="SomDun Logo"
+                            fill
+                            style={{ objectFit: 'contain', padding: '5px' }}
+                        />
+                    </div>
+                    <div>
+                        <h1 style={{ fontSize: "32px", marginBottom: "8px", background: "var(--accent-cal-gradient)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+                            SomDun
+                        </h1>
+                        <p style={{ color: "var(--text-secondary)", fontSize: "15px" }}>
+                            Sign in to your personalized dashboard
+                        </p>
+                    </div>
                 </div>
 
                 {/* Custom Tab Switcher */}
@@ -140,6 +157,21 @@ export default function LoginPage() {
                         <label>{t('password')}</label>
                         <input type="password" placeholder="••••••••" value={password} onChange={e => setPassword(e.target.value)} disabled={loading} style={{ background: "rgba(0,0,0,0.3)", border: "1px solid rgba(255,255,255,0.05)", height: "48px" }} />
                     </div>
+
+                    {!isLogin && (
+                        <div style={{ display: "flex", alignItems: "flex-start", gap: "10px", marginTop: "4px" }}>
+                            <input
+                                type="checkbox"
+                                id="policy"
+                                checked={acceptedPolicy}
+                                onChange={(e) => setAcceptedPolicy(e.target.checked)}
+                                style={{ marginTop: "3px", width: "16px", height: "16px", accentColor: "var(--accent-cal)" }}
+                            />
+                            <label htmlFor="policy" style={{ fontSize: "12px", color: "var(--text-secondary)", lineHeight: "1.4" }}>
+                                I agree to the <span style={{ color: "var(--accent-cal)", textDecoration: "underline", cursor: "pointer" }}>Privacy Policy</span> and <span style={{ color: "var(--accent-cal)", textDecoration: "underline", cursor: "pointer" }}>Terms of Service</span>.
+                            </label>
+                        </div>
+                    )}
 
                     <button type="submit" className="primary-btn" disabled={loading} style={{ height: "48px", marginTop: "8px", fontSize: "16px", fontWeight: 600, letterSpacing: "0.5px" }}>
                         {loading ? t('loading') : (isLogin ? t('login') : t('signup'))}

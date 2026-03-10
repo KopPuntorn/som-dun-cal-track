@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { startOfDay, endOfDay } from 'date-fns';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -523,9 +524,19 @@ export default function Home() {
       )}
 
       <header className="glass-panel main-header">
-        <div>
-          <h1>SomDun</h1>
-          <p className="date-display">{currentDate}</p>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <div style={{ position: 'relative', width: '40px', height: '40px', borderRadius: '10px', overflow: 'hidden', background: '#fff' }}>
+            <Image
+              src="/logo.png"
+              alt="SomDun Logo"
+              fill
+              style={{ objectFit: 'contain', padding: '2px' }}
+            />
+          </div>
+          <div>
+            <h1>SomDun</h1>
+            <p className="date-display">{currentDate}</p>
+          </div>
         </div>
         <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
           {/* Language Toggle */}

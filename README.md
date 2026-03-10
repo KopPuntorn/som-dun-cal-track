@@ -45,9 +45,10 @@
 ### Backend
 - **Language**: Go (Golang)
 - **Web Framework**: Echo
-- **Database**: MongoDB (with primitive.ObjectID support)
-- **Authentication**: JWT & Google OAuth 2.0
-- **AI Integration**: Google Gemini AI (for food/performance analysis)
+- **Structure**: Layered Architecture (cmd/api, internal handlers, db, models, routes)
+- **Database**: MongoDB
+- **Authentication**: JWT & Google OAuth 2.0 (24h token expiry with Auto-Logout)
+- **AI Integration**: Groq Cloud API (Llama 3/4)
 
 ---
 
@@ -69,24 +70,35 @@
 2. **Backend Setup**
    ```bash
    cd backend
-   # Create a .env file with your MongoDB URI, JWT Secret, and Google AI Key
+   # Create a .env file based on .env.example
    # Then run the server:
-   go run .
+   go run ./cmd/api/main.go
    ```
 
 3. **Frontend Setup**
    ```bash
    cd frontend
    npm install
-   # Create a .env.local with your backend API URL and Google Client ID
+   # Create a .env.local based on .env
    npm run dev
    ```
 
 ---
 
-## 📱 Screenshots & UI
+## 📂 Project Structure
 
-*(Screenshots of the minimalist dashboard, AI analyst, and language toggle go here)*
+### Backend (`/backend`)
+- `cmd/api/`: Application entry point.
+- `internal/handlers/`: Domain-specific logic (Auth, Food, AI, Health).
+- `internal/models/`: Database schemas and data structures.
+- `internal/db/`: Database configuration and initialization.
+- `internal/routes/`: Centralized API route definitions.
+- `internal/middleware/`: JWT and security middleware.
+
+### Frontend (`/frontend`)
+- `src/app/`: Next.js pages and layouts.
+- `src/context/`: Global states (Auth with 401/404 handling, Language, UI).
+- `src/components/`: Reusable UI elements.
 
 ---
 
