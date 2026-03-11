@@ -12,8 +12,8 @@
 - **Meal Categories**: Organize your intake by Breakfast, Lunch, Dinner, and Snacks.
 
 ### 🤖 AI-Powered Health Insights
-- **AI Food Scan**: Take a photo of your meal, and let our AI estimate the nutritional values automatically.
-- **AI Performance Analyst**: Get detailed historical insights and personalized advice based on your health trends.
+- **AI Food Scan**: Take a photo of your meal (with lightning-fast client-side compression), and let our AI estimate nutritional values automatically.
+- **AI Performance Analyst & Chat**: Get detailed historical insights, personalized advice, and engage in real-time chat (via SSE) with a Personal AI Coach.
 - **Barcode & QR Scanner**: Instantly track packaged foods by scanning their labels.
 
 ### 🌍 Multi-Language Support
@@ -23,13 +23,14 @@
 ### 🛡️ Secure Authentication
 - **Google OAuth**: Fast and secure login with your Google account.
 - **Email/Password**: Traditional authentication for multiple user accounts.
-- **Persistent Sessions**: Stay logged in securely across sessions.
+- **Persistent Sessions & Security**: Stay logged in securely with JWT, featuring automatic logout upon token expiration.
 
 ### 📊 Holistic Health Monitoring
+- **Body Measurements**: Track waist circumference, body fat percentage, and attach progress photos.
 - **Weight Trends**: Log your daily weight and visualize progress.
 - **Water Tracker**: Stay hydrated with a visual glass-based goal tracker.
-- **Exercise Log**: Track activities and calories burned.
-- **Sleep Tracker**: Monitor sleep duration and quality.
+- **Exercise & Sleep Log**: Track activities, calories burned, sleep duration, and sleep quality.
+- **Data Export**: Easily download all your health tracking data as a `.csv` file.
 
 ---
 
