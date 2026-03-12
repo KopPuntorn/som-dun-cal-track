@@ -43,6 +43,14 @@ func SetupRoutes(e *echo.Echo) {
 	api.POST("/sleep", handlers.AddSleep)
 	api.DELETE("/sleep/:id", handlers.DeleteSleep)
 
+	// Body Measurements
+	api.GET("/measurements", handlers.GetBodyMeasurements)
+	api.POST("/measurements", handlers.AddBodyMeasurement)
+	api.DELETE("/measurements/:id", handlers.DeleteBodyMeasurement)
+
+	// Uploads
+	api.POST("/upload", handlers.UploadImage)
+
 	// Export & AI
 	api.GET("/export", handlers.ExportData)
 	api.POST("/analyze-image", handlers.AnalyzeImage)

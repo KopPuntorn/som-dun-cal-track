@@ -3,7 +3,7 @@ package db
 import (
 	"context"
 	"fmt"
-	"log"
+	"log/slog"
 	"time"
 
 	"go.mongodb.org/mongo-driver/bson"
@@ -20,6 +20,7 @@ var WaterCollection *mongo.Collection
 var WeightCollection *mongo.Collection
 var ExerciseCollection *mongo.Collection
 var SleepCollection *mongo.Collection
+var BodyMeasurementCollection *mongo.Collection
 
 func InitDB(connectionString string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -37,7 +38,7 @@ func InitDB(connectionString string) error {
 		return fmt.Errorf("failed to ping MongoDB: %w", err)
 	}
 
-	log.Println("Successfully connected to MongoDB!")
+	slog.Info("Successfully connected to MongoDB!")
 
 	dbName := "calotrack" // Or map from ENV if you want
 	DB = Client.Database(dbName)
@@ -49,6 +50,7 @@ func InitDB(connectionString string) error {
 	WeightCollection = DB.Collection("weight")
 	ExerciseCollection = DB.Collection("exercise")
 	SleepCollection = DB.Collection("sleep")
+	BodyMeasurementCollection = DB.Collection("body_measurement")
 
 	EnsureIndexes()
 
@@ -68,7 +70,7 @@ func EnsureIndexes() {
 		Options: options.Index().SetUnique(true).SetBackground(true),
 	})
 	if err != nil {
-		log.Printf("Warning: Failed to create User email index: %v", err)
+		slog.Warn("Failed to create User email index", "error", err)
 	}
 
 	// FoodsCollection: UserID + Date (Descending) for fast daily aggregate queries
@@ -77,20 +79,20 @@ func EnsureIndexes() {
 		Options: indexOpts,
 	})
 	if err != nil {
-		log.Printf("Warning: Failed to create Foods index: %v", err)
+		slog.Warn("Failed to create Foods index", "error", err)
 	}
 
-	// Water, Weight, Exercise, Sleep - user+date indexes for fast queries
-	collections := []*mongo.Collection{WaterCollection, WeightCollection, ExerciseCollection, SleepCollection}
+	// Water, Weight, Exercise, Sleep, BodyMeasurement - user+date indexes for fast queries
+	collections := []*mongo.Collection{WaterCollection, WeightCollection, ExerciseCollection, SleepCollection, BodyMeasurementCollection}
 	for _, coll := range collections {
 		_, err = coll.Indexes().CreateOne(ctx, mongo.IndexModel{
 			Keys:    bson.D{{Key: "userId", Value: 1}, {Key: "date", Value: -1}},
 			Options: indexOpts,
 		})
 		if err != nil {
-			log.Printf("Warning: Failed to create index on %s: %v", coll.Name(), err)
+			slog.Warn("Failed to create index", "collection", coll.Name(), "error", err)
 		}
 	}
 
-	log.Println("MongoDB indexes verified.")
+	slog.Info("MongoDB indexes verified.")
 }

@@ -83,3 +83,14 @@ type SleepRecord struct {
 	DurationHours float64            `json:"durationHours" bson:"durationHours"`
 	Quality       string             `json:"quality" bson:"quality"` // Optional: Good, Fair, Poor
 }
+
+// BodyMeasurement represents a user's body metrics and progress photos
+type BodyMeasurement struct {
+	ID                  primitive.ObjectID `json:"id" bson:"_id,omitempty"`
+	UserID              primitive.ObjectID `json:"userId" bson:"userId"`
+	Date                time.Time          `json:"date" bson:"date"`
+	Weight              float64            `json:"weight" bson:"weight"`
+	WaistCircumference  float64            `json:"waistCircumference" bson:"waistCircumference"`
+	BodyFatPercentage   float64            `json:"bodyFatPercentage" bson:"bodyFatPercentage"`
+	ProgressPhotoURL    string             `json:"progressPhotoUrl,omitempty" bson:"progressPhotoUrl,omitempty"`
+}
