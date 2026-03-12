@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"net/http"
 	"os"
 	"time"
@@ -73,6 +74,7 @@ func RegisterUser(c echo.Context) error {
 
 	hashedPassword, err := bcrypt.GenerateFromPassword([]byte(req.Password), bcrypt.DefaultCost)
 	if err != nil {
+		slog.Error("Registration failed: password hashing error", "email", req.Email, "error", err)
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to hash password"})
 	}
 
@@ -84,6 +86,7 @@ func RegisterUser(c echo.Context) error {
 
 	res, err := db.UserCollection.InsertOne(ctx, newUser)
 	if err != nil {
+		slog.Error("Registration failed: database insertion error", "email", req.Email, "error", err)
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to create user"})
 	}
 	newUser.ID = res.InsertedID.(primitive.ObjectID)
@@ -97,6 +100,7 @@ func RegisterUser(c echo.Context) error {
 	})
 
 	token, _ := GenerateJWT(newUser)
+	slog.Info("User registered successfully", "email", newUser.Email, "userID", newUser.ID)
 	return c.JSON(http.StatusCreated, AuthResponse{Token: token, User: newUser})
 }
 
@@ -112,6 +116,7 @@ func LoginUser(c echo.Context) error {
 	var user models.User
 	err := db.UserCollection.FindOne(ctx, bson.M{"email": req.Email}).Decode(&user)
 	if err != nil {
+		slog.Warn("Login failed: invalid email", "email", req.Email)
 		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Invalid email or password"})
 	}
 
@@ -121,10 +126,12 @@ func LoginUser(c echo.Context) error {
 
 	err = bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(req.Password))
 	if err != nil {
+		slog.Warn("Login failed: password mismatch", "email", req.Email)
 		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Invalid email or password"})
 	}
 
 	token, _ := GenerateJWT(user)
+	slog.Info("User logged in successfully", "email", user.Email, "userID", user.ID)
 	return c.JSON(http.StatusOK, AuthResponse{Token: token, User: user})
 }
 
@@ -167,6 +174,7 @@ func GoogleLogin(c echo.Context) error {
 
 	payload, err := idtoken.Validate(ctx, req.Token, clientId)
 	if err != nil {
+		slog.Warn("Google login failed: invalid token", "error", err)
 		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Invalid Google token"})
 	}
 
@@ -203,5 +211,6 @@ func GoogleLogin(c echo.Context) error {
 	}
 
 	token, _ := GenerateJWT(user)
+	slog.Info("User logged in with Google", "email", user.Email, "userID", user.ID)
 	return c.JSON(http.StatusOK, AuthResponse{Token: token, User: user})
 }

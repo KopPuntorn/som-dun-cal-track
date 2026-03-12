@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"os"
 	"time"
@@ -53,6 +54,7 @@ type GroqChatResponse struct {
 func AnalyzeImage(c echo.Context) error {
 	apiKey := os.Getenv("GROQ_API_KEY")
 	if apiKey == "" {
+		slog.Error("AnalyzeImage failed: GROQ_API_KEY not configured")
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "GROQ_API_KEY not configured"})
 	}
 
@@ -99,6 +101,7 @@ func AnalyzeImage(c echo.Context) error {
 		},
 	}
 
+	slog.Info("Analyzing image with AI", "model", groqReq.Model)
 	return callGroq(c, groqReq)
 }
 
@@ -106,6 +109,7 @@ func AnalyzeImage(c echo.Context) error {
 func ConsultAI(c echo.Context) error {
 	apiKey := os.Getenv("GROQ_API_KEY")
 	if apiKey == "" {
+		slog.Error("ConsultAI failed: GROQ_API_KEY not configured")
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "GROQ_API_KEY not configured"})
 	}
 
@@ -147,6 +151,7 @@ func ConsultAI(c echo.Context) error {
 		},
 	}
 
+	slog.Info("Consulting AI", "model", groqReq.Model, "userID", userID)
 	return callGroq(c, groqReq)
 }
 
@@ -161,6 +166,7 @@ func callGroq(c echo.Context, groqReq GroqChatRequest) error {
 	client := &http.Client{Timeout: 30 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
+		slog.Error("AI service request failed", "error", err)
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "failed to contact AI service"})
 	}
 	defer resp.Body.Close()
@@ -255,5 +261,6 @@ func ChatAI(c echo.Context) error {
 		Messages: messages,
 	}
 
+	slog.Info("Chatting with AI", "model", groqReq.Model, "userID", userID)
 	return callGroq(c, groqReq)
 }

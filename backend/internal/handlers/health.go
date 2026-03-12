@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"log/slog"
 	"net/http"
 	"time"
 
@@ -162,9 +163,11 @@ func AddWeight(c echo.Context) error {
 	opts := options.Update().SetUpsert(true)
 	_, err := db.WeightCollection.UpdateOne(ctx, filter, update, opts)
 	if err != nil {
+		slog.Error("Failed to add weight record", "userID", userID, "error", err)
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 	}
 
+	slog.Info("Weight record added/updated", "userID", userID, "weight", req.Weight, "date", recordDate)
 	return c.JSON(http.StatusOK, map[string]string{"message": "logged successfully"})
 }
 
@@ -230,10 +233,12 @@ func AddExercise(c echo.Context) error {
 
 	result, err := db.ExerciseCollection.InsertOne(ctx, record)
 	if err != nil {
+		slog.Error("Failed to add exercise record", "userID", record.UserID, "error", err)
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 	}
 
 	record.ID = result.InsertedID.(primitive.ObjectID)
+	slog.Info("Exercise record added", "userID", record.UserID, "id", record.ID, "name", record.Name)
 	return c.JSON(http.StatusCreated, record)
 }
 
@@ -340,6 +345,97 @@ func DeleteSleep(c echo.Context) error {
 
 	filter := bson.M{"_id": objID, "userId": c.Get("userID").(primitive.ObjectID)}
 	result, err := db.SleepCollection.DeleteOne(ctx, filter)
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+	}
+
+	if result.DeletedCount == 0 {
+		return c.JSON(http.StatusNotFound, map[string]string{"error": "record not found"})
+	}
+	return c.JSON(http.StatusOK, map[string]string{"message": "deleted successfully"})
+}
+
+// --- Body Measurement Handlers ---
+
+func GetBodyMeasurements(c echo.Context) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	filter := bson.M{}
+	startStr := c.QueryParam("start")
+	endStr := c.QueryParam("end")
+
+	dateFilter := bson.M{}
+	if startStr != "" {
+		if start, err := time.Parse(time.RFC3339, startStr); err == nil {
+			dateFilter["$gte"] = start
+		}
+	}
+	if endStr != "" {
+		if end, err := time.Parse(time.RFC3339, endStr); err == nil {
+			dateFilter["$lte"] = end
+		}
+	}
+
+	if len(dateFilter) > 0 {
+		filter["date"] = dateFilter
+	}
+	filter["userId"] = c.Get("userID").(primitive.ObjectID)
+
+	opts := options.Find().SetSort(bson.D{{Key: "date", Value: -1}})
+	cursor, err := db.BodyMeasurementCollection.Find(ctx, filter, opts)
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+	}
+	defer cursor.Close(ctx)
+
+	var records []models.BodyMeasurement
+	if err := cursor.All(ctx, &records); err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+	}
+
+	if records == nil {
+		records = []models.BodyMeasurement{}
+	}
+
+	return c.JSON(http.StatusOK, records)
+}
+
+func AddBodyMeasurement(c echo.Context) error {
+	var record models.BodyMeasurement
+	if err := c.Bind(&record); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid request body"})
+	}
+
+	if record.Date.IsZero() {
+		record.Date = time.Now()
+	}
+	record.UserID = c.Get("userID").(primitive.ObjectID)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	result, err := db.BodyMeasurementCollection.InsertOne(ctx, record)
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+	}
+
+	record.ID = result.InsertedID.(primitive.ObjectID)
+	return c.JSON(http.StatusCreated, record)
+}
+
+func DeleteBodyMeasurement(c echo.Context) error {
+	idStr := c.Param("id")
+	objID, err := primitive.ObjectIDFromHex(idStr)
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid id format"})
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	filter := bson.M{"_id": objID, "userId": c.Get("userID").(primitive.ObjectID)}
+	result, err := db.BodyMeasurementCollection.DeleteOne(ctx, filter)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 	}
