@@ -82,7 +82,7 @@ type RangeType = 'today' | 'week' | 'month' | 'all' | 'custom';
 
 export default function DashboardPage() {
     const { logout, isLoading: authLoading } = useAuth();
-    const { t } = useLanguage();
+    const { language, setLanguage, t } = useLanguage();
     const [foods, setFoods] = useState<Food[]>([]);
     const [goals, setGoals] = useState<Goals>({ calories: 2000, protein: 150, fat: 70 });
     const [user, setUser] = useState<UserProfile | null>(null);
@@ -119,11 +119,12 @@ export default function DashboardPage() {
         setAiAdvice(null);
         setError(null);
 
-        // Calculate averages/totals for context
-        const days = chartData.length;
+        // Calculate averages based only on days with data to be more meaningful
+        const activeDays = chartData.filter(d => d.calories > 0).length || 1;
         const totalCals = chartData.reduce((sum, d) => sum + d.calories, 0);
-        const avgCals = Math.round(totalCals / days);
+        const avgCals = Math.round(totalCals / activeDays);
         const totalPro = Math.round(chartData.reduce((sum, d) => sum + d.protein, 0) * 10) / 10;
+        const avgPro = Math.round(totalPro / activeDays * 10) / 10;
         
         // Add Body Measurement context if available
         let measureCtx = "";
@@ -132,13 +133,13 @@ export default function DashboardPage() {
             measureCtx = ` น้ำหนักล่าสุด ${latest.weight}kg, เอว ${latest.waistCircumference}cm, ไขมัน ${latest.bodyFatPercentage}%.`;
         }
 
-        const summary = `ข้อมูลย้อนหลัง (${range}): มีข้อมูล ${days} วัน. กินเฉลี่ยวันละ ${avgCals} kcal, โปรตีนรวม ${totalPro}g. เป้าหมายแคลอรี่: ${goals.calories} kcal.${measureCtx} ช่วยวิเคราะห์และให้คำแนะนำหน่อยครับ`;
+        const summary = `ข้อมูลย้อนหลัง (${range}): มีข้อมูล ${activeDays}/${chartData.length} วัน. กินเฉลี่ย (เฉพาะวันที่บันทึก) คือ ${avgCals} kcal, โปรตีนเฉลี่ย ${avgPro}g. เป้าหมายแคลอรี่: ${goals.calories} kcal.${measureCtx} ช่วยวิเคราะห์และให้คำแนะนำหน่อยครับ`;
 
         try {
             const res = await fetch(`${API_BASE}/consult`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ summary }),
+                body: JSON.stringify({ summary, language }),
             });
 
             if (res.ok) {
@@ -253,7 +254,7 @@ export default function DashboardPage() {
     const handleUpdateWater = async (amount: number) => {
         const newTotal = Math.max(0, water + amount);
         try {
-            const today = new Date().toISOString().split('T')[0];
+            const today = format(new Date(), 'yyyy-MM-dd');
             const res = await fetch(`${API_BASE}/water`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
@@ -388,7 +389,7 @@ export default function DashboardPage() {
                     fetch(url),
                     fetch(`${API_BASE}/user`),
                     fetch(`${API_BASE}/weight${start ? `?start=${start.toISOString()}&end=${end.toISOString()}` : ''}`),
-                    fetch(`${API_BASE}/water?date=${end.toISOString().split('T')[0]}`),
+                    fetch(`${API_BASE}/water?date=${format(end, 'yyyy-MM-dd')}`),
                     fetch(`${API_BASE}/exercise${start ? `?start=${start.toISOString()}&end=${end.toISOString()}` : ''}`),
                     fetch(`${API_BASE}/sleep${start ? `?start=${start.toISOString()}&end=${end.toISOString()}` : ''}`),
                     fetch(`${API_BASE}/measurements${start ? `?start=${start.toISOString()}&end=${end.toISOString()}` : ''}`)
@@ -531,45 +532,23 @@ export default function DashboardPage() {
                     <h1 style={{ marginBottom: 0 }}>{user?.name ? `${user.name}'s ${t('navDashboard')}` : t('analyticsTitle')}</h1>
                     <p className="date-display">{t('historyTrends')}</p>
                 </div>
-                <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                    <button onClick={logout} className="icon-btn" title={t('logout')} style={{ color: "var(--danger)" }}>
+                <div className="header-actions" style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                    <button
+                        onClick={() => setLanguage(language === 'en' ? 'th' : 'en')}
+                        className="icon-btn"
+                        style={{ fontSize: '14px', fontWeight: 'bold', minWidth: '40px' }}
+                        title={language === 'en' ? 'เปลี่ยนเป็นภาษาไทย' : 'Switch to English'}
+                    >
+                        {language === 'en' ? 'TH' : 'EN'}
+                    </button>
+                    <Link href="/profile" className="icon-btn mobile-hidden" title={t('profileSettings')}>
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+                    </Link>
+                    <button onClick={logout} className="icon-btn mobile-hidden" title={t('logout')} style={{ color: "var(--danger)" }}>
                         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
                     </button>
                 </div>
             </header>
-
-            {/* AI Advisor Card */}
-            <section className="glass-panel" style={{ padding: '20px', position: 'relative', overflow: 'hidden' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: aiAdvice ? '12px' : '0' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                        <div className="icon-btn" style={{ background: 'var(--accent-cal-gradient)', border: 'none', width: '36px', height: '36px' }}>
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2a10 10 0 1 0 10 10H12V2z"></path><path d="M12 2a10 10 0 0 1 10 10"></path><path d="M12 12L2.7 16.5"></path></svg>
-                        </div>
-                        <h3 style={{ margin: 0, fontSize: '16px' }}>{t('aiAnalyst')}</h3>
-                    </div>
-                    <button
-                        onClick={handleGetAiAdvice}
-                        className="primary-btn"
-                        disabled={aiLoading || loading}
-                        style={{ margin: 0, padding: '8px 16px', fontSize: '13px' }}
-                    >
-                        {aiLoading ? t('analyzing') : t('getInsights')}
-                    </button>
-                </div>
-                {aiAdvice && (
-                    <div className="markdown-content" style={{ fontSize: '14px', lineHeight: '1.6', color: 'var(--text-primary)', background: 'rgba(255,255,255,0.03)', padding: '12px', borderRadius: '12px', borderLeft: '3px solid var(--accent-cal)' }}>
-                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                            {aiAdvice!}
-                        </ReactMarkdown>
-                    </div>
-                )}
-            </section>
-
-            {error && (
-                <div style={{ background: "var(--danger)", padding: "12px", borderRadius: "12px", fontSize: "14px", color: "white" }}>
-                    {error}
-                </div>
-            )}
 
             {/* Controls */}
             <section className="glass-panel" style={{ padding: '16px 24px' }}>
@@ -626,6 +605,39 @@ export default function DashboardPage() {
                     </div>
                 )}
             </section>
+
+            {/* AI Advisor Card */}
+            <section className="glass-panel" style={{ padding: '20px', position: 'relative', overflow: 'hidden' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: aiAdvice ? '12px' : '0' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                        <div className="icon-btn" style={{ background: 'var(--accent-cal-gradient)', border: 'none', width: '36px', height: '36px' }}>
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2a10 10 0 1 0 10 10H12V2z"></path><path d="M12 2a10 10 0 0 1 10 10"></path><path d="M12 12L2.7 16.5"></path></svg>
+                        </div>
+                        <h3 style={{ margin: 0, fontSize: '16px' }}>{t('aiAnalyst')}</h3>
+                    </div>
+                    <button
+                        onClick={handleGetAiAdvice}
+                        className="primary-btn"
+                        disabled={aiLoading || loading}
+                        style={{ margin: 0, padding: '8px 16px', fontSize: '13px' }}
+                    >
+                        {aiLoading ? t('analyzing') : t('getInsights')}
+                    </button>
+                </div>
+                {aiAdvice && (
+                    <div className="markdown-content" style={{ fontSize: '14px', lineHeight: '1.6', color: 'var(--text-primary)', background: 'rgba(255,255,255,0.03)', padding: '12px', borderRadius: '12px', borderLeft: '3px solid var(--accent-cal)' }}>
+                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                            {aiAdvice!}
+                        </ReactMarkdown>
+                    </div>
+                )}
+            </section>
+
+            {error && (
+                <div style={{ background: "var(--danger)", padding: "12px", borderRadius: "12px", fontSize: "14px", color: "white" }}>
+                    {error}
+                </div>
+            )}
 
             {/* Charts */}
             {loading ? (

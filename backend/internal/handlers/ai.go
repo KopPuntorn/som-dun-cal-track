@@ -114,10 +114,17 @@ func ConsultAI(c echo.Context) error {
 	}
 
 	var data struct {
-		Summary string `json:"summary"`
+		Summary  string `json:"summary"`
+		Language string `json:"language"`
 	}
 	if err := c.Bind(&data); err != nil {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid request body"})
+	}
+
+	// Determine language instruction
+	langInstruction := "Your language must be 'Perfect Thai' (ภาษาไทยต้องเป๊ะ): professional, natural, smooth, and nuanced like a top-tier specialist. "
+	if data.Language == "en" {
+		langInstruction = "You MUST respond entirely in English. Use professional, natural, smooth, and nuanced language like a top-tier specialist. "
 	}
 
 	// Fetch user info
@@ -131,18 +138,30 @@ func ConsultAI(c echo.Context) error {
 		userStr = fmt.Sprintf("Name: %s, Age: %d, W: %.1fkg, H: %.1fcm, Sex: %s", u.Name, u.Age, u.Weight, u.Height, u.Sex)
 	}
 
+	// Fetch user's health objective
+	var g models.Goals
+	objectiveStr := "Not set"
+	if err := db.GoalsCollection.FindOne(ctx, bson.M{"userId": userID}).Decode(&g); err == nil && g.Objective != "" {
+		objectiveStr = g.Objective
+	}
+
 	groqReq := GroqChatRequest{
-		Model: "moonshotai/kimi-k2-instruct-0905",
+		Model: "openai/gpt-oss-120b",
 		Messages: []GroqMessage{
 			{
 				Role: "system",
-				Content: "You are an expert, empathetic Thai nutritionist and personal trainer. " +
+				Content: "You are a premium, high-level expert nutritionist and personal trainer. " +
+					langInstruction +
 					"The user info is: " + userStr + ". " +
-					"The user will provide a summary of their food intake today along with their goals. " +
-					"Do not just repeat the numbers; provide deep, actionable insights. Explain what these macros mean for their body and goals. " +
+					"The user's health objective is: " + objectiveStr + ". " +
+					"The user will provide a summary of their food intake. " +
+					"IMPORTANT: Tailor all advice and recommendations specifically to the user's health objective. " +
+					"If the number of days with data is small relative to the range, acknowledge that data might be incomplete rather than assuming they are starving. " +
+					"Do not just repeat numbers; provide deep, actionable insights. Explain what these macros mean for their body and goals. " +
 					"Give them 2-3 specific recommendations for their next meal or tomorrow. " +
-					"Use markdown formatting, bullet points, and emojis to make the response engaging. " +
-					"Keep the tone natural, professional, encouraging, and friendly in Thai language.",
+					"CRITICAL: Keep your response CONCISE and SHORT (max 200 words). Use brief bullet points, avoid long tables or full meal plans. Be punchy and direct. " +
+					"Use markdown, bullet points, and emojis to make the response visually engaging. " +
+					"Keep the tone natural, professional, encouraging, and friendly. Avoid robotic phrasing.",
 			},
 			{
 				Role:    "user",
@@ -197,9 +216,16 @@ func ChatAI(c echo.Context) error {
 
 	var data struct {
 		Messages []GroqMessage `json:"messages"`
+		Language string        `json:"language"`
 	}
 	if err := c.Bind(&data); err != nil {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid request body"})
+	}
+
+	// Determine language instruction
+	langInstruction := "Your language must be 'Perfect Thai' (ภาษาไทยต้องเป๊ะ): professional, natural, smooth, and highly expert, like a premium consultant. "
+	if data.Language == "en" {
+		langInstruction = "You MUST respond entirely in English. Use professional, natural, smooth, and highly expert language, like a premium consultant. "
 	}
 
 	// --- RAG: Fetch Context from DB ---
@@ -225,8 +251,12 @@ func ChatAI(c echo.Context) error {
 	// 2. Fetch Goals
 	var g models.Goals
 	goalsStr := "Not set"
+	objectiveStr := "Not set"
 	if err := db.GoalsCollection.FindOne(ctx, bson.M{"userId": userID}).Decode(&g); err == nil {
 		goalsStr = fmt.Sprintf("Cal:%.0f, Pro:%.1f, Carb:%.1f, Fat:%.1f, Sugar:%.1f, Sodium:%.0f, Fiber:%.1f", g.Calories, g.Protein, g.Carbs, g.Fat, g.Sugar, g.Sodium, g.Fiber)
+		if g.Objective != "" {
+			objectiveStr = g.Objective
+		}
 	}
 
 	// 3. Fetch User Profile
@@ -236,18 +266,21 @@ func ChatAI(c echo.Context) error {
 		userStr = fmt.Sprintf("Name: %s, Age: %d, W: %.1fkg, H: %.1fcm, Sex: %s", u.Name, u.Age, u.Weight, u.Height, u.Sex)
 	}
 
-	contextPrompt := "You are an elite, highly intelligent health and nutrition assistant. You converse naturally in Thai.\n" +
+	contextPrompt := "You are P'Peak (พี่เปี๊ยก), an elite, highly intelligent health and nutrition assistant. " +
+		langInstruction +
 		"You have access to the user's profile, daily goals, and recent 20 food logs. Use this context deeply to personalize your answers rather than giving generic advice.\n\n" +
 		"User's Profile: " + userStr + "\n" +
 		"User's Daily Goals: " + goalsStr + "\n" +
+		"User's Health Objective: " + objectiveStr + "\n" +
 		"Recent Food History (Last 20 items):\n" + historyStr + "\n\n" +
 		"CRITICAL INSTRUCTIONS:\n" +
-		"1. Analyze their history and goals thoughtfully before answering.\n" +
-		"2. If asked about nutritional info, always break down Calories, Protein, Carbs, Fat, Sugar, Sodium, and Fiber clearly step-by-step.\n" +
-		"3. If you recommend a specific food or they tell you what they ate, YOU MUST append a JSON tag exactly like this at the very end of your response for EACH food item mentioned: `[FOOD_DATA: {\"name\": \"ชื่ออาหารภาษาไทย\", \"calories\": 100, \"protein\": 10.5, \"carbs\": 5, \"fat\": 2, \"sugar\": 0, \"sodium\": 200, \"fiber\": 1.5}]`\n" +
-		"4. Ensure the JSON is valid and inside the brackets exactly as shown. These tags power a 'Quick Add' button in the UI.\n" +
-		"5. Use markdown, emojis, and clear formatting (bullet points, bold text) to make your response easy to read and beautiful.\n" +
-		"6. Keep a polite, encouraging, and highly expert tone in Thai."
+		"0. The user's health objective is CRITICAL context. Tailor ALL advice, macro recommendations, and food suggestions to align with this objective.\n" +
+		"1. Analyze history and goals thoughtfully first.\n" +
+		"2. For nutritional info, break down Calories, Protein, Carbs, Fat, Sugar, Sodium, and Fiber clearly step-by-step.\n" +
+		"3. If you recommend or they mention a food, YOU MUST append a JSON tag at the VERY END for EACH item: `[FOOD_DATA: {\"name\": \"ชื่ออาหารไทย\", \"calories\": 100, \"protein\": 10, \"carbs\": 5, \"fat\": 2, \"sugar\": 0, \"sodium\": 200, \"fiber\": 1.5}]`\n" +
+		"4. Ensure JSON is valid and inside brackets. These tags power a 'Quick Add' button.\n" +
+		"5. Use markdown, emojis, and clear formatting (bold, bullet points) to make responses beautiful and easy to read.\n" +
+		"6. Keep a polite, encouraging, and highly expert tone in flawless Thai language."
 
 	systemMsg := GroqMessage{
 		Role:    "system",

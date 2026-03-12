@@ -24,15 +24,16 @@ type Food struct {
 
 // Goals represents the daily target for calories and protein
 type Goals struct {
-	ID       primitive.ObjectID `json:"id" bson:"_id,omitempty"`
-	UserID   primitive.ObjectID `json:"userId" bson:"userId"`
-	Calories float64            `json:"calories" bson:"calories"`
-	Protein  float64            `json:"protein" bson:"protein"`
-	Carbs    float64            `json:"carbs" bson:"carbs"`
-	Fat      float64            `json:"fat" bson:"fat"`
-	Sugar    float64            `json:"sugar" bson:"sugar"`
-	Sodium   float64            `json:"sodium" bson:"sodium"`
-	Fiber    float64            `json:"fiber" bson:"fiber"`
+	ID        primitive.ObjectID `json:"id" bson:"_id,omitempty"`
+	UserID    primitive.ObjectID `json:"userId" bson:"userId"`
+	Calories  float64            `json:"calories" bson:"calories"`
+	Protein   float64            `json:"protein" bson:"protein"`
+	Carbs     float64            `json:"carbs" bson:"carbs"`
+	Fat       float64            `json:"fat" bson:"fat"`
+	Sugar     float64            `json:"sugar" bson:"sugar"`
+	Sodium    float64            `json:"sodium" bson:"sodium"`
+	Fiber     float64            `json:"fiber" bson:"fiber"`
+	Objective string             `json:"objective" bson:"objective"` // lose_fat, lose_weight, gain_weight, build_muscle, maintain
 }
 
 // User represents authenticated user and their personal profile

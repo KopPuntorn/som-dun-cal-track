@@ -82,6 +82,15 @@ func EnsureIndexes() {
 		slog.Warn("Failed to create Foods index", "error", err)
 	}
 
+	// Text index for search on Name
+	_, err = FoodsCollection.Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys:    bson.D{{Key: "name", Value: "text"}},
+		Options: options.Index().SetBackground(true),
+	})
+	if err != nil {
+		slog.Warn("Failed to create Foods text index", "error", err)
+	}
+
 	// Water, Weight, Exercise, Sleep, BodyMeasurement - user+date indexes for fast queries
 	collections := []*mongo.Collection{WaterCollection, WeightCollection, ExerciseCollection, SleepCollection, BodyMeasurementCollection}
 	for _, coll := range collections {

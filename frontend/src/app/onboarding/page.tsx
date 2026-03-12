@@ -26,7 +26,8 @@ export default function OnboardingPage() {
     const [goals, setGoals] = useState({
         calories: 2000,
         protein: 150,
-        fat: 70
+        fat: 70,
+        objective: ""
     });
 
     const [loading, setLoading] = useState(false);
@@ -129,6 +130,44 @@ export default function OnboardingPage() {
                         <div className="input-group">
                             <label>Fat Goal (g)</label>
                             <input type="number" value={goals.fat} onChange={e => setGoals({ ...goals, fat: parseInt(e.target.value) })} />
+                        </div>
+
+                        <div style={{ marginTop: "8px" }}>
+                            <label style={{ fontSize: "14px", color: "var(--text-secondary)", marginBottom: "12px", display: "block" }}>🎯 {t('healthObjective')}</label>
+                            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "10px" }}>
+                                {[
+                                    { value: '', label: t('noObjective'), emoji: '➖' },
+                                    { value: 'lose_fat', label: t('loseFat'), emoji: '🔥' },
+                                    { value: 'lose_weight', label: t('loseWeight'), emoji: '⬇️' },
+                                    { value: 'gain_weight', label: t('gainWeight'), emoji: '⬆️' },
+                                    { value: 'build_muscle', label: t('buildMuscle'), emoji: '💪' },
+                                    { value: 'maintain', label: t('maintain'), emoji: '⚖️' },
+                                ].map(opt => (
+                                    <button
+                                        key={opt.value}
+                                        type="button"
+                                        onClick={() => setGoals({ ...goals, objective: opt.value })}
+                                        style={{
+                                            padding: '14px 6px',
+                                            borderRadius: '14px',
+                                            border: goals.objective === opt.value ? '2px solid var(--accent-pro)' : '1px solid rgba(255,255,255,0.1)',
+                                            background: goals.objective === opt.value ? 'rgba(var(--accent-pro-rgb, 100, 200, 255), 0.15)' : 'rgba(0,0,0,0.3)',
+                                            color: goals.objective === opt.value ? 'var(--accent-pro)' : 'var(--text-secondary)',
+                                            cursor: 'pointer',
+                                            fontSize: '12px',
+                                            fontWeight: goals.objective === opt.value ? '600' : '400',
+                                            display: 'flex',
+                                            flexDirection: 'column' as const,
+                                            alignItems: 'center',
+                                            gap: '4px',
+                                            transition: 'all 0.2s ease',
+                                        }}
+                                    >
+                                        <span style={{ fontSize: '20px' }}>{opt.emoji}</span>
+                                        {opt.label}
+                                    </button>
+                                ))}
+                            </div>
                         </div>
 
                         <div style={{ display: "flex", gap: "12px", marginTop: "20px" }}>

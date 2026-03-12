@@ -18,6 +18,7 @@ func SetupRoutes(e *echo.Echo) {
 	api.Use(middleware.JWTMiddleware)
 
 	api.GET("/foods", handlers.GetFoods)
+	api.GET("/foods/search", handlers.SearchFoods)
 	api.POST("/foods", handlers.CreateFood)
 	api.PUT("/foods/:id", handlers.UpdateFood)
 	api.DELETE("/foods/:id", handlers.DeleteFood)
