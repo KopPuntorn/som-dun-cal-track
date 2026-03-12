@@ -41,13 +41,14 @@ func UpdateGoals(c echo.Context) error {
 	// Assuming we only have one goal document, update the first one we find
 	update := bson.M{
 		"$set": bson.M{
-			"calories": updateData.Calories,
-			"protein":  updateData.Protein,
-			"carbs":    updateData.Carbs,
-			"fat":      updateData.Fat,
-			"sugar":    updateData.Sugar,
-			"sodium":   updateData.Sodium,
-			"fiber":    updateData.Fiber,
+			"calories":  updateData.Calories,
+			"protein":   updateData.Protein,
+			"carbs":     updateData.Carbs,
+			"fat":       updateData.Fat,
+			"sugar":     updateData.Sugar,
+			"sodium":    updateData.Sodium,
+			"fiber":     updateData.Fiber,
+			"objective": updateData.Objective,
 		},
 	}
 

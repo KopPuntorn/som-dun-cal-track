@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { startOfDay, endOfDay } from 'date-fns';
+import { startOfDay, endOfDay, format } from 'date-fns';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useZxing } from "react-zxing";
@@ -56,11 +56,13 @@ export default function Home() {
   const [foodInputs, setFoodInputs] = useState({ name: "", calories: "", protein: "", carbs: "", fat: "", sugar: "", sodium: "", fiber: "", mealCategory: "Breakfast" });
   const [loading, setLoading] = useState(true);
   const [aiLoading, setAiLoading] = useState(false);
-  const [aiAdvice, setAiAdvice] = useState<string | null>(null);
+
   const [chatMessages, setChatMessages] = useState<{ role: 'user' | 'assistant', content: string }[]>([]);
   const [chatInput, setChatInput] = useState("");
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [searchResults, setSearchResults] = useState<Food[]>([]);
+  const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const [waterGlasses, setWaterGlasses] = useState(0);
   const [recentFoods, setRecentFoods] = useState<any[]>([]);
@@ -187,7 +189,7 @@ export default function Home() {
           fetch(`${API_BASE}/goals`),
           fetch(`${API_BASE}/foods?start=${start}&end=${end}`),
           fetch(`${API_BASE}/user`),
-          fetch(`${API_BASE}/water?date=${startOfDay(now).toISOString().split('T')[0]}`),
+          fetch(`${API_BASE}/water?date=${format(now, 'yyyy-MM-dd')}`),
           fetch(`${API_BASE}/foods`)
         ]);
 
@@ -267,7 +269,7 @@ export default function Home() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          date: startOfDay(new Date()).toISOString().split('T')[0],
+          date: format(new Date(), 'yyyy-MM-dd'),
           glasses: newGlasses
         })
       });
@@ -322,6 +324,42 @@ export default function Home() {
     } catch (err) {
       console.error(err);
     }
+  };
+  
+  const handleSearch = async (query: string) => {
+    if (!query.trim()) {
+      setSearchResults([]);
+      return;
+    }
+
+    if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+
+    searchTimeoutRef.current = setTimeout(async () => {
+      try {
+        const res = await fetch(`${API_BASE}/foods/search?q=${encodeURIComponent(query)}`);
+        if (res.ok) {
+          const data = await res.json();
+          setSearchResults(data || []);
+        }
+      } catch (err) {
+        console.error("Search failed:", err);
+      }
+    }, 300);
+  };
+  
+  const selectSearchResult = (item: Food) => {
+    setFoodInputs({
+      name: item.name,
+      calories: String(item.calories),
+      protein: String(item.protein),
+      carbs: String(item.carbs || 0),
+      fat: String(item.fat || 0),
+      sugar: String(item.sugar || 0),
+      sodium: String(item.sodium || 0),
+      fiber: String(item.fiber || 0),
+      mealCategory: foodInputs.mealCategory
+    });
+    setSearchResults([]);
   };
 
   const handleAddFood = async (e: React.FormEvent) => {
@@ -470,33 +508,6 @@ export default function Home() {
     }
   };
 
-  const handleGetAiAdvice = async () => {
-    setAiLoading(true);
-    setAiAdvice(null);
-    setError(null);
-
-    const summary = `วันนี้กินไป: ${calTotal} kcal, P: ${proTotal}g, F: ${fatTotal}g. เป้าหมาย: ${goals.calories} kcal, P: ${goals.protein}g.`;
-
-    try {
-      const res = await fetch(`${API_BASE}/consult`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ summary }),
-      });
-
-      if (res.ok) {
-        const advice = await res.text();
-        setAiAdvice(advice);
-      } else {
-        setError("Failed to get AI advice");
-      }
-    } catch (err) {
-      console.error(err);
-      setError("AI Consultant unavailable");
-    } finally {
-      setAiLoading(false);
-    }
-  };
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -511,7 +522,7 @@ export default function Home() {
       const res = await fetch(`${API_BASE}/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: [...chatMessages, userMsg] }),
+        body: JSON.stringify({ messages: [...chatMessages, userMsg], language }),
       });
 
       if (res.ok) {
@@ -586,7 +597,7 @@ export default function Home() {
             <p className="date-display">{currentDate}</p>
           </div>
         </div>
-        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+        <div className="header-actions" style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
           {/* Language Toggle */}
           <button
             onClick={() => setLanguage(language === 'en' ? 'th' : 'en')}
@@ -598,13 +609,13 @@ export default function Home() {
           </button>
 
 
-          <Link href="/dashboard" className="icon-btn" title={t('analyticsTitle')}>
+          <Link href="/dashboard" className="icon-btn mobile-hidden" title={t('analyticsTitle')}>
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
           </Link>
-          <button onClick={logout} className="icon-btn" title={t('logout')} style={{ color: "var(--danger)" }}>
+          <button onClick={logout} className="icon-btn mobile-hidden" title={t('logout')} style={{ color: "var(--danger)" }}>
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
           </button>
-          <Link href="/profile" className="icon-btn" title={t('profileSettings')}>
+          <Link href="/profile" className="icon-btn mobile-hidden" title={t('profileSettings')}>
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
           </Link>
         </div>
@@ -713,37 +724,6 @@ export default function Home() {
         </div>
 
         <div className="layout-column">
-          {/* AI Assistant Insight */}
-          <section className="glass-panel" style={{ padding: '24px', position: 'relative', overflow: 'hidden' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '16px', marginBottom: aiAdvice ? '16px' : '0' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <div className="icon-btn" style={{ background: 'var(--accent-cal-gradient)', border: 'none', width: '40px', height: '40px', flexShrink: 0 }}>
-                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2a10 10 0 1 0 10 10H12V2z"></path><path d="M12 2a10 10 0 0 1 10 10"></path><path d="M12 12L2.7 16.5"></path></svg>
-                </div>
-                <div>
-                  <h3 style={{ margin: 0, fontSize: '16px', fontWeight: 600 }}>AI Nutrition Guru</h3>
-                  <p style={{ margin: '2px 0 0 0', fontSize: '12px', color: 'var(--text-secondary)' }}>Personalized insights</p>
-                </div>
-              </div>
-              <button
-                onClick={handleGetAiAdvice}
-                className="primary-btn"
-                disabled={aiLoading}
-                style={{ margin: 0, padding: '0 16px', fontSize: '13px', borderRadius: '12px', flexShrink: 0, height: '40px' }}
-              >
-                {aiLoading ? 'Thinking...' : 'Get Advice'}
-              </button>
-            </div>
-            {aiAdvice && (
-              <div style={{ fontSize: '14px', lineHeight: '1.6', color: 'var(--text-primary)', background: 'rgba(255,255,255,0.03)', padding: '16px', borderRadius: '16px', borderLeft: '4px solid var(--accent-cal)', marginTop: '16px' }}>
-                <div className="markdown-content">
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                    {aiAdvice}
-                  </ReactMarkdown>
-                </div>
-              </div>
-            )}
-          </section>
 
           {/* Water Tracker */}
           <section className="glass-panel" style={{ padding: '24px', position: 'relative' }}>
@@ -901,14 +881,61 @@ export default function Home() {
             )}
 
             <form id="add-food-form" onSubmit={(e) => { handleAddFood(e); setIsAddModalOpen(false); }}>
-              <div className="input-group">
+              <div className="input-group" style={{ position: 'relative' }}>
                 <input
                   type="text"
                   required
                   placeholder="What did you eat?"
                   value={foodInputs.name}
-                  onChange={e => setFoodInputs({ ...foodInputs, name: e.target.value })}
+                  onChange={e => {
+                    setFoodInputs({ ...foodInputs, name: e.target.value });
+                    handleSearch(e.target.value);
+                  }}
+                  onBlur={() => setTimeout(() => setSearchResults([]), 200)}
                 />
+                {searchResults.length > 0 && (
+                  <div style={{
+                    position: 'absolute',
+                    top: '100%',
+                    left: 0,
+                    right: 0,
+                    zIndex: 50,
+                    background: 'var(--panel-bg)',
+                    border: '1px solid var(--panel-border)',
+                    borderRadius: '12px',
+                    marginTop: '4px',
+                    boxShadow: '0 10px 25px rgba(0,0,0,0.5)',
+                    maxHeight: '200px',
+                    overflowY: 'auto',
+                    backdropFilter: 'blur(10px)'
+                  }}>
+                    {searchResults.map((item, idx) => (
+                      <div
+                        key={idx}
+                        onClick={() => selectSearchResult(item)}
+                        style={{
+                          padding: '10px 14px',
+                          cursor: 'pointer',
+                          borderBottom: idx === searchResults.length - 1 ? 'none' : '1px solid rgba(255,255,255,0.05)',
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center'
+                        }}
+                        className="search-result-item"
+                        onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
+                        onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                      >
+                        <div style={{ display: 'flex', flexDirection: 'column' }}>
+                          <span style={{ fontSize: '14px', fontWeight: 500 }}>{item.name}</span>
+                          <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
+                            P:{item.protein}g | C:{item.carbs}g | F:{item.fat}g
+                          </span>
+                        </div>
+                        <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--accent-cal)' }}>{item.calories} kcal</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
               <div className="input-row" style={{ marginTop: '12px' }}>
                 <div className="input-group">

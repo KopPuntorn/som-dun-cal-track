@@ -13,7 +13,8 @@
 
 ### 🤖 AI-Powered Health Insights
 - **AI Food Scan**: Take a photo of your meal (with lightning-fast client-side compression), and let our AI estimate nutritional values automatically.
-- **AI Performance Analyst & Chat**: Get detailed historical insights, personalized advice, and engage in real-time chat (via SSE) with a Personal AI Coach.
+- **AI Coach & Analyst**: Get personalized advice tailored to your **Health Objective** (Lose Fat, Build Muscle, etc.). Engaging in real-time chat (via SSE) or get deep historical performance analysis.
+- **Dynamic Language AI**: The AI coach automatically responds in your selected interface language (**Thai** or **English**).
 - **Barcode & QR Scanner**: Instantly track packaged foods by scanning their labels.
 
 ### 🌍 Multi-Language Support
@@ -26,8 +27,9 @@
 - **Persistent Sessions & Security**: Stay logged in securely with JWT, featuring automatic logout upon token expiration.
 
 ### 📊 Holistic Health Monitoring
+- **Personalized Goals**: Set specific objectives during onboarding (e.g., Maintain, Lose Weight, Gain Weight, Build Muscle) to receive context-aware coaching.
 - **Body Measurements**: Track waist circumference, body fat percentage, and attach progress photos.
-- **Weight Trends**: Log your daily weight and visualize progress.
+- **Weight Trends**: Log your daily weight and visualize progress with intuitive charts.
 - **Water Tracker**: Stay hydrated with a visual glass-based goal tracker.
 - **Exercise & Sleep Log**: Track activities, calories burned, sleep duration, and sleep quality.
 - **Data Export**: Easily download all your health tracking data as a `.csv` file.
@@ -49,7 +51,7 @@
 - **Structure**: Layered Architecture (cmd/api, internal handlers, db, models, routes)
 - **Database**: MongoDB
 - **Authentication**: JWT & Google OAuth 2.0 (24h token expiry with Auto-Logout)
-- **AI Integration**: Groq Cloud API (Llama 3/4)
+- **AI Integration**: Groq Cloud API (**OpenAI GPT-OSS 120B** for insights, Llama 4 for vision)
 
 ---
 

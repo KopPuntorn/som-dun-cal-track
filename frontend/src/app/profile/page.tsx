@@ -10,6 +10,7 @@ type Goals = {
     calories: number;
     protein: number;
     fat: number;
+    objective: string;
 };
 
 type UserProfile = {
@@ -32,7 +33,7 @@ export default function ProfilePage() {
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
-    const [goalInputs, setGoalInputs] = useState<Goals>({ calories: 2000, protein: 150, fat: 70 });
+    const [goalInputs, setGoalInputs] = useState<Goals>({ calories: 2000, protein: 150, fat: 70, objective: "" });
     const [userInputs, setUserInputs] = useState<UserProfile>({ name: "User", age: 25, weight: 70, height: 170, sex: "other" });
 
     useEffect(() => {
@@ -54,7 +55,8 @@ export default function ProfilePage() {
                     setGoalInputs({
                         calories: g.calories || 2000,
                         protein: g.protein || 150,
-                        fat: g.fat || 70
+                        fat: g.fat || 70,
+                        objective: g.objective || ""
                     });
                 }
 
@@ -238,6 +240,44 @@ export default function ProfilePage() {
                                     onChange={e => setGoalInputs({ ...goalInputs, fat: parseFloat(e.target.value) || 0 })}
                                 />
                             </div>
+                        </div>
+                    </div>
+
+                    <div style={{ marginBottom: '40px' }}>
+                        <h4 style={{ color: 'var(--accent-fat)', marginBottom: '20px', fontSize: '15px', textTransform: 'uppercase', letterSpacing: '1px', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '8px' }}>🎯 {t('healthObjective')}</h4>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px' }}>
+                            {[
+                                { value: '', label: t('noObjective'), emoji: '➖' },
+                                { value: 'lose_fat', label: t('loseFat'), emoji: '🔥' },
+                                { value: 'lose_weight', label: t('loseWeight'), emoji: '⬇️' },
+                                { value: 'gain_weight', label: t('gainWeight'), emoji: '⬆️' },
+                                { value: 'build_muscle', label: t('buildMuscle'), emoji: '💪' },
+                                { value: 'maintain', label: t('maintain'), emoji: '⚖️' },
+                            ].map(opt => (
+                                <button
+                                    key={opt.value}
+                                    type="button"
+                                    onClick={() => setGoalInputs({ ...goalInputs, objective: opt.value })}
+                                    style={{
+                                        padding: '16px 8px',
+                                        borderRadius: '16px',
+                                        border: goalInputs.objective === opt.value ? '2px solid var(--accent-pro)' : '1px solid rgba(255,255,255,0.1)',
+                                        background: goalInputs.objective === opt.value ? 'rgba(var(--accent-pro-rgb, 100, 200, 255), 0.15)' : 'rgba(0,0,0,0.3)',
+                                        color: goalInputs.objective === opt.value ? 'var(--accent-pro)' : 'var(--text-secondary)',
+                                        cursor: 'pointer',
+                                        fontSize: '13px',
+                                        fontWeight: goalInputs.objective === opt.value ? '600' : '400',
+                                        display: 'flex',
+                                        flexDirection: 'column',
+                                        alignItems: 'center',
+                                        gap: '6px',
+                                        transition: 'all 0.2s ease',
+                                    }}
+                                >
+                                    <span style={{ fontSize: '24px' }}>{opt.emoji}</span>
+                                    {opt.label}
+                                </button>
+                            ))}
                         </div>
                     </div>
 

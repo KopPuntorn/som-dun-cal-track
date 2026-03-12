@@ -48,6 +48,13 @@ export const translations = {
         other: "Other",
         saveProfile: "Save Profile & Goals",
         saving: "Saving...",
+        healthObjective: "Health Objective",
+        loseFat: "Lose Fat",
+        loseWeight: "Lose Weight",
+        gainWeight: "Gain Weight",
+        buildMuscle: "Build Muscle",
+        maintain: "Maintain",
+        noObjective: "Not Set",
 
         // Modals
         editFood: "Edit Food Entry",
@@ -119,6 +126,13 @@ export const translations = {
         other: "อื่นๆ",
         saveProfile: "บันทึกโปรไฟล์และเป้าหมาย",
         saving: "กำลังบันทึก...",
+        healthObjective: "เป้าหมายสุขภาพ",
+        loseFat: "ลดไขมัน",
+        loseWeight: "ลดน้ำหนัก",
+        gainWeight: "เพิ่มน้ำหนัก",
+        buildMuscle: "เพิ่มกล้ามเนื้อ",
+        maintain: "รักษาสมดุล",
+        noObjective: "ยังไม่ได้ตั้ง",
 
         // Modals
         editFood: "แก้ไขข้อมูลอาหาร",

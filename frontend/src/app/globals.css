@@ -1191,6 +1191,12 @@ input::placeholder {
   height: 90px;
 }
 
+.header-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
 @media (max-width: 768px) {
   .bottom-nav {
     display: flex;
@@ -1200,5 +1206,7 @@ input::placeholder {
     display: block !important;
   }
 
-  /* Optional: Hide top header or logo if we want a true app-like feel */
+  .mobile-hidden {
+    display: none !important;
+  }
 }
