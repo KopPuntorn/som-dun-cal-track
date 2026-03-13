@@ -95,3 +95,20 @@ type BodyMeasurement struct {
 	BodyFatPercentage   float64            `json:"bodyFatPercentage" bson:"bodyFatPercentage"`
 	ProgressPhotoURL    string             `json:"progressPhotoUrl,omitempty" bson:"progressPhotoUrl,omitempty"`
 }
+
+// ChatMessage represents a single message in a chat session
+type ChatMessage struct {
+	Role      string    `json:"role" bson:"role"` // user or assistant
+	Content   string    `json:"content" bson:"content"`
+	Timestamp time.Time `json:"timestamp" bson:"timestamp"`
+}
+
+// ChatSession represents a persistent conversation
+type ChatSession struct {
+	ID        primitive.ObjectID `json:"id" bson:"_id,omitempty"`
+	UserID    primitive.ObjectID `json:"userId" bson:"userId"`
+	Title     string             `json:"title" bson:"title"`
+	Messages  []ChatMessage      `json:"messages" bson:"messages"`
+	CreatedAt time.Time          `json:"createdAt" bson:"createdAt"`
+	UpdatedAt time.Time          `json:"updatedAt" bson:"updatedAt"`
+}

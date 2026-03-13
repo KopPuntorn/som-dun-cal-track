@@ -5,8 +5,11 @@ The frontend for SomDun is a high-performance, responsive web application built 
 ## ✨ Key Features
 - **Glassmorphic UI**: A modern, sleek design with subtle glows and transparency.
 - **Dynamic Dashboard**: Real-time tracking of calories, macro-nutrients, and health goals.
+- **Dynamic Athlete Player Card**: Sport-style performance visualization with monthly OVR ratings.
 - **Interactive Charts**: Progress visualization using Recharts.
-- **AI Integration**: One-click food analysis from images and personalized AI consulting.
+- **AI Coach & Persistent Chat**: Integrated AI consulting with chat history support.
+- **AI Food Analysis**: One-click food recognition from images.
+- **Improved Health Logging**: Granular sleep duration (hours/minutes) and exercise tracking.
 - **Multilingual**: Instant toggle between Thai and English.
 - **Automatic Session Handling**: Intelligent 401/404 interceptors for secure auto-logout.
 
@@ -14,6 +17,7 @@ The frontend for SomDun is a high-performance, responsive web application built 
 - **Next.js 14** (App Router)
 - **TypeScript**
 - **Tailwind CSS**
+- **Lucide React** (Icons)
 - **Date-fns** (Time management)
 - **React OAuth/Google** (Authentication)
 

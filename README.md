@@ -13,9 +13,20 @@
 
 ### 🤖 AI-Powered Health Insights
 - **AI Food Scan**: Take a photo of your meal (with lightning-fast client-side compression), and let our AI estimate nutritional values automatically.
-- **AI Coach & Analyst**: Get personalized advice tailored to your **Health Objective** (Lose Fat, Build Muscle, etc.). Engaging in real-time chat (via SSE) or get deep historical performance analysis.
+- **AI Coach & Analyst**: Get personalized advice tailored to your **Health Objective** (Lose Fat, Build Muscle, etc.). Engaging in persistent chat sessions (via SSE) or get deep historical performance analysis.
 - **Dynamic Language AI**: The AI coach automatically responds in your selected interface language (**Thai** or **English**).
 - **Barcode & QR Scanner**: Instantly track packaged foods by scanning their labels.
+
+### 🏆 Dynamic Athlete Player Card
+- **Monthly Performance Rating (OVR)**: Your health data is transformed into a sport-style "Player Card".
+- **Advanced Scoring**: Monthly ratings are calculated based on:
+    - **Nutrition (NUT)**: Calorie and protein adherence consistency.
+    - **Hydration (HYD)**: Daily water intake habits.
+    - **Fitness (FIT)**: Total activity minutes and calories burned.
+    - **Recovery (REC)**: Average sleep duration and quality.
+    - **Discipline (DIS)**: Logging consistency.
+    - **Endurance (END)**: Exercise frequency and durability.
+- **Rarity System**: Earn Bronze, Silver, Emerald, Gold, or Diamond status based on your performance.
 
 ### 🌍 Multi-Language Support
 - Full support for **Thai (TH)** and **English (EN)**.
@@ -31,7 +42,7 @@
 - **Body Measurements**: Track waist circumference, body fat percentage, and attach progress photos.
 - **Weight Trends**: Log your daily weight and visualize progress with intuitive charts.
 - **Water Tracker**: Stay hydrated with a visual glass-based goal tracker.
-- **Exercise & Sleep Log**: Track activities, calories burned, sleep duration, and sleep quality.
+- **Exercise & Sleep Log**: Track activities, calories burned, and sleep (granular hours and minutes tracking).
 - **Data Export**: Easily download all your health tracking data as a `.csv` file.
 
 ---
@@ -102,6 +113,20 @@
 - `src/app/`: Next.js pages and layouts.
 - `src/context/`: Global states (Auth with 401/404 handling, Language, UI).
 - `src/components/`: Reusable UI elements.
+
+---
+
+## ⚖️ Disclaimer
+
+**SomDun** is an AI-powered tool designed to assist with nutritional awareness and should not be used as a substitute for professional medical advice, diagnosis, or treatment. 
+
+### AI Accuracy Note
+Based on modern research (Stanford 2025, ArXiv 2024), AI food recognition systems achieve high accuracy (up to 94%) but can still vary based on:
+- **Image Quality**: Lighting, focus, and camera angle.
+- **Complex Dishes**: Multi-ingredient or culturally specific meals may have a higher margin of error.
+- **Portion Estimation**: AI estimations are based on visual volume and typical serving sizes.
+
+Always consult with a registered dietitian or healthcare provider before making significant changes to your diet or health regimen.
 
 ---
 

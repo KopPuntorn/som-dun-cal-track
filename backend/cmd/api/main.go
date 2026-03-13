@@ -52,7 +52,7 @@ func main() {
 	}
 
 	e.Use(echoMiddleware.CORSWithConfig(echoMiddleware.CORSConfig{
-		AllowOrigins: []string{frontendURL},
+		AllowOrigins: []string{frontendURL, "http://localhost:3000", "http://127.0.0.1:3000"},
 		AllowMethods: []string{echo.GET, echo.PUT, echo.POST, echo.DELETE, echo.OPTIONS},
 		AllowHeaders: []string{echo.HeaderOrigin, echo.HeaderContentType, echo.HeaderAccept, echo.HeaderAuthorization},
 		MaxAge:       86400, // Cache preflight requests for 24 hours

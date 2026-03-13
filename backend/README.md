@@ -11,12 +11,15 @@ The project is structured according to the following internal packages:
   - `goals.go`: Nutritional target management.
   - `user.go`: Profile settings.
   - `ai.go`: Integration with Groq API for image-to-nutrition and RAG chat.
+  - `chat_sessions.go`: Management of persistent AI coaching conversations.
   - `health.go`: Secondary health metrics (Water, Weight, Sleep, Exercise).
+  - `dashboard.go`: Summary of daily activities and progress.
+  - `player_card.go`: Monthly performance rating (OVR) calculation.
   - `export.go`: Data portability (CSV export).
 - **`internal/models/`**: Centralized MongoDB schemas and shared data types.
 - **`internal/db/`**: Database connection management and collection initialization.
 - **`internal/routes/`**: Centralized API route registration.
-- **`internal/middleware/`**: Cross-cutting concerns like JWT validation and 401/404 handling logic.
+- **`internal/middleware/`**: Cross-cutting concerns like JWT validation, logging, and 401/404 handling logic.
 
 ## 🚀 Getting Started
 
@@ -47,4 +50,4 @@ The project is structured according to the following internal packages:
 - **MongoDB** (NoSQL database)
 - **JWT** (Stateless authentication)
 - **Bcrypt** (Secure password hashing)
-- **Groq Cloud** (Llama 3/4 LLM support)
+- **Groq Cloud** (Llama 3/4 LLM support & vision)

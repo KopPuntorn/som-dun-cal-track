@@ -53,48 +53,35 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const originalFetch = window.fetch;
         window.fetch = async (input, init) => {
             const url = typeof input === 'string' ? input : (input instanceof Request ? input.url : '');
+            
+            // Bypass interceptor for non-API calls or auth calls (to avoid infinite loops)
+            if (!url.includes('/api/') || url.includes('/auth/')) {
+                return originalFetch(input, init);
+            }
 
-            // Clone or create init to avoid mutating the original reference in a way that breaks re-tries
-            let fetchInit = init ? { ...init } : {};
-
-            if (url.includes('/api/') && !url.includes('/auth/')) {
-                const currentToken = localStorage.getItem("auth_token");
-                if (currentToken) {
-                    fetchInit.headers = {
-                        ...fetchInit.headers,
-                        'Authorization': `Bearer ${currentToken}`
-                    };
+            const currentToken = localStorage.getItem("auth_token");
+            let fetchInit = init || {};
+            
+            if (currentToken) {
+                // Use Headers object for more reliable merging
+                const headers = new Headers(fetchInit.headers);
+                if (!headers.has('Authorization')) {
+                    headers.set('Authorization', `Bearer ${currentToken}`);
                 }
+                fetchInit = { ...fetchInit, headers };
             }
 
             try {
                 const response = await originalFetch(input, fetchInit);
 
-                const isAuthEndpoint = url.includes('/auth/');
-                const isUserEndpoint = url.includes('/api/user');
-
-                if ((response.status === 401 && !isAuthEndpoint) || (response.status === 404 && isUserEndpoint)) {
-                    // Token likely expired, invalid, or user was deleted from DB
+                if (response.status === 401 || (response.status === 404 && url.includes('/api/user'))) {
                     console.warn(`Auth failure (${response.status}) at ${url}. Logging out...`);
                     handleForceLogout();
                 }
 
                 return response;
             } catch (error) {
-                // Handle network errors which might be CORS preflight failures (e.g. expired token causing 401 on OPTIONS)
-                console.error(`Fetch error at ${url}:`, error);
-
-                // If it's a protected route and we have a token, but got a network error, 
-                // it's highly likely a CORS/Auth issue on direct page load
-                if (url.includes('/api/') && !url.includes('/auth/')) {
-                    const hasToken = !!localStorage.getItem("auth_token");
-                    if (hasToken) {
-                        console.warn("Possible Auth/CORS error detected via network failure. Checking session...");
-                        // We don't force logout immediately on EVERY network error to be safe, 
-                        // but for critical app-load path it might be necessary.
-                        // However, the backend fix (AllowHeaders) should prevent this.
-                    }
-                }
+                console.error(`Fetch network error at ${url}:`, error);
                 throw error;
             }
         };
@@ -104,7 +91,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             localStorage.removeItem("auth_user");
             setToken(null);
             setUser(null);
-            // Use window.location as a fallback if the app state isn't immediately reactive
             if (window.location.pathname !== "/login") {
                 window.location.href = "/login";
             }
