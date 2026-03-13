@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/context/ToastContext";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { useLanguage } from "@/context/LanguageContext";
 
 type Goals = {
@@ -132,9 +133,14 @@ export default function ProfilePage() {
                     </button>
                     <h1>{t('profileSettings')}</h1>
                 </div>
-                <button onClick={handleLogout} className="icon-btn" title={t('logout')} style={{ color: "var(--danger)" }}>
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
-                </button>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <Link href="/player-card" className="icon-btn" title="Player Card">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>
+                    </Link>
+                    <button onClick={handleLogout} className="icon-btn" title={t('logout')} style={{ color: "var(--danger)" }}>
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+                    </button>
+                </div>
             </header>
 
             {error && (
@@ -281,7 +287,13 @@ export default function ProfilePage() {
                         </div>
                     </div>
 
-                    <button type="submit" className="primary-btn" disabled={saving} style={{ marginTop: '32px', padding: '18px', width: '100%', fontSize: '16px' }}>
+                    <div style={{ marginTop: '24px', marginBottom: '24px', padding: '12px', background: 'rgba(255,255,255,0.03)', borderRadius: '12px', borderLeft: '3px solid var(--accent-pro)' }}>
+                        <p style={{ fontSize: '12px', color: 'var(--text-secondary)', fontStyle: 'italic', margin: 0 }}>
+                            * {t('medicalDisclaimer')}
+                        </p>
+                    </div>
+
+                    <button type="submit" className="primary-btn" disabled={saving} style={{ marginTop: '0', padding: '18px', width: '100%', fontSize: '16px' }}>
                         {saving ? t('saving') : t('saveProfile')}
                     </button>
                 </form>

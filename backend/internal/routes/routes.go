@@ -57,4 +57,16 @@ func SetupRoutes(e *echo.Echo) {
 	api.POST("/analyze-image", handlers.AnalyzeImage)
 	api.POST("/consult", handlers.ConsultAI)
 	api.POST("/chat", handlers.ChatAI)
+
+	// Dashboard
+	api.GET("/dashboard/summary", handlers.GetDashboardSummary)
+
+	// Player Card
+	api.GET("/player-card", handlers.GetPlayerCard)
+
+	// Chat Sessions
+	api.POST("/chat/sessions", handlers.CreateChatSession)
+	api.GET("/chat/sessions", handlers.ListChatSessions)
+	api.GET("/chat/sessions/:id", handlers.GetChatSession)
+	api.DELETE("/chat/sessions/:id", handlers.DeleteChatSession)
 }

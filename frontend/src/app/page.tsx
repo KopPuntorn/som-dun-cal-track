@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { startOfDay, endOfDay, format } from 'date-fns';
+import { startOfDay, endOfDay, format, subDays } from 'date-fns';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useZxing } from "react-zxing";
@@ -43,6 +43,27 @@ type UserProfile = {
   sex: string;
 };
 
+type ChatSession = {
+  id: string;
+  title: string;
+  updatedAt: string;
+};
+
+type ExerciseRecord = {
+  id: string;
+  name: string;
+  durationMinutes: number;
+  caloriesBurned: number;
+  date: string;
+};
+
+type SleepRecord = {
+  id: string;
+  durationHours: number;
+  quality: string;
+  date: string;
+};
+
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080/api";
 
 export default function Home() {
@@ -60,11 +81,18 @@ export default function Home() {
   const [chatMessages, setChatMessages] = useState<{ role: 'user' | 'assistant', content: string }[]>([]);
   const [chatInput, setChatInput] = useState("");
   const [isChatOpen, setIsChatOpen] = useState(false);
+  const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
+  const [isLoadingSessions, setIsLoadingSessions] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searchResults, setSearchResults] = useState<Food[]>([]);
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const [waterGlasses, setWaterGlasses] = useState(0);
+  const [exerciseInput, setExerciseInput] = useState({ name: '', durationMinutes: 30, caloriesBurned: 0 });
+  const [sleepInput, setSleepInput] = useState({ durationHours: 8, durationMinutes: 0, quality: 'Good' });
+  const [exerciseToday, setExerciseToday] = useState(0);
+  const [sleepToday, setSleepToday] = useState(0);
+
   const [recentFoods, setRecentFoods] = useState<any[]>([]);
   const [editingFood, setEditingFood] = useState<Food | null>(null);
   const [editInputs, setEditInputs] = useState({ name: "", calories: "", protein: "", carbs: "", fat: "", sugar: "", sodium: "", fiber: "", mealCategory: "Breakfast" });
@@ -181,69 +209,52 @@ export default function Home() {
       dataFetchedRef.current = true;
 
       try {
-        const now = new Date();
-        const start = startOfDay(now).toISOString();
-        const end = endOfDay(now).toISOString();
+        const response = await fetch(`${API_BASE}/dashboard/summary`);
+        if (!response.ok) {
+          throw new Error("Failed to fetch dashboard summary");
+        }
+        
+        const data = await response.json();
 
-        const [goalsRes, foodsRes, userRes, waterRes, allFoodsRes] = await Promise.all([
-          fetch(`${API_BASE}/goals`),
-          fetch(`${API_BASE}/foods?start=${start}&end=${end}`),
-          fetch(`${API_BASE}/user`),
-          fetch(`${API_BASE}/water?date=${format(now, 'yyyy-MM-dd')}`),
-          fetch(`${API_BASE}/foods`)
-        ]);
-
-        if (goalsRes.ok) {
-          const g = await goalsRes.json();
+        if (data.goals) {
           const newGoals = {
-            calories: g.calories || 2000,
-            protein: g.protein || 150,
-            carbs: g.carbs || 250,
-            fat: g.fat || 70,
-            sugar: g.sugar || 50,
-            sodium: g.sodium || 2000,
-            fiber: g.fiber || 30
+            calories: data.goals.calories || 2000,
+            protein: data.goals.protein || 150,
+            carbs: data.goals.carbs || 250,
+            fat: data.goals.fat || 70,
+            sugar: data.goals.sugar || 50,
+            sodium: data.goals.sodium || 2000,
+            fiber: data.goals.fiber || 30
           };
           setGoals(newGoals);
         }
 
-        if (userRes.ok) {
-          const u = await userRes.json();
+        if (data.user) {
           const newUser = {
-            name: u.name || "User",
-            age: u.age || 25,
-            weight: u.weight || 70,
-            height: u.height || 170,
-            sex: u.sex || "other"
+            name: data.user.name || "User",
+            age: data.user.age || 25,
+            weight: data.user.weight || 70,
+            height: data.user.height || 170,
+            sex: data.user.sex || "other"
           };
           setUser(newUser);
         }
 
-        if (foodsRes.ok) {
-          const f = await foodsRes.json();
-          setFoods(f || []);
-        }
+        setFoods(data.todayFoods || []);
+        setWaterGlasses(data.waterToday?.glasses || 0);
+        setRecentFoods(data.recentFoods || []);
 
-        if (waterRes.ok) {
-          const w = await waterRes.json();
-          setWaterGlasses(w.glasses || 0);
-        }
+        // Today's summary for Exercise & Sleep
+        const today = format(new Date(), 'yyyy-MM-dd');
+        const exToday = (data.exerciseRecent || [])
+          .filter((e: ExerciseRecord) => format(new Date(e.date), 'yyyy-MM-dd') === today)
+          .reduce((sum: number, e: ExerciseRecord) => sum + e.durationMinutes, 0);
+        setExerciseToday(exToday);
 
-        if (allFoodsRes.ok) {
-          const allF = await allFoodsRes.json();
-          if (Array.isArray(allF)) {
-            const uniqueNames = new Set();
-            const recent = [];
-            for (const f of allF) {
-              if (!uniqueNames.has(f.name)) {
-                uniqueNames.add(f.name);
-                recent.push(f);
-                if (recent.length >= 5) break;
-              }
-            }
-            setRecentFoods(recent);
-          }
-        }
+        const slToday = (data.sleepRecent || [])
+          .filter((s: SleepRecord) => format(new Date(s.date), 'yyyy-MM-dd') === today)
+          .reduce((sum: number, s: SleepRecord) => sum + s.durationHours, 0);
+        setSleepToday(slToday);
       } catch (err) {
         console.error("Failed to fetch data", err);
         setError("Failed to reach the server. Make sure the Go backend is running and MongoDB is connected.");
@@ -253,11 +264,56 @@ export default function Home() {
     }
 
     fetchData();
+    fetchChatSessions();
 
     return () => {
       window.removeEventListener('openAddFoodModal', handleOpenModal);
     };
   }, [authLoading]);
+
+  const fetchChatSessions = async () => {
+    setIsLoadingSessions(true);
+    try {
+      const res = await fetch(`${API_BASE}/chat/sessions`);
+      if (res.ok) {
+        const data = (await res.json()) || [];
+        if (data.length > 0) {
+          // Auto-select the most recent session (since we only want one)
+          setActiveSessionId(data[0].id);
+          // Fetch its messages
+          const msgRes = await fetch(`${API_BASE}/chat/sessions/${data[0].id}`);
+          if (msgRes.ok) {
+            const session = await msgRes.json();
+            setChatMessages(session.messages || []);
+          }
+        } else {
+          // Create a default session if none exists
+          createNewSession();
+        }
+      }
+    } catch (err) {
+      console.error("Failed to fetch sessions", err);
+    } finally {
+      setIsLoadingSessions(false);
+    }
+  };
+
+  const createNewSession = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/chat/sessions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title: "My Chat" }),
+      });
+      if (res.ok) {
+        const newSession = await res.json();
+        setActiveSessionId(newSession.id);
+        setChatMessages([]);
+      }
+    } catch (err) {
+      console.error("Failed to create session", err);
+    }
+  };
 
   // Handlers
   const handleUpdateWater = async (increment: number) => {
@@ -275,6 +331,57 @@ export default function Home() {
       });
     } catch (err) {
       console.error(err);
+    }
+  };
+
+  const handleLogExercise = async () => {
+    if (!exerciseInput.name || exerciseInput.durationMinutes <= 0) {
+      showToast("Please enter activity name and duration", "error");
+      return;
+    }
+    try {
+      const res = await fetch(`${API_BASE}/exercise`, {
+        method: 'POST',
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(exerciseInput)
+      });
+      if (res.ok) {
+        setExerciseToday(prev => prev + Number(exerciseInput.durationMinutes));
+        setExerciseInput({ name: '', durationMinutes: 30, caloriesBurned: 0 });
+        showToast("Activity logged!", "success");
+      }
+    } catch (err) {
+      console.error(err);
+      showToast("Failed to log activity", "error");
+    }
+  };
+
+  const handleLogSleep = async () => {
+    if (sleepInput.durationHours <= 0) {
+      showToast("Please enter valid sleep hours", "error");
+      return;
+    }
+    try {
+      // Attribute sleep to yesterday (the night that just passed)
+      const yesterday = subDays(new Date(), 1).toISOString();
+      const totalHours = Number(sleepInput.durationHours) + (Number(sleepInput.durationMinutes) / 60);
+      const res = await fetch(`${API_BASE}/sleep`, {
+        method: 'POST',
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          durationHours: totalHours,
+          quality: sleepInput.quality,
+          date: yesterday 
+        })
+      });
+      if (res.ok) {
+        setSleepToday(prev => prev + totalHours);
+        setSleepInput({ durationHours: 8, durationMinutes: 0, quality: 'Good' });
+        showToast("Sleep logged for yesterday!", "success");
+      }
+    } catch (err) {
+      console.error(err);
+      showToast("Failed to log sleep", "error");
     }
   };
 
@@ -513,6 +620,12 @@ export default function Home() {
     e.preventDefault();
     if (!chatInput.trim() || aiLoading) return;
 
+    let sessionId = activeSessionId;
+
+    // If no active session, create one first or use a scratch session (stateless)
+    // For this implementation, we allow stateless chat if no session is selected,
+    // but the backend will only persist if sessionId is provided.
+    
     const userMsg = { role: 'user' as const, content: chatInput };
     setChatMessages(prev => [...prev, userMsg]);
     setChatInput("");
@@ -522,7 +635,11 @@ export default function Home() {
       const res = await fetch(`${API_BASE}/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: [...chatMessages, userMsg], language }),
+        body: JSON.stringify({ 
+          sessionId: sessionId,
+          messages: sessionId ? [userMsg] : [...chatMessages, userMsg], 
+          language 
+        }),
       });
 
       if (res.ok) {
@@ -609,6 +726,9 @@ export default function Home() {
           </button>
 
 
+          <Link href="/player-card" className="icon-btn" title="Player Card">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>
+          </Link>
           <Link href="/dashboard" className="icon-btn mobile-hidden" title={t('analyticsTitle')}>
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
           </Link>
@@ -724,9 +844,33 @@ export default function Home() {
         </div>
 
         <div className="layout-column">
+          {/* Desktop Add Button */}
+          <div className="desktop-only" style={{ marginBottom: '20px' }}>
+            <button
+              onClick={() => setIsAddModalOpen(true)}
+              className="primary-btn"
+              style={{ width: '100%', padding: '14px', fontSize: '16px', margin: 0, boxShadow: '0 4px 15px rgba(0,0,0,0.2)' }}
+            >
+              + {t('addFood')}
+            </button>
+          </div>
+
+          {/* Recent Foods */}
+          {recentFoods.length > 0 && (
+            <section className="glass-panel" style={{ padding: '16px', marginBottom: '20px' }}>
+              <h3 style={{ fontSize: '14px', marginBottom: '12px', color: 'var(--text-secondary)' }}>Recent Foods</h3>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                {recentFoods.map((f, i) => (
+                  <button key={i} onClick={() => handleQuickAdd(f)} className="primary-btn outline" style={{ padding: '6px 12px', fontSize: '12px', margin: 0 }}>
+                    + {f.name}
+                  </button>
+                ))}
+              </div>
+            </section>
+          )}
 
           {/* Water Tracker */}
-          <section className="glass-panel" style={{ padding: '24px', position: 'relative' }}>
+          <section className="glass-panel" style={{ padding: '24px', position: 'relative', marginBottom: '20px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px', marginBottom: '20px' }}>
               <div>
                 <h3 style={{ margin: '0 0 4px 0', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '16px', fontWeight: 600 }}>
@@ -758,30 +902,78 @@ export default function Home() {
             </div>
           </section>
 
-          {/* Desktop Add Button */}
-          <div className="desktop-only" style={{ marginBottom: '20px' }}>
-            <button
-              onClick={() => setIsAddModalOpen(true)}
-              className="primary-btn"
-              style={{ width: '100%', padding: '14px', fontSize: '16px', margin: 0, boxShadow: '0 4px 15px rgba(0,0,0,0.2)' }}
-            >
-              + {t('addFood')}
-            </button>
-          </div>
-
-          {/* Recent Foods */}
-          {recentFoods.length > 0 && (
-            <section className="glass-panel" style={{ padding: '16px', marginBottom: '20px' }}>
-              <h3 style={{ fontSize: '14px', marginBottom: '12px', color: 'var(--text-secondary)' }}>Recent Foods</h3>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                {recentFoods.map((f, i) => (
-                  <button key={i} onClick={() => handleQuickAdd(f)} className="primary-btn outline" style={{ padding: '6px 12px', fontSize: '12px', margin: 0 }}>
-                    + {f.name}
-                  </button>
-                ))}
+          {/* Exercise Logger */}
+          <section className="glass-panel" style={{ padding: '20px', marginBottom: '20px' }}>
+            <h3 style={{ margin: '0 0 16px 0', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '16px', fontWeight: 600 }}>
+              <span style={{ color: '#ff375f', fontSize: '18px' }}>🔥</span> {t('fit')}
+            </h3>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <input
+                  type="text"
+                  placeholder="Activity (e.g. Run)"
+                  value={exerciseInput.name}
+                  onChange={e => setExerciseInput({ ...exerciseInput, name: e.target.value })}
+                  style={{ flex: 2, padding: '10px 14px', borderRadius: '10px', fontSize: '14px' }}
+                />
+                <input
+                  type="number"
+                  placeholder="Mins"
+                  value={exerciseInput.durationMinutes || ''}
+                  onChange={e => setExerciseInput({ ...exerciseInput, durationMinutes: Number(e.target.value) })}
+                  style={{ flex: 1, padding: '10px 14px', borderRadius: '10px', fontSize: '14px' }}
+                />
               </div>
-            </section>
-          )}
+              <button onClick={handleLogExercise} className="primary-btn" style={{ margin: 0, padding: '10px', fontSize: '14px', background: 'var(--accent-cal-gradient)', border: 'none' }}>
+                Log Activity ({exerciseToday}m today)
+              </button>
+            </div>
+          </section>
+
+          {/* Sleep Logger */}
+          <section className="glass-panel" style={{ padding: '20px', marginBottom: '20px' }}>
+            <h3 style={{ margin: '0 0 16px 0', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '16px', fontWeight: 600 }}>
+              <span style={{ color: '#bf5af2', fontSize: '18px' }}>🌙</span> {t('rec')}
+            </h3>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <div style={{ flex: 1, position: 'relative' }}>
+                  <input
+                    type="number"
+                    placeholder="Hr"
+                    value={sleepInput.durationHours || ''}
+                    onChange={e => setSleepInput({ ...sleepInput, durationHours: Number(e.target.value) })}
+                    style={{ width: '100%', padding: '10px 14px', borderRadius: '10px', fontSize: '14px' }}
+                  />
+                  <span style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', fontSize: '12px', color: 'var(--text-secondary)' }}>h</span>
+                </div>
+                <div style={{ flex: 1, position: 'relative' }}>
+                  <input
+                    type="number"
+                    placeholder="Min"
+                    value={sleepInput.durationMinutes || ''}
+                    onChange={e => setSleepInput({ ...sleepInput, durationMinutes: Number(e.target.value) })}
+                    style={{ width: '100%', padding: '10px 14px', borderRadius: '10px', fontSize: '14px' }}
+                  />
+                  <span style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', fontSize: '12px', color: 'var(--text-secondary)' }}>m</span>
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <select
+                  value={sleepInput.quality}
+                  onChange={e => setSleepInput({ ...sleepInput, quality: e.target.value })}
+                  style={{ flex: 1, padding: '10px', borderRadius: '10px', border: '1px solid var(--panel-border)', background: 'var(--bg-color)', color: 'var(--text-primary)', fontSize: '14px' }}
+                >
+                  <option value="Good">Good</option>
+                  <option value="Fair">Fair</option>
+                  <option value="Poor">Poor</option>
+                </select>
+                <button onClick={handleLogSleep} className="primary-btn outline" style={{ flex: 1.5, margin: 0, padding: '10px', fontSize: '14px' }}>
+                  Log Sleep ({Math.round(sleepToday * 10) / 10}h today)
+                </button>
+              </div>
+            </div>
+          </section>
 
           {/* Today's Foods */}
           <section className="foods-list-section">
@@ -872,6 +1064,9 @@ export default function Home() {
                   </label>
                 </div>
               </div>
+              <p style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '4px', fontStyle: 'italic', lineHeight: '1.4' }}>
+                * {t('aiDisclaimer')}
+              </p>
             </div>
 
             {isScanning && (
@@ -1036,17 +1231,31 @@ export default function Home() {
         </div>
       )}
 
-      {/* Floating AI Chat Bubble */}
+      {/* Simplified AI Chat Widget */}
       <div className={`chat-widget ${isChatOpen ? 'open' : ''}`}>
         {isChatOpen && (
-          <div className="chat-window glass-panel">
-            <div className="chat-header">
-              <h3>AI Personal Assistant</h3>
-              <button onClick={() => setIsChatOpen(false)} className="close-btn">&times;</button>
+          <div className="chat-window shadow-2xl">
+            {/* Header */}
+            <div className="chat-header" style={{ padding: '16px 24px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'var(--success)', boxShadow: '0 0 10px var(--success)' }}></div>
+                <h3>AI Assistant</h3>
+              </div>
+              <button 
+                onClick={() => setIsChatOpen(false)} 
+                className="close-btn"
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+              </button>
             </div>
-            <div className="chat-messages">
+
+            {/* Chat Messages */}
+            <div className="chat-messages" style={{ paddingTop: '12px' }}>
               {chatMessages.length === 0 && (
-                <div className="msg-placeholder">สวัสดีครับ! มีอะไรให้ช่วยเรื่องโภชนาการไหมครับ?</div>
+                <div className="msg-placeholder" style={{ display: 'flex', flexDirection: 'column', gap: '12px', opacity: 0.7, padding: '40px 20px' }}>
+                  <div style={{ fontSize: '32px' }}>👋</div>
+                  <p>สวัสดีครับ! ผมเป็นผู้ช่วยดูแลสุขภาพของคุณ มีอะไรพิมคุยกันได้เลยครับ</p>
+                </div>
               )}
               {chatMessages.map((m, i) => {
                 const { cleanContent, foods: detectedFoods } = parseAiResponse(m.content);
@@ -1059,13 +1268,13 @@ export default function Home() {
                         </ReactMarkdown>
                       </div>
                       {detectedFoods.length > 0 && m.role === 'assistant' && (
-                        <div className="detected-foods" style={{ marginTop: '10px', display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                        <div className="detected-foods" style={{ marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
                           {detectedFoods.map((f, fi) => (
                             <button
                               key={fi}
                               onClick={() => handleQuickAdd(f)}
-                              className="primary-btn"
-                              style={{ padding: '6px 12px', fontSize: '11px', margin: 0, justifyContent: 'center' }}
+                              className="primary-btn outline"
+                              style={{ padding: '8px 16px', fontSize: '12px', margin: 0, justifyContent: 'center', background: 'rgba(255,255,255,0.05)', borderStyle: 'solid' }}
                             >
                               + เพิ่ม {f.name} ({f.calories} kcal)
                             </button>
@@ -1076,26 +1285,38 @@ export default function Home() {
                   </div>
                 );
               })}
-              {aiLoading && <div className="message assistant"><div className="msg-bubble loading-dots">...</div></div>}
+              {aiLoading && (
+                <div className="message assistant">
+                  <div className="msg-bubble" style={{ background: 'transparent', boxShadow: 'none' }}>
+                    <div className="loading-dots">Thinking...</div>
+                  </div>
+                </div>
+              )}
             </div>
+
+            {/* Input Area */}
             <form className="chat-input-area" onSubmit={handleSendMessage}>
               <input
                 type="text"
-                placeholder="พิมพ์ข้อความ..."
+                placeholder="Message..."
                 value={chatInput}
                 onChange={(e) => setChatInput(e.target.value)}
                 autoFocus
               />
-              <button type="submit" disabled={aiLoading}>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+              <button type="submit" disabled={aiLoading || !chatInput.trim()}>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
               </button>
             </form>
           </div>
         )}
-        <button className="chat-toggle-btn" onClick={() => setIsChatOpen(!isChatOpen)}>
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
-          </svg>
+        <button className="chat-toggle-btn shadow-lg" onClick={() => setIsChatOpen(!isChatOpen)}>
+          {isChatOpen ? (
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+          ) : (
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+            </svg>
+          )}
         </button>
       </div>
     </div>

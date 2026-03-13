@@ -104,7 +104,7 @@ export default function DashboardPage() {
     const [exerciseInput, setExerciseInput] = useState({ name: '', durationMinutes: 30, caloriesBurned: 0 });
 
     const [sleeps, setSleeps] = useState<SleepRecord[]>([]);
-    const [sleepInput, setSleepInput] = useState({ durationHours: 8, quality: 'Good' });
+    const [sleepInput, setSleepInput] = useState({ durationHours: 8, durationMinutes: 0, quality: 'Good' });
 
     // Custom Date States
     const [customStart, setCustomStart] = useState<string>(format(subDays(new Date(), 7), 'yyyy-MM-dd'));
@@ -302,15 +302,24 @@ export default function DashboardPage() {
         }
         try {
             setError(null);
+            // Attribute sleep to yesterday (the night that just passed)
+            const yesterday = subDays(new Date(), 1).toISOString();
+            const totalHours = Number(sleepInput.durationHours) + (Number(sleepInput.durationMinutes) / 60);
             const res = await fetch(`${API_BASE}/sleep`, {
                 method: 'POST',
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(sleepInput)
+                body: JSON.stringify({ 
+                    durationHours: totalHours,
+                    quality: sleepInput.quality,
+                    date: yesterday 
+                })
             });
             if (res.ok) {
                 const newSl = await res.json();
                 setSleeps([newSl, ...sleeps]);
-                setSleepInput({ durationHours: 8, quality: 'Good' });
+                setSleepInput({ durationHours: 8, durationMinutes: 0, quality: 'Good' });
+                // We don't necessarily update a "sleepToday" state here like on Home page
+                // as the charts will re-aggregate on next fetch or we could manually append.
             } else {
                 setError("Failed to save sleep data.");
             }
@@ -380,66 +389,37 @@ export default function DashboardPage() {
                         break;
                 }
 
+                let summaryUrl = `${API_BASE}/dashboard/summary`;
                 if (start) {
-                    url += `?start=${start.toISOString()}&end=${end.toISOString()}`;
+                    summaryUrl += `?start=${start.toISOString()}&end=${end.toISOString()}`;
                 }
 
-                const [goalsRes, foodsRes, userRes, weightsRes, waterRes, exerciseRes, sleepRes, measurementsRes] = await Promise.all([
-                    fetch(`${API_BASE}/goals`),
-                    fetch(url),
-                    fetch(`${API_BASE}/user`),
-                    fetch(`${API_BASE}/weight${start ? `?start=${start.toISOString()}&end=${end.toISOString()}` : ''}`),
-                    fetch(`${API_BASE}/water?date=${format(end, 'yyyy-MM-dd')}`),
-                    fetch(`${API_BASE}/exercise${start ? `?start=${start.toISOString()}&end=${end.toISOString()}` : ''}`),
-                    fetch(`${API_BASE}/sleep${start ? `?start=${start.toISOString()}&end=${end.toISOString()}` : ''}`),
-                    fetch(`${API_BASE}/measurements${start ? `?start=${start.toISOString()}&end=${end.toISOString()}` : ''}`)
-                ]);
+                const response = await fetch(summaryUrl);
+                if (!response.ok) {
+                    throw new Error(`Failed to fetch dashboard summary: ${response.status}`);
+                }
 
-                if (goalsRes.ok) {
-                    const g = await goalsRes.json();
+                const data = await response.json();
+
+                // Update all states from the consolidated data
+                if (data.goals) {
                     setGoals({
-                        calories: g.calories || 2000,
-                        protein: g.protein || 150,
-                        fat: g.fat || 70
+                        calories: data.goals.calories || 2000,
+                        protein: data.goals.protein || 150,
+                        fat: data.goals.fat || 70
                     });
                 }
 
-                if (userRes.ok) {
-                    const u = await userRes.json();
-                    setUser(u);
+                if (data.user) {
+                    setUser(data.user);
                 }
 
-                if (foodsRes.ok) {
-                    const f = await foodsRes.json();
-                    setFoods(f || []);
-                } else {
-                    console.error("Failed to fetch foods", foodsRes.status);
-                }
-
-                if (weightsRes.ok) {
-                    const w = await weightsRes.json();
-                    setWeights(w || []);
-                }
-
-                if (measurementsRes.ok) {
-                    const m = await measurementsRes.json();
-                    setMeasurements(m || []); // Backend returns sorted desc, we map later
-                }
-
-                if (waterRes.ok) {
-                    const w = await waterRes.json();
-                    setWater(w?.glasses || 0);
-                }
-
-                if (exerciseRes.ok) {
-                    const ex = await exerciseRes.json();
-                    setExercises(ex || []);
-                }
-
-                if (sleepRes.ok) {
-                    const s = await sleepRes.json();
-                    setSleeps(s || []);
-                }
+                setFoods(data.todayFoods || []);
+                setWeights(data.weightRecent || []);
+                setMeasurements(data.measurementsRecent || []);
+                setWater(data.waterToday?.glasses || 0);
+                setExercises(data.exerciseRecent || []);
+                setSleeps(data.sleepRecent || []);
             } catch (err) {
                 console.error("Failed to fetch data", err);
                 setError("Failed to reach the server.");
@@ -541,6 +521,9 @@ export default function DashboardPage() {
                     >
                         {language === 'en' ? 'TH' : 'EN'}
                     </button>
+                    <Link href="/player-card" className="icon-btn" title="Player Card">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>
+                    </Link>
                     <Link href="/profile" className="icon-btn mobile-hidden" title={t('profileSettings')}>
                         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
                     </Link>

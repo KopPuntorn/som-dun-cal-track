@@ -207,7 +207,7 @@ func callGroq(c echo.Context, groqReq GroqChatRequest) error {
 	return c.String(http.StatusOK, groqResp.Choices[0].Message.Content)
 }
 
-// ChatAI provides a general personal chat interface
+// ChatAI provides a general personal chat interface with session persistence
 func ChatAI(c echo.Context) error {
 	apiKey := os.Getenv("GROQ_API_KEY")
 	if apiKey == "" {
@@ -215,8 +215,9 @@ func ChatAI(c echo.Context) error {
 	}
 
 	var data struct {
-		Messages []GroqMessage `json:"messages"`
-		Language string        `json:"language"`
+		SessionID string        `json:"sessionId"`
+		Messages  []GroqMessage `json:"messages"`
+		Language  string        `json:"language"`
 	}
 	if err := c.Bind(&data); err != nil {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid request body"})
@@ -228,12 +229,59 @@ func ChatAI(c echo.Context) error {
 		langInstruction = "You MUST respond entirely in English. Use professional, natural, smooth, and highly expert language, like a premium consultant. "
 	}
 
-	// --- RAG: Fetch Context from DB ---
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	userID := c.Get("userID").(primitive.ObjectID)
 
+	// --- Session Management ---
+	var sessionID primitive.ObjectID
+	var session models.ChatSession
+	useSession := false
+
+	if data.SessionID != "" {
+		if id, err := primitive.ObjectIDFromHex(data.SessionID); err == nil {
+			sessionID = id
+			err = db.ChatSessionsCollection.FindOne(ctx, bson.M{"_id": sessionID, "userId": userID}).Decode(&session)
+			if err == nil {
+				useSession = true
+			}
+		}
+	}
+
+	// If using session, we persist the latest user message first
+	if useSession && len(data.Messages) > 0 {
+		lastMsg := data.Messages[len(data.Messages)-1]
+		if lastMsg.Role == "user" {
+			newMsg := models.ChatMessage{
+				Role:      "user",
+				Content:   fmt.Sprintf("%v", lastMsg.Content),
+				Timestamp: time.Now(),
+			}
+
+			// Update session with new user message
+			db.ChatSessionsCollection.UpdateOne(ctx,
+				bson.M{"_id": sessionID},
+				bson.D{
+					{Key: "$push", Value: bson.M{"messages": newMsg}},
+					{Key: "$set", Value: bson.M{"updatedAt": time.Now()}},
+				},
+			)
+			session.Messages = append(session.Messages, newMsg)
+		}
+	}
+
+	// Prepare history for Groq
+	var chatHistory []GroqMessage
+	if useSession {
+		for _, m := range session.Messages {
+			chatHistory = append(chatHistory, GroqMessage{Role: m.Role, Content: m.Content})
+		}
+	} else {
+		chatHistory = data.Messages
+	}
+
+	// --- RAG: Fetch Context from DB ---
 	// 1. Fetch last 20 foods for context
 	opts := options.Find().SetLimit(20).SetSort(bson.D{{Key: "date", Value: -1}})
 	cursor, err := db.FoodsCollection.Find(ctx, bson.M{"userId": userID}, opts)
@@ -266,34 +314,100 @@ func ChatAI(c echo.Context) error {
 		userStr = fmt.Sprintf("Name: %s, Age: %d, W: %.1fkg, H: %.1fcm, Sex: %s", u.Name, u.Age, u.Weight, u.Height, u.Sex)
 	}
 
-	contextPrompt := "You are P'Peak (พี่เปี๊ยก), an elite, highly intelligent health and nutrition assistant. " +
+	contextPrompt := "You are an elite, highly intelligent health and nutrition assistant. " +
 		langInstruction +
-		"You have access to the user's profile, daily goals, and recent 20 food logs. Use this context deeply to personalize your answers rather than giving generic advice.\n\n" +
+		"You have access to the user's profile, daily goals, and recent 20 food logs. Use this context deeply to personalize your answers. " +
+		"While you are an expert in health, you can also discuss ANY other general topics the user brings up, maintaining a consistent, intelligent, and helpful persona.\n\n" +
 		"User's Profile: " + userStr + "\n" +
 		"User's Daily Goals: " + goalsStr + "\n" +
 		"User's Health Objective: " + objectiveStr + "\n" +
 		"Recent Food History (Last 20 items):\n" + historyStr + "\n\n" +
 		"CRITICAL INSTRUCTIONS:\n" +
-		"0. The user's health objective is CRITICAL context. Tailor ALL advice, macro recommendations, and food suggestions to align with this objective.\n" +
-		"1. Analyze history and goals thoughtfully first.\n" +
-		"2. For nutritional info, break down Calories, Protein, Carbs, Fat, Sugar, Sodium, and Fiber clearly step-by-step.\n" +
+		"0. Tailor ALL relevant advice to the user's health objective. If the conversation is about general topics, you don't need to force nutrition advice unless relevant.\n" +
+		"1. Analyze history and goals thoughtfully.\n" +
+		"2. For nutritional info, break down Calories, Protein, Carbs, Fat, Sugar, Sodium, and Fiber clearly.\n" +
 		"3. If you recommend or they mention a food, YOU MUST append a JSON tag at the VERY END for EACH item: `[FOOD_DATA: {\"name\": \"ชื่ออาหารไทย\", \"calories\": 100, \"protein\": 10, \"carbs\": 5, \"fat\": 2, \"sugar\": 0, \"sodium\": 200, \"fiber\": 1.5}]`\n" +
-		"4. Ensure JSON is valid and inside brackets. These tags power a 'Quick Add' button.\n" +
-		"5. Use markdown, emojis, and clear formatting (bold, bullet points) to make responses beautiful and easy to read.\n" +
-		"6. Keep a polite, encouraging, and highly expert tone in flawless Thai language."
+		"4. Ensure JSON is valid and inside brackets.\n" +
+		"5. Use markdown, emojis, and clear formatting (bold, bullet points).\n" +
+		"6. Keep a polite, encouraging, and highly expert tone. DO NOT use any specific name for yourself (like 'P'Peak'); just be a helpful expert assistant."
 
 	systemMsg := GroqMessage{
 		Role:    "system",
 		Content: contextPrompt,
 	}
 
-	messages := append([]GroqMessage{systemMsg}, data.Messages...)
+	messages := append([]GroqMessage{systemMsg}, chatHistory...)
 
 	groqReq := GroqChatRequest{
 		Model:    "llama-3.3-70b-versatile",
 		Messages: messages,
 	}
 
-	slog.Info("Chatting with AI", "model", groqReq.Model, "userID", userID)
-	return callGroq(c, groqReq)
+	slog.Info("Chatting with AI", "model", groqReq.Model, "userID", userID, "sessionID", data.SessionID)
+
+	// Call Groq and handle response
+	apiKey = os.Getenv("GROQ_API_KEY")
+	jsonData, _ := json.Marshal(groqReq)
+	req, _ := http.NewRequest("POST", "https://api.groq.com/openai/v1/chat/completions", bytes.NewBuffer(jsonData))
+	req.Header.Set("Authorization", "Bearer "+apiKey)
+	req.Header.Set("Content-Type", "application/json")
+	client := &http.Client{Timeout: 30 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "failed to contact AI service"})
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return c.JSON(resp.StatusCode, map[string]string{"error": string(body)})
+	}
+
+	var groqResp GroqChatResponse
+	if err := json.NewDecoder(resp.Body).Decode(&groqResp); err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "failed to parse AI response"})
+	}
+
+	if len(groqResp.Choices) == 0 {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "empty AI response"})
+	}
+
+	replyContent := groqResp.Choices[0].Message.Content
+
+	// Persist assistant's reply if using session
+	if useSession {
+		replyMsg := models.ChatMessage{
+			Role:      "assistant",
+			Content:   replyContent,
+			Timestamp: time.Now(),
+		}
+
+		update := bson.M{
+			"$push": bson.M{"messages": replyMsg},
+			"$set":  bson.M{"updatedAt": time.Now()},
+		}
+
+		// Auto-title if still using default title
+		if session.Title == "New Chat" || session.Title == "New Conversation" {
+			newTitle := replyContent
+			if len(newTitle) > 40 {
+				newTitle = newTitle[:37] + "..."
+			}
+			// Better: use user's first message as title if possible
+			if len(session.Messages) > 0 {
+				newTitle = session.Messages[0].Content
+				if len(newTitle) > 40 {
+					newTitle = newTitle[:37] + "..."
+				}
+			}
+			update["$set"].(bson.M)["title"] = newTitle
+		}
+
+		db.ChatSessionsCollection.UpdateOne(ctx,
+			bson.M{"_id": sessionID},
+			update,
+		)
+	}
+
+	return c.String(http.StatusOK, replyContent)
 }
