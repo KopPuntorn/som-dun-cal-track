@@ -115,7 +115,7 @@ func GetDashboardSummary(c echo.Context) error {
 	}
 	exOpts := options.Find().SetSort(bson.D{{Key: "date", Value: -1}})
 	if !hasRange {
-		exOpts.SetLimit(10)
+		exOpts.SetLimit(30)
 	}
 	exCursor, _ := db.ExerciseCollection.Find(ctx, exFilter, exOpts)
 	if exCursor != nil {
@@ -132,7 +132,7 @@ func GetDashboardSummary(c echo.Context) error {
 	}
 	sleepOpts := options.Find().SetSort(bson.D{{Key: "date", Value: -1}})
 	if !hasRange {
-		sleepOpts.SetLimit(10)
+		sleepOpts.SetLimit(30)
 	}
 	sleepCursor, _ := db.SleepCollection.Find(ctx, sleepFilter, sleepOpts)
 	if sleepCursor != nil {

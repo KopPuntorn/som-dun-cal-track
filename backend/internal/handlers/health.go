@@ -171,6 +171,28 @@ func AddWeight(c echo.Context) error {
 	return c.JSON(http.StatusOK, map[string]string{"message": "logged successfully"})
 }
 
+func DeleteWeight(c echo.Context) error {
+	idStr := c.Param("id")
+	objID, err := primitive.ObjectIDFromHex(idStr)
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid id format"})
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	filter := bson.M{"_id": objID, "userId": c.Get("userID").(primitive.ObjectID)}
+	result, err := db.WeightCollection.DeleteOne(ctx, filter)
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+	}
+
+	if result.DeletedCount == 0 {
+		return c.JSON(http.StatusNotFound, map[string]string{"error": "record not found"})
+	}
+	return c.JSON(http.StatusOK, map[string]string{"message": "deleted successfully"})
+}
+
 // --- Exercise Handlers ---
 
 func GetExerciseHistory(c echo.Context) error {
@@ -264,6 +286,43 @@ func DeleteExercise(c echo.Context) error {
 	return c.JSON(http.StatusOK, map[string]string{"message": "deleted successfully"})
 }
 
+func UpdateExercise(c echo.Context) error {
+	idStr := c.Param("id")
+	objID, err := primitive.ObjectIDFromHex(idStr)
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid id format"})
+	}
+
+	var req models.ExerciseRecord
+	if err := c.Bind(&req); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid request body"})
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	userID := c.Get("userID").(primitive.ObjectID)
+	filter := bson.M{"_id": objID, "userId": userID}
+
+	update := bson.M{
+		"$set": bson.M{
+			"name":            req.Name,
+			"durationMinutes": req.DurationMinutes,
+			"caloriesBurned":  req.CaloriesBurned,
+			"date":            req.Date,
+		},
+	}
+
+	_, err = db.ExerciseCollection.UpdateOne(ctx, filter, update)
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+	}
+
+	req.ID = objID
+	req.UserID = userID
+	return c.JSON(http.StatusOK, req)
+}
+
 // --- Sleep Handlers ---
 
 func GetSleepHistory(c echo.Context) error {
@@ -353,6 +412,42 @@ func DeleteSleep(c echo.Context) error {
 		return c.JSON(http.StatusNotFound, map[string]string{"error": "record not found"})
 	}
 	return c.JSON(http.StatusOK, map[string]string{"message": "deleted successfully"})
+}
+
+func UpdateSleep(c echo.Context) error {
+	idStr := c.Param("id")
+	objID, err := primitive.ObjectIDFromHex(idStr)
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid id format"})
+	}
+
+	var req models.SleepRecord
+	if err := c.Bind(&req); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid request body"})
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	userID := c.Get("userID").(primitive.ObjectID)
+	filter := bson.M{"_id": objID, "userId": userID}
+
+	update := bson.M{
+		"$set": bson.M{
+			"durationHours": req.DurationHours,
+			"quality":       req.Quality,
+			"date":          req.Date,
+		},
+	}
+
+	_, err = db.SleepCollection.UpdateOne(ctx, filter, update)
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+	}
+
+	req.ID = objID
+	req.UserID = userID
+	return c.JSON(http.StatusOK, req)
 }
 
 // --- Body Measurement Handlers ---

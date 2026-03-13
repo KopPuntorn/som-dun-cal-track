@@ -23,6 +23,7 @@ type Food = {
   sodium: number;
   fiber: number;
   mealCategory?: string;
+  date: string;
 };
 
 type Goals = {
@@ -94,7 +95,12 @@ export default function Home() {
   const [sleepToday, setSleepToday] = useState(0);
 
   const [recentFoods, setRecentFoods] = useState<any[]>([]);
+  const [exerciseRecords, setExerciseRecords] = useState<ExerciseRecord[]>([]);
+  const [sleepRecords, setSleepRecords] = useState<SleepRecord[]>([]);
+  const [weightRecords, setWeightRecords] = useState<any[]>([]);
   const [editingFood, setEditingFood] = useState<Food | null>(null);
+  const [editingExercise, setEditingExercise] = useState<ExerciseRecord | null>(null);
+  const [editingSleep, setEditingSleep] = useState<SleepRecord | null>(null);
   const [editInputs, setEditInputs] = useState({ name: "", calories: "", protein: "", carbs: "", fat: "", sugar: "", sodium: "", fiber: "", mealCategory: "Breakfast" });
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const dataFetchedRef = useRef(false);
@@ -250,11 +256,14 @@ export default function Home() {
           .filter((e: ExerciseRecord) => format(new Date(e.date), 'yyyy-MM-dd') === today)
           .reduce((sum: number, e: ExerciseRecord) => sum + e.durationMinutes, 0);
         setExerciseToday(exToday);
+        setExerciseRecords(data.exerciseRecent || []);
 
         const slToday = (data.sleepRecent || [])
           .filter((s: SleepRecord) => format(new Date(s.date), 'yyyy-MM-dd') === today)
           .reduce((sum: number, s: SleepRecord) => sum + s.durationHours, 0);
         setSleepToday(slToday);
+        setSleepRecords(data.sleepRecent || []);
+        setWeightRecords(data.weightRecent || []);
       } catch (err) {
         console.error("Failed to fetch data", err);
         setError("Failed to reach the server. Make sure the Go backend is running and MongoDB is connected.");
@@ -346,6 +355,8 @@ export default function Home() {
         body: JSON.stringify(exerciseInput)
       });
       if (res.ok) {
+        const record = await res.json();
+        setExerciseRecords([record, ...exerciseRecords]);
         setExerciseToday(prev => prev + Number(exerciseInput.durationMinutes));
         setExerciseInput({ name: '', durationMinutes: 30, caloriesBurned: 0 });
         showToast("Activity logged!", "success");
@@ -375,6 +386,8 @@ export default function Home() {
         })
       });
       if (res.ok) {
+        const record = await res.json();
+        setSleepRecords([record, ...sleepRecords]);
         setSleepToday(prev => prev + totalHours);
         setSleepInput({ durationHours: 8, durationMinutes: 0, quality: 'Good' });
         showToast("Sleep logged for yesterday!", "success");
@@ -417,14 +430,15 @@ export default function Home() {
           sugar: Number(editInputs.sugar),
           sodium: Number(editInputs.sodium),
           fiber: Number(editInputs.fiber),
-          mealCategory: editInputs.mealCategory
+          mealCategory: editInputs.mealCategory,
+          date: editingFood.date
         })
       });
 
       if (res.ok) {
         const updatedFood = await res.json();
         setFoods(foods.map(f => f.id === updatedFood.id ? updatedFood : f));
-        setRecentFoods(prev => prev.map(f => f.name === editingFood.name ? { ...f, name: updatedFood.name } : f));
+        setRecentFoods(prev => prev.map(f => f.name === editingFood.name ? { ...f, name: updatedFood.name, calories: updatedFood.calories, protein: updatedFood.protein } : f));
         setEditingFood(null);
         showToast("Entry updated!", "success");
       }
@@ -523,6 +537,94 @@ export default function Home() {
     } catch (err) {
       console.error(err);
     }
+  };
+
+  const handleDeleteExercise = async (id: string) => {
+    try {
+      const res = await fetch(`${API_BASE}/exercise/${id}`, { method: "DELETE" });
+      if (res.ok) {
+        setExerciseRecords(exerciseRecords.filter(r => r.id !== id));
+        showToast("Exercise deleted", "info");
+      }
+    } catch (err) { console.error(err); }
+  };
+
+  const handleDeleteSleep = async (id: string) => {
+    try {
+      const res = await fetch(`${API_BASE}/sleep/${id}`, { method: "DELETE" });
+      if (res.ok) {
+        setSleepRecords(sleepRecords.filter(r => r.id !== id));
+        showToast("Sleep record deleted", "info");
+      }
+    } catch (err) { console.error(err); }
+  };
+
+  const handleDeleteWeight = async (id: string) => {
+    try {
+      const res = await fetch(`${API_BASE}/weight/${id}`, { method: "DELETE" });
+      if (res.ok) {
+        setWeightRecords(weightRecords.filter(r => r.id !== id));
+        showToast("Weight record deleted", "info");
+      }
+    } catch (err) { console.error(err); }
+  };
+
+  const handleDeleteSession = async () => {
+    if (!activeSessionId) return;
+    if (!confirm("Are you sure you want to clear this chat history?")) return;
+
+    try {
+      const res = await fetch(`${API_BASE}/chat/sessions/${activeSessionId}`, {
+        method: "DELETE"
+      });
+
+      if (res.ok) {
+        setChatMessages([]);
+        setActiveSessionId(null);
+        showToast("Chat cleared", "info");
+        // Create a fresh session
+        createNewSession();
+      }
+    } catch (err) {
+      console.error(err);
+      showToast("Failed to clear chat", "error");
+    }
+  };
+
+  const handleEditExerciseSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingExercise) return;
+    try {
+      const res = await fetch(`${API_BASE}/exercise/${editingExercise.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(editingExercise)
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        setExerciseRecords(exerciseRecords.map(r => r.id === updated.id ? updated : r));
+        setEditingExercise(null);
+        showToast("Exercise updated!", "success");
+      }
+    } catch (err) { console.error(err); }
+  };
+
+  const handleEditSleepSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingSleep) return;
+    try {
+      const res = await fetch(`${API_BASE}/sleep/${editingSleep.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(editingSleep)
+      });
+      if (res.ok) {
+        const updated = await res.json();
+        setSleepRecords(sleepRecords.map(r => r.id === updated.id ? updated : r));
+        setEditingSleep(null);
+        showToast("Sleep record updated!", "success");
+      }
+    } catch (err) { console.error(err); }
   };
 
   const handleQuickAdd = async (food: any) => {
@@ -841,6 +943,151 @@ export default function Home() {
 
             </div>
           </section>
+
+          {/* Activity Logs Feed */}
+          <div className="dashboard-logs" style={{ display: 'flex', flexDirection: 'column', gap: '32px', marginTop: '32px' }}>
+            {/* Today's Foods */}
+            <section className="foods-list-section">
+              <h3 className="section-title">Today's Intake</h3>
+              <div className="foods-list">
+                {loading ? (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    {[1, 2, 3].map(i => (
+                      <div key={i} className="food-item skeleton" style={{ height: '72px', border: 'none' }}></div>
+                    ))}
+                  </div>
+                ) : foods.length === 0 ? (
+                  <div className="food-item" style={{ justifyContent: 'center', color: 'var(--text-secondary)', fontSize: '14px' }}>
+                    No foods added yet today. Let&apos;s eat!
+                  </div>
+                ) : (
+                  ['Breakfast', 'Lunch', 'Dinner', 'Snack'].map(category => {
+                    const categoryFoods = foods.filter(f => (f.mealCategory || 'Breakfast') === category);
+                    if (categoryFoods.length === 0) return null;
+
+                    return (
+                      <div key={category} style={{ marginBottom: '16px' }}>
+                        <h4 style={{ fontSize: '14px', color: 'var(--text-secondary)', marginBottom: '8px', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '4px' }}>{category}</h4>
+                        {categoryFoods.map(food => (
+                          <div key={food.id} className="food-item">
+                            <div className="food-info">
+                              <h4>{food.name}</h4>
+                              <div className="food-stats" style={{ flexWrap: 'wrap', rowGap: '4px' }}>
+                                <span><strong className="c-label">{food.calories}</strong> kcal</span>
+                                <span><strong className="p-label" style={{ color: 'var(--accent-pro)' }}>{food.protein}</strong>g P</span>
+                                <span><strong style={{ color: 'var(--accent-fat)' }}>{(food.fat || 0)}</strong>g F</span>
+                              </div>
+                            </div>
+                            <div style={{ display: 'flex', gap: '8px' }}>
+                              <button className="icon-btn" onClick={() => openEditModal(food)} title="Edit" style={{ width: '32px', height: '32px', background: 'rgba(255,255,255,0.05)' }}>
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+                              </button>
+                              <button className="delete-btn" onClick={() => handleDeleteFood(food.id)} title="Delete" style={{ width: '32px', height: '32px' }}>
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </section>
+
+            {/* Exercise Log */}
+            <section className="foods-list-section">
+              <h3 className="section-title">Exercise Log</h3>
+              <div className="foods-list">
+                {exerciseRecords.length === 0 ? (
+                  <div className="food-item" style={{ justifyContent: 'center', color: 'var(--text-secondary)', fontSize: '14px' }}>
+                    No exercise logged recently.
+                  </div>
+                ) : (
+                  exerciseRecords.map(ex => (
+                    <div key={ex.id} className="food-item">
+                      <div className="food-info">
+                        <h4>{ex.name}</h4>
+                        <div className="food-stats">
+                          <span><strong>{ex.durationMinutes}</strong> min</span>
+                          <span style={{ color: 'var(--accent-cal)' }}><strong>{ex.caloriesBurned}</strong> kcal</span>
+                          <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>{format(new Date(ex.date), 'MMM d, HH:mm')}</span>
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        <button className="icon-btn" onClick={() => setEditingExercise(ex)} title="Edit" style={{ width: '32px', height: '32px', background: 'rgba(255,255,255,0.05)' }}>
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+                        </button>
+                        <button className="delete-btn" onClick={() => handleDeleteExercise(ex.id)} title="Delete" style={{ width: '32px', height: '32px' }}>
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </section>
+
+            {/* Sleep Log */}
+            <section className="foods-list-section">
+              <h3 className="section-title">Sleep Log</h3>
+              <div className="foods-list">
+                {sleepRecords.length === 0 ? (
+                  <div className="food-item" style={{ justifyContent: 'center', color: 'var(--text-secondary)', fontSize: '14px' }}>
+                    No sleep logged recently.
+                  </div>
+                ) : (
+                  sleepRecords.map(sl => (
+                    <div key={sl.id} className="food-item">
+                      <div className="food-info">
+                        <h4>{Math.round(sl.durationHours * 10) / 10} hours</h4>
+                        <div className="food-stats">
+                          <span style={{ color: 'var(--accent-rec)' }}>Quality: <strong>{sl.quality}</strong></span>
+                          <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>{format(new Date(sl.date), 'MMM d')}</span>
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        <button className="icon-btn" onClick={() => setEditingSleep(sl)} title="Edit" style={{ width: '32px', height: '32px', background: 'rgba(255,255,255,0.05)' }}>
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+                        </button>
+                        <button className="delete-btn" onClick={() => handleDeleteSleep(sl.id)} title="Delete" style={{ width: '32px', height: '32px' }}>
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </section>
+
+            {/* Weight Log */}
+            <section className="foods-list-section">
+              <h3 className="section-title">Weight Log</h3>
+              <div className="foods-list">
+                {weightRecords.length === 0 ? (
+                  <div className="food-item" style={{ justifyContent: 'center', color: 'var(--text-secondary)', fontSize: '14px' }}>
+                    No weight records found.
+                  </div>
+                ) : (
+                  [...weightRecords].sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map(w => (
+                    <div key={w.id} className="food-item">
+                      <div className="food-info">
+                        <h4>{w.weight} kg</h4>
+                        <div className="food-stats">
+                          <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>{format(new Date(w.date), 'MMM d, yyyy')}</span>
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', gap: '8px' }}>
+                        <button className="delete-btn" onClick={() => handleDeleteWeight(w.id)} title="Delete" style={{ width: '32px', height: '32px' }}>
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </section>
+          </div>
         </div>
 
         <div className="layout-column">
@@ -914,14 +1161,21 @@ export default function Home() {
                   placeholder="Activity (e.g. Run)"
                   value={exerciseInput.name}
                   onChange={e => setExerciseInput({ ...exerciseInput, name: e.target.value })}
-                  style={{ flex: 2, padding: '10px 14px', borderRadius: '10px', fontSize: '14px' }}
+                  style={{ flex: 1.5, padding: '10px 14px', borderRadius: '10px', fontSize: '14px' }}
                 />
                 <input
                   type="number"
                   placeholder="Mins"
                   value={exerciseInput.durationMinutes || ''}
                   onChange={e => setExerciseInput({ ...exerciseInput, durationMinutes: Number(e.target.value) })}
-                  style={{ flex: 1, padding: '10px 14px', borderRadius: '10px', fontSize: '14px' }}
+                  style={{ flex: 0.8, padding: '10px 14px', borderRadius: '10px', fontSize: '14px' }}
+                />
+                <input
+                  type="number"
+                  placeholder="Kcal"
+                  value={exerciseInput.caloriesBurned || ''}
+                  onChange={e => setExerciseInput({ ...exerciseInput, caloriesBurned: Number(e.target.value) })}
+                  style={{ flex: 0.8, padding: '10px 14px', borderRadius: '10px', fontSize: '14px' }}
                 />
               </div>
               <button onClick={handleLogExercise} className="primary-btn" style={{ margin: 0, padding: '10px', fontSize: '14px', background: 'var(--accent-cal-gradient)', border: 'none' }}>
@@ -972,55 +1226,6 @@ export default function Home() {
                   Log Sleep ({Math.round(sleepToday * 10) / 10}h today)
                 </button>
               </div>
-            </div>
-          </section>
-
-          {/* Today's Foods */}
-          <section className="foods-list-section">
-            <h3 className="section-title">Today's Intake</h3>
-            <div className="foods-list">
-              {loading ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                  {[1, 2, 3].map(i => (
-                    <div key={i} className="food-item skeleton" style={{ height: '72px', border: 'none' }}></div>
-                  ))}
-                </div>
-              ) : foods.length === 0 ? (
-                <div className="food-item" style={{ justifyContent: 'center', color: 'var(--text-secondary)', fontSize: '14px' }}>
-                  No foods added yet today. Let&apos;s eat!
-                </div>
-              ) : (
-                ['Breakfast', 'Lunch', 'Dinner', 'Snack'].map(category => {
-                  const categoryFoods = foods.filter(f => (f.mealCategory || 'Breakfast') === category);
-                  if (categoryFoods.length === 0) return null;
-
-                  return (
-                    <div key={category} style={{ marginBottom: '16px' }}>
-                      <h4 style={{ fontSize: '14px', color: 'var(--text-secondary)', marginBottom: '8px', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '4px' }}>{category}</h4>
-                      {categoryFoods.map(food => (
-                        <div key={food.id} className="food-item">
-                          <div className="food-info">
-                            <h4>{food.name}</h4>
-                            <div className="food-stats" style={{ flexWrap: 'wrap', rowGap: '4px' }}>
-                              <span><strong className="c-label">{food.calories}</strong> kcal</span>
-                              <span><strong className="p-label" style={{ color: 'var(--accent-pro)' }}>{food.protein}</strong>g P</span>
-                              <span><strong style={{ color: 'var(--accent-fat)' }}>{(food.fat || 0)}</strong>g F</span>
-                            </div>
-                          </div>
-                          <div style={{ display: 'flex', gap: '8px' }}>
-                            <button className="icon-btn" onClick={() => openEditModal(food)} title="Edit" style={{ width: '32px', height: '32px', background: 'rgba(255,255,255,0.05)' }}>
-                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
-                            </button>
-                            <button className="delete-btn" onClick={() => handleDeleteFood(food.id)} title="Delete" style={{ width: '32px', height: '32px' }}>
-                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  );
-                })
-              )}
             </div>
           </section>
         </div>
@@ -1231,6 +1436,57 @@ export default function Home() {
         </div>
       )}
 
+      {/* Edit Exercise Modal */}
+      {editingExercise && (
+        <div className="modal-overlay" onClick={() => setEditingExercise(null)}>
+          <div className="glass-panel modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '400px' }}>
+            <div className="modal-header">
+              <h3>Edit Exercise</h3>
+              <button onClick={() => setEditingExercise(null)} className="icon-btn">&times;</button>
+            </div>
+            <form onSubmit={handleEditExerciseSubmit}>
+              <div className="input-group" style={{ marginBottom: '12px' }}>
+                <input type="text" required value={editingExercise.name} onChange={e => setEditingExercise({ ...editingExercise, name: e.target.value })} />
+              </div>
+              <div className="input-row" style={{ marginBottom: '12px' }}>
+                <div className="input-group">
+                  <input type="number" required min="0" placeholder="Minutes" value={editingExercise.durationMinutes} onChange={e => setEditingExercise({ ...editingExercise, durationMinutes: Number(e.target.value) })} />
+                </div>
+                <div className="input-group">
+                  <input type="number" min="0" placeholder="Calories Burned" value={editingExercise.caloriesBurned} onChange={e => setEditingExercise({ ...editingExercise, caloriesBurned: Number(e.target.value) })} title="Optional: calories burned" />
+                </div>
+              </div>
+              <button type="submit" className="primary-btn" style={{ width: '100%' }}>Save Changes</button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Sleep Modal */}
+      {editingSleep && (
+        <div className="modal-overlay" onClick={() => setEditingSleep(null)}>
+          <div className="glass-panel modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '400px' }}>
+            <div className="modal-header">
+              <h3>Edit Sleep</h3>
+              <button onClick={() => setEditingSleep(null)} className="icon-btn">&times;</button>
+            </div>
+            <form onSubmit={handleEditSleepSubmit}>
+              <div className="input-group" style={{ marginBottom: '12px' }}>
+                <input type="number" step="0.1" required value={editingSleep.durationHours} onChange={e => setEditingSleep({ ...editingSleep, durationHours: Number(e.target.value) })} />
+              </div>
+              <div className="input-group" style={{ marginBottom: '24px' }}>
+                <select value={editingSleep.quality} onChange={e => setEditingSleep({ ...editingSleep, quality: e.target.value })} style={{ padding: '10px', borderRadius: '10px', border: '1px solid var(--panel-border)', background: 'var(--bg-color)', color: 'var(--text-primary)', width: '100%' }}>
+                  <option value="Good">Good</option>
+                  <option value="Fair">Fair</option>
+                  <option value="Poor">Poor</option>
+                </select>
+              </div>
+              <button type="submit" className="primary-btn" style={{ width: '100%' }}>Save Changes</button>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* Simplified AI Chat Widget */}
       <div className={`chat-widget ${isChatOpen ? 'open' : ''}`}>
         {isChatOpen && (
@@ -1241,12 +1497,24 @@ export default function Home() {
                 <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'var(--success)', boxShadow: '0 0 10px var(--success)' }}></div>
                 <h3>AI Assistant</h3>
               </div>
-              <button 
-                onClick={() => setIsChatOpen(false)} 
-                className="close-btn"
-              >
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-              </button>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <button 
+                  onClick={handleDeleteSession}
+                  className="icon-btn"
+                  title="Clear Chat"
+                  style={{ color: 'var(--text-secondary)', opacity: 0.6 }}
+                  onMouseEnter={e => e.currentTarget.style.color = 'var(--danger)'}
+                  onMouseLeave={e => e.currentTarget.style.color = 'var(--text-secondary)'}
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                </button>
+                <button 
+                  onClick={() => setIsChatOpen(false)} 
+                  className="close-btn"
+                >
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                </button>
+              </div>
             </div>
 
             {/* Chat Messages */}
