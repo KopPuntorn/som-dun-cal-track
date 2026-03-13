@@ -267,7 +267,7 @@ func calcHydrationScore(waters []models.WaterIntake, startOfMonth time.Time, day
 	// Bonus for consistency
 	consistencyBonus := (float64(daysWithWater) / float64(days)) * 15
 
-	return clamp(int(math.Round(score*0.7+consistencyBonus*0.3+score*0.3)), 0, 99)
+	return clamp(int(math.Round(score*0.7+consistencyBonus*0.3)), 0, 99)
 }
 
 func calcFitnessScore(exercises []models.ExerciseRecord, days int) int {

@@ -34,14 +34,17 @@ func SetupRoutes(e *echo.Echo) {
 	api.POST("/water", handlers.UpdateWater)
 	api.GET("/weight", handlers.GetWeightHistory)
 	api.POST("/weight", handlers.AddWeight)
+	api.DELETE("/weight/:id", handlers.DeleteWeight)
 
 	// Exercise & Sleep
 	api.GET("/exercise", handlers.GetExerciseHistory)
 	api.POST("/exercise", handlers.AddExercise)
+	api.PUT("/exercise/:id", handlers.UpdateExercise)
 	api.DELETE("/exercise/:id", handlers.DeleteExercise)
 
 	api.GET("/sleep", handlers.GetSleepHistory)
 	api.POST("/sleep", handlers.AddSleep)
+	api.PUT("/sleep/:id", handlers.UpdateSleep)
 	api.DELETE("/sleep/:id", handlers.DeleteSleep)
 
 	// Body Measurements

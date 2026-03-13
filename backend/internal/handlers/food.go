@@ -148,6 +148,17 @@ func UpdateFood(c echo.Context) error {
 	defer cancel()
 
 	filter := bson.M{"_id": foodID, "userId": userID}
+	// Fetch current food to preserve date if missing
+	var currentFood models.Food
+	err = db.FoodsCollection.FindOne(ctx, filter).Decode(&currentFood)
+	if err != nil {
+		return c.JSON(http.StatusNotFound, map[string]string{"error": "food entry not found"})
+	}
+
+	if food.Date.IsZero() {
+		food.Date = currentFood.Date
+	}
+
 	update := bson.M{
 		"$set": bson.M{
 			"name":         food.Name,
@@ -163,16 +174,16 @@ func UpdateFood(c echo.Context) error {
 		},
 	}
 
-	result, err := db.FoodsCollection.UpdateOne(ctx, filter, update)
+	_, err = db.FoodsCollection.UpdateOne(ctx, filter, update)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 	}
 
-	if result.MatchedCount == 0 {
-		return c.JSON(http.StatusNotFound, map[string]string{"error": "food entry not found"})
-	}
+	// Prepare updated object to return
+	food.ID = foodID
+	food.UserID = userID
 
-	return c.JSON(http.StatusOK, map[string]string{"message": "updated successfully"})
+	return c.JSON(http.StatusOK, food)
 }
 
 // DeleteFood deletes a food entry

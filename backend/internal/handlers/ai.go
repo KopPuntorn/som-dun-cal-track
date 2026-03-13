@@ -388,7 +388,7 @@ func ChatAI(c echo.Context) error {
 		}
 
 		// Auto-title if still using default title
-		if session.Title == "New Chat" || session.Title == "New Conversation" {
+		if session.Title == "New Chat" || session.Title == "New Conversation" || session.Title == "My Chat" {
 			newTitle := replyContent
 			if len(newTitle) > 40 {
 				newTitle = newTitle[:37] + "..."
