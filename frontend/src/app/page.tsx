@@ -801,44 +801,38 @@ export default function Home() {
         </div>
       )}
 
-      <header className="glass-panel main-header">
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <div style={{ position: 'relative', width: '40px', height: '40px', borderRadius: '10px', overflow: 'hidden', background: '#fff' }}>
+      <header className="glass-panel main-header" style={{ borderRadius: '28px', padding: '20px 28px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+          <div style={{ position: 'relative', width: '44px', height: '44px', borderRadius: '12px', overflow: 'hidden', background: '#fff', boxShadow: '0 4px 20px rgba(255,255,255,0.1)' }}>
             <Image
               src="/logo.png"
               alt="SomDun Logo"
               fill
-              style={{ objectFit: 'contain', padding: '2px' }}
+              style={{ objectFit: 'contain', padding: '4px' }}
             />
           </div>
           <div>
-            <h1>SomDun</h1>
-            <p className="date-display">{currentDate}</p>
+            <h1 style={{ fontSize: '28px', marginBottom: '2px' }}>SomDun</h1>
+            <p className="date-display" style={{ fontSize: '12px' }}>{currentDate}</p>
           </div>
         </div>
-        <div className="header-actions" style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-          {/* Language Toggle */}
+        <div className="header-actions" style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
           <button
             onClick={() => setLanguage(language === 'en' ? 'th' : 'en')}
             className="icon-btn"
-            style={{ fontSize: '14px', fontWeight: 'bold', minWidth: '40px' }}
+            style={{ fontSize: '14px', fontWeight: '800' }}
             title={language === 'en' ? 'เปลี่ยนเป็นภาษาไทย' : 'Switch to English'}
           >
             {language === 'en' ? 'TH' : 'EN'}
           </button>
-
-
           <Link href="/player-card" className="icon-btn" title="Player Card">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>
           </Link>
-          <Link href="/dashboard" className="icon-btn mobile-hidden" title={t('analyticsTitle')}>
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
+          <Link href="/dashboard" className="icon-btn" title={t('analyticsTitle')}>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
           </Link>
-          <button onClick={logout} className="icon-btn mobile-hidden" title={t('logout')} style={{ color: "var(--danger)" }}>
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
-          </button>
           <Link href="/profile" className="icon-btn mobile-hidden" title={t('profileSettings')}>
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
           </Link>
         </div>
       </header>
@@ -848,8 +842,8 @@ export default function Home() {
           {/* Goals Dashboard */}
           <section className="dashboard">
             {/* Calories Card */}
-            <div className="glass-panel cal-card">
-              <h2>Calories</h2>
+            <div className="glass-panel cal-card" style={{ padding: '32px' }}>
+              <h2 style={{ fontSize: '18px', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '2px', marginBottom: '16px' }}>Calories</h2>
               <div className="ring-container">
                 <svg className="progress-ring" viewBox="0 0 160 160" style={{ width: '100%', height: '100%' }}>
                   <circle className="ring-bg" strokeWidth="12" fill="transparent" r={radius} cx="80" cy="80" />
@@ -869,7 +863,9 @@ export default function Home() {
                 </svg>
                 <div className="ring-content">
                   <span className="consumed" style={isOverCal ? {
-                    color: 'var(--danger)'
+                    color: 'var(--danger)',
+                    background: 'none',
+                    WebkitTextFillColor: 'var(--danger)'
                   } : {
                     background: 'var(--accent-cal-gradient)',
                     WebkitBackgroundClip: 'text',
@@ -877,13 +873,13 @@ export default function Home() {
                   }}>
                     {calTotal}
                   </span>
-                  <span className="label">/ {goals.calories} kcal</span>
+                  <span className="label" style={{ opacity: 0.6 }}>/ {goals.calories} kcal</span>
                 </div>
               </div>
               <div className="cal-stats">
                 <div className="stat">
-                  <span className="stat-value">{isOverCal ? calTotal - goals.calories : calRemaining}</span>
-                  <span className="stat-label" style={isOverCal ? { color: 'var(--danger)' } : {}}>
+                  <span className="stat-value" style={isOverCal ? { color: 'var(--danger)' } : {}}>{isOverCal ? calTotal - goals.calories : calRemaining}</span>
+                  <span className="stat-label" style={{ fontWeight: 700, fontSize: '11px' }}>
                     {isOverCal ? t('over') : t('remaining')}
                   </span>
                 </div>
@@ -891,27 +887,27 @@ export default function Home() {
             </div>
 
             {/* Macros Progress */}
-            <div className="glass-panel" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            <div className="glass-panel" style={{ display: 'flex', flexDirection: 'column', gap: '24px', padding: '32px' }}>
               {/* Protein Bar */}
               <div className="pro-card" style={{ background: 'none', border: 'none', padding: 0 }}>
                 <div className="pro-header">
-                  <h2 style={{ fontSize: '16px' }}>Protein</h2>
+                  <h2 style={{ fontSize: '14px', textTransform: 'uppercase', letterSpacing: '1px' }}>Protein</h2>
                   <div className="pro-values">
                     <span className="consumed">{proTotal}</span>
-                    <span className="label">/ {goals.protein}g</span>
+                    <span className="label" style={{ opacity: 0.5 }}>/ {goals.protein}g</span>
                   </div>
                 </div>
-                <div className="progress-bar-bg">
+                <div className="progress-bar-bg" style={{ height: '10px' }}>
                   <div
                     className="progress-bar-fill"
                     style={{
                       width: `${proPercent}%`,
                       background: isGoalPro ? 'var(--success)' : 'var(--accent-pro-gradient)',
-                      boxShadow: isGoalPro ? '0 0 10px rgba(46, 160, 67, 0.4)' : '0 0 10px rgba(0, 210, 255, 0.4)'
+                      boxShadow: isGoalPro ? '0 0 12px rgba(16, 185, 129, 0.3)' : '0 0 12px rgba(14, 165, 233, 0.3)'
                     }}
                   ></div>
                 </div>
-                <p className="pro-remaining"><span>{proRemaining}</span>g left</p>
+                <p className="pro-remaining" style={{ fontSize: '12px', opacity: 0.7 }}><span>{proRemaining}</span>g left</p>
               </div>
 
 
@@ -919,36 +915,32 @@ export default function Home() {
               {/* Fat Bar */}
               <div className="pro-card" style={{ background: 'none', border: 'none', padding: 0 }}>
                 <div className="pro-header">
-                  <h2 style={{ fontSize: '16px' }}>Fat</h2>
+                  <h2 style={{ fontSize: '14px', textTransform: 'uppercase', letterSpacing: '1px' }}>Fat</h2>
                   <div className="pro-values">
                     <span className="consumed" style={{ background: 'var(--accent-fat-gradient)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>{fatTotal}</span>
-                    <span className="label">/ {goals.fat}g</span>
+                    <span className="label" style={{ opacity: 0.5 }}>/ {goals.fat}g</span>
                   </div>
                 </div>
-                <div className="progress-bar-bg">
+                <div className="progress-bar-bg" style={{ height: '10px' }}>
                   <div
                     className="progress-bar-fill"
                     style={{
                       width: `${fatPercent}%`,
                       background: 'var(--accent-fat-gradient)',
-                      boxShadow: '0 0 10px rgba(191, 90, 242, 0.4)'
+                      boxShadow: '0 0 12px rgba(168, 85, 247, 0.3)'
                     }}
                   ></div>
                 </div>
-                <p className="pro-remaining"><span>{fatRemaining}</span>g left</p>
+                <p className="pro-remaining" style={{ fontSize: '12px', opacity: 0.7 }}><span>{fatRemaining}</span>g left</p>
               </div>
-
-
-
-
             </div>
           </section>
 
           {/* Activity Logs Feed */}
-          <div className="dashboard-logs" style={{ display: 'flex', flexDirection: 'column', gap: '32px', marginTop: '32px' }}>
+          <div className="dashboard-logs" style={{ display: 'flex', flexDirection: 'column', gap: '24px', marginTop: '16px' }}>
             {/* Today's Foods */}
             <section className="foods-list-section">
-              <h3 className="section-title">Today's Intake</h3>
+              <h3 className="section-title" style={{ fontSize: '16px', marginBottom: '16px' }}>Today's Intake</h3>
               <div className="foods-list">
                 {loading ? (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
@@ -957,7 +949,7 @@ export default function Home() {
                     ))}
                   </div>
                 ) : foods.length === 0 ? (
-                  <div className="food-item" style={{ justifyContent: 'center', color: 'var(--text-secondary)', fontSize: '14px' }}>
+                  <div className="food-item" style={{ justifyContent: 'center', color: 'var(--text-secondary)', fontSize: '14px', borderStyle: 'dashed' }}>
                     No foods added yet today. Let&apos;s eat!
                   </div>
                 ) : (
@@ -967,27 +959,32 @@ export default function Home() {
 
                     return (
                       <div key={category} style={{ marginBottom: '16px' }}>
-                        <h4 style={{ fontSize: '14px', color: 'var(--text-secondary)', marginBottom: '8px', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '4px' }}>{category}</h4>
-                        {categoryFoods.map(food => (
-                          <div key={food.id} className="food-item">
-                            <div className="food-info">
-                              <h4>{food.name}</h4>
-                              <div className="food-stats" style={{ flexWrap: 'wrap', rowGap: '4px' }}>
-                                <span><strong className="c-label">{food.calories}</strong> kcal</span>
-                                <span><strong className="p-label" style={{ color: 'var(--accent-pro)' }}>{food.protein}</strong>g P</span>
-                                <span><strong style={{ color: 'var(--accent-fat)' }}>{(food.fat || 0)}</strong>g F</span>
+                        <h4 style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '12px', textTransform: 'uppercase', letterSpacing: '1px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--accent-pro)' }}></span>
+                          {category}
+                        </h4>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                          {categoryFoods.map(food => (
+                            <div key={food.id} className="food-item" style={{ padding: '16px 20px' }}>
+                              <div className="food-info">
+                                <h4 style={{ fontSize: '15px', fontWeight: 600 }}>{food.name}</h4>
+                                <div className="food-stats" style={{ marginTop: '4px' }}>
+                                  <span><strong className="c-label" style={{ fontWeight: 700 }}>{food.calories}</strong> kcal</span>
+                                  <span><strong style={{ color: 'var(--accent-pro)' }}>{food.protein}</strong>g P</span>
+                                  <span><strong style={{ color: 'var(--accent-fat)' }}>{(food.fat || 0)}</strong>g F</span>
+                                </div>
+                              </div>
+                              <div style={{ display: 'flex', gap: '8px' }}>
+                                <button className="icon-btn" onClick={() => openEditModal(food)} title="Edit" style={{ width: '36px', height: '36px' }}>
+                                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+                                </button>
+                                <button className="delete-btn icon-btn" onClick={() => handleDeleteFood(food.id)} title="Delete" style={{ width: '36px', height: '36px' }}>
+                                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                                </button>
                               </div>
                             </div>
-                            <div style={{ display: 'flex', gap: '8px' }}>
-                              <button className="icon-btn" onClick={() => openEditModal(food)} title="Edit" style={{ width: '32px', height: '32px', background: 'rgba(255,255,255,0.05)' }}>
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
-                              </button>
-                              <button className="delete-btn" onClick={() => handleDeleteFood(food.id)} title="Delete" style={{ width: '32px', height: '32px' }}>
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
-                              </button>
-                            </div>
-                          </div>
-                        ))}
+                          ))}
+                        </div>
                       </div>
                     );
                   })
@@ -997,28 +994,28 @@ export default function Home() {
 
             {/* Exercise Log */}
             <section className="foods-list-section">
-              <h3 className="section-title">Exercise Log</h3>
-              <div className="foods-list">
+              <h3 className="section-title" style={{ fontSize: '16px', marginBottom: '16px' }}>Exercise Log</h3>
+              <div className="foods-list" style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                 {exerciseRecords.length === 0 ? (
-                  <div className="food-item" style={{ justifyContent: 'center', color: 'var(--text-secondary)', fontSize: '14px' }}>
+                  <div className="food-item" style={{ justifyContent: 'center', color: 'var(--text-secondary)', fontSize: '14px', borderStyle: 'dashed' }}>
                     No exercise logged recently.
                   </div>
                 ) : (
                   exerciseRecords.map(ex => (
-                    <div key={ex.id} className="food-item">
+                    <div key={ex.id} className="food-item" style={{ padding: '16px 20px' }}>
                       <div className="food-info">
-                        <h4>{ex.name}</h4>
-                        <div className="food-stats">
+                        <h4 style={{ fontSize: '15px', fontWeight: 600 }}>{ex.name}</h4>
+                        <div className="food-stats" style={{ marginTop: '4px' }}>
                           <span><strong>{ex.durationMinutes}</strong> min</span>
                           <span style={{ color: 'var(--accent-cal)' }}><strong>{ex.caloriesBurned}</strong> kcal</span>
                           <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>{format(new Date(ex.date), 'MMM d, HH:mm')}</span>
                         </div>
                       </div>
                       <div style={{ display: 'flex', gap: '8px' }}>
-                        <button className="icon-btn" onClick={() => setEditingExercise(ex)} title="Edit" style={{ width: '32px', height: '32px', background: 'rgba(255,255,255,0.05)' }}>
+                        <button className="icon-btn" onClick={() => setEditingExercise(ex)} title="Edit" style={{ width: '36px', height: '36px' }}>
                           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
                         </button>
-                        <button className="delete-btn" onClick={() => handleDeleteExercise(ex.id)} title="Delete" style={{ width: '32px', height: '32px' }}>
+                        <button className="delete-btn icon-btn" onClick={() => handleDeleteExercise(ex.id)} title="Delete" style={{ width: '36px', height: '36px' }}>
                           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
                         </button>
                       </div>
@@ -1030,55 +1027,27 @@ export default function Home() {
 
             {/* Sleep Log */}
             <section className="foods-list-section">
-              <h3 className="section-title">Sleep Log</h3>
-              <div className="foods-list">
+              <h3 className="section-title" style={{ fontSize: '16px', marginBottom: '16px' }}>Sleep Log</h3>
+              <div className="foods-list" style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
                 {sleepRecords.length === 0 ? (
-                  <div className="food-item" style={{ justifyContent: 'center', color: 'var(--text-secondary)', fontSize: '14px' }}>
+                  <div className="food-item" style={{ justifyContent: 'center', color: 'var(--text-secondary)', fontSize: '14px', borderStyle: 'dashed' }}>
                     No sleep logged recently.
                   </div>
                 ) : (
                   sleepRecords.map(sl => (
-                    <div key={sl.id} className="food-item">
+                    <div key={sl.id} className="food-item" style={{ padding: '16px 20px' }}>
                       <div className="food-info">
-                        <h4>{Math.round(sl.durationHours * 10) / 10} hours</h4>
-                        <div className="food-stats">
-                          <span style={{ color: 'var(--accent-rec)' }}>Quality: <strong>{sl.quality}</strong></span>
+                        <h4 style={{ fontSize: '15px', fontWeight: 600 }}>{Math.round(sl.durationHours * 10) / 10} hours</h4>
+                        <div className="food-stats" style={{ marginTop: '4px' }}>
+                          <span style={{ color: 'var(--accent-fat)' }}>Quality: <strong>{sl.quality}</strong></span>
                           <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>{format(new Date(sl.date), 'MMM d')}</span>
                         </div>
                       </div>
                       <div style={{ display: 'flex', gap: '8px' }}>
-                        <button className="icon-btn" onClick={() => setEditingSleep(sl)} title="Edit" style={{ width: '32px', height: '32px', background: 'rgba(255,255,255,0.05)' }}>
+                        <button className="icon-btn" onClick={() => setEditingSleep(sl)} title="Edit" style={{ width: '36px', height: '36px' }}>
                           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
                         </button>
-                        <button className="delete-btn" onClick={() => handleDeleteSleep(sl.id)} title="Delete" style={{ width: '32px', height: '32px' }}>
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
-                        </button>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </section>
-
-            {/* Weight Log */}
-            <section className="foods-list-section">
-              <h3 className="section-title">Weight Log</h3>
-              <div className="foods-list">
-                {weightRecords.length === 0 ? (
-                  <div className="food-item" style={{ justifyContent: 'center', color: 'var(--text-secondary)', fontSize: '14px' }}>
-                    No weight records found.
-                  </div>
-                ) : (
-                  [...weightRecords].sort((a,b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map(w => (
-                    <div key={w.id} className="food-item">
-                      <div className="food-info">
-                        <h4>{w.weight} kg</h4>
-                        <div className="food-stats">
-                          <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>{format(new Date(w.date), 'MMM d, yyyy')}</span>
-                        </div>
-                      </div>
-                      <div style={{ display: 'flex', gap: '8px' }}>
-                        <button className="delete-btn" onClick={() => handleDeleteWeight(w.id)} title="Delete" style={{ width: '32px', height: '32px' }}>
+                        <button className="delete-btn icon-btn" onClick={() => handleDeleteSleep(sl.id)} title="Delete" style={{ width: '36px', height: '36px' }}>
                           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
                         </button>
                       </div>
@@ -1091,88 +1060,83 @@ export default function Home() {
         </div>
 
         <div className="layout-column">
-          {/* Desktop Add Button */}
-          <div className="desktop-only" style={{ marginBottom: '20px' }}>
-            <button
-              onClick={() => setIsAddModalOpen(true)}
-              className="primary-btn"
-              style={{ width: '100%', padding: '14px', fontSize: '16px', margin: 0, boxShadow: '0 4px 15px rgba(0,0,0,0.2)' }}
-            >
-              + {t('addFood')}
-            </button>
-          </div>
-
           {/* Recent Foods */}
           {recentFoods.length > 0 && (
-            <section className="glass-panel" style={{ padding: '16px', marginBottom: '20px' }}>
-              <h3 style={{ fontSize: '14px', marginBottom: '12px', color: 'var(--text-secondary)' }}>Recent Foods</h3>
-              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
-                {recentFoods.map((f, i) => (
-                  <button key={i} onClick={() => handleQuickAdd(f)} className="primary-btn outline" style={{ padding: '6px 12px', fontSize: '12px', margin: 0 }}>
-                    + {f.name}
+            <section className="glass-panel" style={{ padding: '24px' }}>
+              <h3 style={{ fontSize: '13px', fontWeight: 700, marginBottom: '16px', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '1px' }}>Quick Add</h3>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
+                {recentFoods.slice(0, 6).map((f, i) => (
+                  <button key={i} onClick={() => handleQuickAdd(f)} className="glass-btn" style={{ padding: '8px 14px', fontSize: '13px' }}>
+                    <span style={{ color: 'var(--accent-pro)', fontWeight: 800 }}>+</span> {f.name}
                   </button>
                 ))}
               </div>
             </section>
           )}
 
-          {/* Water Tracker - Quieter Version */}
-          <section className="glass-panel" style={{ padding: '24px', background: 'transparent', border: 'none', boxShadow: 'none' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+          {/* Water Tracker */}
+          <section className="glass-panel" style={{ padding: '28px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
               <div>
-                <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', fontWeight: 600, color: 'var(--text-secondary)' }}>
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"></path></svg>
-                  WATER
+                <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '10px', fontSize: '16px', fontWeight: 700 }}>
+                  <div className="icon-btn" style={{ width: '32px', height: '32px', background: 'rgba(14, 165, 233, 0.1)', border: 'none', color: 'var(--accent-pro)' }}>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"></path></svg>
+                  </div>
+                  Water
                 </h3>
-                <p style={{ margin: '4px 0 0 0', fontSize: '11px', color: 'rgba(255,255,255,0.4)', fontWeight: 500, letterSpacing: '1px' }}>
+                <p style={{ margin: '6px 0 0 0', fontSize: '12px', color: 'var(--text-secondary)', fontWeight: 600, letterSpacing: '1px' }}>
                   {waterGlasses} / 8 GLASSES
                 </p>
               </div>
-              <div style={{ display: 'flex', gap: '8px' }}>
-                <button onClick={() => handleUpdateWater(-1)} className="glass-btn" style={{ width: '32px', height: '32px', padding: 0, borderRadius: '8px', minHeight: '32px', background: 'transparent', border: '1px solid rgba(255,255,255,0.1)' }}>-</button>
-                <button onClick={() => handleUpdateWater(1)} className="glass-btn" style={{ width: '32px', height: '32px', padding: 0, borderRadius: '8px', minHeight: '32px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)' }}>+</button>
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <button onClick={() => handleUpdateWater(-1)} className="glass-btn" style={{ width: '40px', height: '40px', padding: 0, borderRadius: '12px' }}>-</button>
+                <button onClick={() => handleUpdateWater(1)} className="glass-btn active" style={{ width: '40px', height: '40px', padding: 0, borderRadius: '12px' }}>+</button>
               </div>
             </div>
 
-            <div style={{ display: 'flex', gap: '4px', height: '8px', width: '100%' }}>
+            <div style={{ display: 'flex', gap: '6px', height: '12px', width: '100%' }}>
               {Array.from({ length: 8 }).map((_, i) => (
                 <div
                   key={i}
                   style={{
                     flex: 1,
-                    borderRadius: '2px',
-                    background: i < waterGlasses ? 'var(--text-secondary)' : 'rgba(255,255,255,0.03)',
-                    transition: 'all 0.4s cubic-bezier(0.16, 1, 0.3, 1)'
+                    borderRadius: '4px',
+                    background: i < waterGlasses ? 'url(#water-gradient)' : 'rgba(255,255,255,0.05)',
+                    backgroundColor: i < waterGlasses ? 'var(--accent-pro)' : 'transparent',
+                    transition: 'all 0.4s cubic-bezier(0.16, 1, 0.3, 1)',
+                    boxShadow: i < waterGlasses ? '0 0 15px rgba(14, 165, 233, 0.4)' : 'none'
                   }}
                 ></div>
               ))}
             </div>
           </section>
 
-          {/* Exercise Logger - Quieter Version */}
-          <section className="glass-panel" style={{ padding: '24px', background: 'transparent', border: '1px solid rgba(255,255,255,0.03)', boxShadow: 'none' }}>
-            <h3 style={{ margin: '0 0 16px 0', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', fontWeight: 600, color: 'var(--text-secondary)' }}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8h1a4 4 0 0 1 0 8h-1"></path><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"></path><line x1="6" y1="1" x2="6" y2="4"></line><line x1="10" y1="1" x2="10" y2="4"></line><line x1="14" y1="1" x2="14" y2="4"></line></svg>
-              ACTIVITY
+          {/* Exercise Logger */}
+          <section className="glass-panel" style={{ padding: '24px' }}>
+            <h3 style={{ margin: '0 0 20px 0', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '16px', fontWeight: 700 }}>
+              <div className="icon-btn" style={{ width: '32px', height: '32px', background: 'rgba(244, 63, 94, 0.1)', border: 'none', color: '#f43f5e' }}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8h1a4 4 0 0 1 0 8h-1"></path><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"></path><line x1="6" y1="1" x2="6" y2="4"></line><line x1="10" y1="1" x2="10" y2="4"></line><line x1="14" y1="1" x2="14" y2="4"></line></svg>
+              </div>
+              Activity
             </h3>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
               <input
                 type="text"
                 placeholder="What did you do?"
                 value={exerciseInput.name}
                 onChange={e => setExerciseInput({ ...exerciseInput, name: e.target.value })}
-                style={{ padding: '10px 14px', borderRadius: '10px', height: '40px', background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.05)', fontSize: '13px' }}
+                style={{ padding: '12px 16px', borderRadius: '14px' }}
               />
-              <div style={{ display: 'flex', gap: '8px' }}>
+              <div style={{ display: 'flex', gap: '10px' }}>
                 <div style={{ flex: 1, position: 'relative' }}>
                   <input
                     type="number"
                     placeholder="Min"
                     value={exerciseInput.durationMinutes || ''}
                     onChange={e => setExerciseInput({ ...exerciseInput, durationMinutes: Number(e.target.value) })}
-                    style={{ width: '100%', padding: '10px 14px', borderRadius: '10px', height: '40px', background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.05)', fontSize: '13px' }}
+                    style={{ width: '100%', padding: '12px 16px', borderRadius: '14px' }}
                   />
-                  <span style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', fontSize: '10px', color: 'rgba(255,255,255,0.3)', fontWeight: 600 }}>MIN</span>
+                  <span style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 700 }}>MIN</span>
                 </div>
                 <div style={{ flex: 1, position: 'relative' }}>
                   <input
@@ -1180,34 +1144,36 @@ export default function Home() {
                     placeholder="Kcal"
                     value={exerciseInput.caloriesBurned || ''}
                     onChange={e => setExerciseInput({ ...exerciseInput, caloriesBurned: Number(e.target.value) })}
-                    style={{ width: '100%', padding: '10px 14px', borderRadius: '10px', height: '40px', background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.05)', fontSize: '13px' }}
+                    style={{ width: '100%', padding: '12px 16px', borderRadius: '14px' }}
                   />
-                  <span style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', fontSize: '10px', color: 'rgba(255,255,255,0.3)', fontWeight: 600 }}>KCAL</span>
+                  <span style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 700 }}>KCAL</span>
                 </div>
               </div>
-              <button onClick={handleLogExercise} className="glass-btn" style={{ margin: 0, padding: '10px', fontSize: '12px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '10px', minHeight: '40px', color: 'var(--text-secondary)' }}>
+              <button onClick={handleLogExercise} className="primary-btn" style={{ margin: 0, padding: '14px', fontSize: '14px', background: 'var(--accent-cal-gradient)', border: 'none', borderRadius: '14px' }}>
                 Log Activity ({exerciseToday}m today)
               </button>
             </div>
           </section>
 
-          {/* Sleep Logger - Quieter Version */}
-          <section className="glass-panel" style={{ padding: '24px', background: 'transparent', border: '1px solid rgba(255,255,255,0.03)', boxShadow: 'none' }}>
-            <h3 style={{ margin: '0 0 16px 0', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', fontWeight: 600, color: 'var(--text-secondary)' }}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
-              SLEEP
+          {/* Sleep Logger */}
+          <section className="glass-panel" style={{ padding: '24px' }}>
+            <h3 style={{ margin: '0 0 20px 0', display: 'flex', alignItems: 'center', gap: '10px', fontSize: '16px', fontWeight: 700 }}>
+              <div className="icon-btn" style={{ width: '32px', height: '32px', background: 'rgba(168, 85, 247, 0.1)', border: 'none', color: 'var(--accent-fat)' }}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+              </div>
+              Sleep
             </h3>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-              <div style={{ display: 'flex', gap: '8px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div style={{ display: 'flex', gap: '10px' }}>
                 <div style={{ flex: 1, position: 'relative' }}>
                   <input
                     type="number"
                     placeholder="Hr"
                     value={sleepInput.durationHours || ''}
                     onChange={e => setSleepInput({ ...sleepInput, durationHours: Number(e.target.value) })}
-                    style={{ width: '100%', padding: '10px 14px', borderRadius: '10px', height: '40px', background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.05)', fontSize: '13px' }}
+                    style={{ width: '100%', padding: '12px 16px', borderRadius: '14px' }}
                   />
-                  <span style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', fontSize: '10px', color: 'rgba(255,255,255,0.3)', fontWeight: 600 }}>HR</span>
+                  <span style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 700 }}>HR</span>
                 </div>
                 <div style={{ flex: 1, position: 'relative' }}>
                   <input
@@ -1215,27 +1181,29 @@ export default function Home() {
                     placeholder="Min"
                     value={sleepInput.durationMinutes || ''}
                     onChange={e => setSleepInput({ ...sleepInput, durationMinutes: Number(e.target.value) })}
-                    style={{ width: '100%', padding: '10px 14px', borderRadius: '10px', height: '40px', background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.05)', fontSize: '13px' }}
+                    style={{ width: '100%', padding: '12px 16px', borderRadius: '14px' }}
                   />
-                  <span style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', fontSize: '10px', color: 'rgba(255,255,255,0.3)', fontWeight: 600 }}>MIN</span>
+                  <span style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 700 }}>MIN</span>
                 </div>
               </div>
-              <div style={{ display: 'flex', gap: '8px' }}>
+              <div style={{ display: 'flex', gap: '10px' }}>
                 <select
                   value={sleepInput.quality}
                   onChange={e => setSleepInput({ ...sleepInput, quality: e.target.value })}
-                  style={{ flex: 1, padding: '10px 14px', borderRadius: '10px', height: '40px', background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.05)', fontSize: '13px', color: 'var(--text-secondary)' }}
+                  style={{ flex: 1, padding: '12px', borderRadius: '14px', border: '1px solid var(--panel-border)', background: 'rgba(0,0,0,0.3)', color: 'var(--text-primary)', fontSize: '14px', fontWeight: 600 }}
                 >
                   <option value="Good">Good</option>
                   <option value="Fair">Fair</option>
                   <option value="Poor">Poor</option>
                 </select>
-                <button onClick={handleLogSleep} className="glass-btn" style={{ flex: 1.5, padding: '10px', fontSize: '12px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '10px', minHeight: '40px', color: 'var(--text-secondary)' }}>
+                <button onClick={handleLogSleep} className="glass-btn active" style={{ flex: 1.5, padding: '12px', borderRadius: '14px' }}>
                   Log Sleep
                 </button>
               </div>
+              <p style={{ textAlign: 'center', fontSize: '12px', color: 'var(--text-secondary)', fontWeight: 600 }}>{Math.round(sleepToday * 10) / 10}H RECORDED TODAY</p>
             </div>
           </section>
+
         </div>
       </div>
 
