@@ -1355,3 +1355,10 @@ input::placeholder {
     display: none !important;
   }
 }
+.interactive-card {
+  transition: background-color 0.2s ease, transform 0.2s ease;
+}
+.interactive-card:hover {
+  background-color: rgba(255, 255, 255, 0.03);
+  transform: translateY(-2px);
+}
