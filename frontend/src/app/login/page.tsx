@@ -95,97 +95,101 @@ export default function LoginPage() {
             <div style={{ position: "absolute", top: "10%", left: "10%", width: "40vw", height: "40vw", background: "var(--accent-cal)", opacity: 0.15, filter: "blur(150px)", borderRadius: "50%" }}></div>
             <div style={{ position: "absolute", bottom: "10%", right: "10%", width: "40vw", height: "40vw", background: "#0ea5e9", opacity: 0.15, filter: "blur(150px)", borderRadius: "50%" }}></div>
 
-            <div className="glass-panel login-panel" style={{ width: "100%", maxWidth: "420px", zIndex: 1, display: "flex", flexDirection: "column", gap: "24px" }}>
+            <div className="glass-panel login-panel" style={{ width: "100%", maxWidth: "420px", zIndex: 1, display: "flex", flexDirection: "column", gap: "28px", padding: '40px' }}>
 
-                <div style={{ textAlign: "center", marginBottom: "8px", display: "flex", flexDirection: "column", alignItems: "center", gap: "16px" }}>
-                    <div style={{ position: 'relative', width: '80px', height: '80px', borderRadius: '20px', overflow: 'hidden', background: '#fff', boxShadow: '0 10px 25px rgba(0,0,0,0.2)' }}>
+                <div style={{ textAlign: "center", marginBottom: "8px", display: "flex", flexDirection: "column", alignItems: "center", gap: "20px" }}>
+                    <div style={{ position: 'relative', width: '88px', height: '88px', borderRadius: '24px', overflow: 'hidden', background: '#fff', boxShadow: '0 12px 30px rgba(255,255,255,0.1)' }}>
                         <Image
                             src="/logo.png"
                             alt="SomDun Logo"
                             fill
-                            style={{ objectFit: 'contain', padding: '5px' }}
+                            style={{ objectFit: 'contain', padding: '10px' }}
                         />
                     </div>
                     <div>
-                        <h1 style={{ fontSize: "32px", marginBottom: "8px", background: "var(--accent-cal-gradient)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+                        <h1 style={{ fontSize: "36px", fontWeight: 800, marginBottom: "4px", background: 'var(--accent-cal-gradient)', WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", letterSpacing: '-1px' }}>
                             SomDun
                         </h1>
-                        <p style={{ color: "var(--text-secondary)", fontSize: "15px" }}>
-                            Sign in to your personalized dashboard
+                        <p style={{ color: "var(--text-secondary)", fontSize: "15px", fontWeight: 500 }}>
+                            Elevate your performance.
                         </p>
                     </div>
                 </div>
 
                 {/* Custom Tab Switcher */}
-                <div style={{ display: "flex", background: "rgba(0,0,0,0.3)", borderRadius: "12px", padding: "4px" }}>
+                <div style={{ display: "flex", background: "rgba(0,0,0,0.4)", borderRadius: '16px', padding: "6px", border: '1px solid var(--panel-border)' }}>
                     <button
                         type="button"
                         onClick={() => { setIsLogin(true); setError(null); }}
-                        style={{ flex: 1, padding: "10px", borderRadius: "10px", background: isLogin ? "rgba(255,255,255,0.1)" : "transparent", color: isLogin ? "#fff" : "var(--text-secondary)", border: "none", cursor: "pointer", transition: "all 0.3s", fontWeight: isLogin ? 600 : 400 }}
+                        className={`glass-btn ${isLogin ? 'active' : ''}`}
+                        style={{ flex: 1, border: 'none', borderRadius: '12px' }}
                     >
                         {t('login')}
                     </button>
                     <button
                         type="button"
                         onClick={() => { setIsLogin(false); setError(null); }}
-                        style={{ flex: 1, padding: "10px", borderRadius: "10px", background: !isLogin ? "rgba(255,255,255,0.1)" : "transparent", color: !isLogin ? "#fff" : "var(--text-secondary)", border: "none", cursor: "pointer", transition: "all 0.3s", fontWeight: !isLogin ? 600 : 400 }}
+                        className={`glass-btn ${!isLogin ? 'active' : ''}`}
+                        style={{ flex: 1, border: 'none', borderRadius: '12px' }}
                     >
                         {t('signup')}
                     </button>
                 </div>
 
                 {error && (
-                    <div style={{ background: "rgba(255, 45, 85, 0.1)", borderLeft: "3px solid var(--danger)", padding: "12px 16px", borderRadius: "0 8px 8px 0", fontSize: "14px", color: "var(--text-primary)" }}>
+                    <div style={{ background: "rgba(255, 45, 85, 0.1)", borderLeft: "4px solid var(--danger)", padding: "14px 20px", borderRadius: "4px 12px 12px 4px", fontSize: "14px", color: "var(--text-primary)", fontWeight: 500 }}>
                         {error}
                     </div>
                 )}
 
-                <form onSubmit={handleEmailAuth} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+                <form onSubmit={handleEmailAuth} style={{ display: "flex", flexDirection: "column", gap: "18px" }}>
                     {!isLogin && (
                         <div className="input-group">
-                            <label>{t('fullName')}</label>
-                            <input type="text" placeholder="John Doe" value={name} onChange={e => setName(e.target.value)} disabled={loading} style={{ background: "rgba(0,0,0,0.3)", border: "1px solid rgba(255,255,255,0.05)", height: "48px" }} />
+                            <label style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '8px', display: 'block' }}>{t('fullName')}</label>
+                            <input type="text" placeholder="John Doe" value={name} onChange={e => setName(e.target.value)} disabled={loading} style={{ background: "rgba(0,0,0,0.25)", border: "1px solid var(--panel-border)", height: "52px", borderRadius: '14px', padding: '0 20px' }} />
                         </div>
                     )}
 
                     <div className="input-group">
-                        <label>{t('email')}</label>
-                        <input type="email" placeholder="you@example.com" value={email} onChange={e => setEmail(e.target.value)} disabled={loading} style={{ background: "rgba(0,0,0,0.3)", border: "1px solid rgba(255,255,255,0.05)", height: "48px" }} />
+                        <label style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '8px', display: 'block' }}>{t('email')}</label>
+                        <input type="email" placeholder="you@example.com" value={email} onChange={e => setEmail(e.target.value)} disabled={loading} style={{ background: "rgba(0,0,0,0.25)", border: "1px solid var(--panel-border)", height: "52px", borderRadius: '14px', padding: '0 20px' }} />
                     </div>
 
                     <div className="input-group">
-                        <label>{t('password')}</label>
-                        <input type="password" placeholder="••••••••" value={password} onChange={e => setPassword(e.target.value)} disabled={loading} style={{ background: "rgba(0,0,0,0.3)", border: "1px solid rgba(255,255,255,0.05)", height: "48px" }} />
+                        <label style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '8px', display: 'block' }}>{t('password')}</label>
+                        <input type="password" placeholder="••••••••" value={password} onChange={e => setPassword(e.target.value)} disabled={loading} style={{ background: "rgba(0,0,0,0.25)", border: "1px solid var(--panel-border)", height: "52px", borderRadius: '14px', padding: '0 20px' }} />
                     </div>
 
                     {!isLogin && (
-                        <div style={{ display: "flex", alignItems: "flex-start", gap: "10px", marginTop: "4px" }}>
+                        <div style={{ display: "flex", alignItems: "flex-start", gap: "12px", marginTop: "4px" }}>
                             <input
                                 type="checkbox"
                                 id="policy"
                                 checked={acceptedPolicy}
                                 onChange={(e) => setAcceptedPolicy(e.target.checked)}
-                                style={{ marginTop: "3px", width: "16px", height: "16px", accentColor: "var(--accent-cal)" }}
+                                style={{ marginTop: "4px", width: "18px", height: "18px", accentColor: "var(--accent-cal)", cursor: 'pointer' }}
                             />
-                            <label htmlFor="policy" style={{ fontSize: "12px", color: "var(--text-secondary)", lineHeight: "1.4" }}>
-                                I agree to the <span style={{ color: "var(--accent-cal)", textDecoration: "underline", cursor: "pointer" }}>Privacy Policy</span> and <span style={{ color: "var(--accent-cal)", textDecoration: "underline", cursor: "pointer" }}>Terms of Service</span>.
+                            <label htmlFor="policy" style={{ fontSize: "12px", color: "var(--text-secondary)", lineHeight: "1.5" }}>
+                                I agree to the <span style={{ color: "var(--accent-cal)", fontWeight: 600, textDecoration: "underline", cursor: "pointer" }}>Privacy Policy</span> and <span style={{ color: "var(--accent-cal)", fontWeight: 600, textDecoration: "underline", cursor: "pointer" }}>Terms of Service</span>.
                             </label>
                         </div>
                     )}
 
-                    <button type="submit" className="primary-btn" disabled={loading} style={{ height: "48px", marginTop: "8px", fontSize: "16px", fontWeight: 600, letterSpacing: "0.5px" }}>
-                        {loading ? t('loading') : (isLogin ? t('login') : t('signup'))}
+                    <button type="submit" className="primary-btn active" disabled={loading} style={{ height: "56px", marginTop: "12px", fontSize: "16px", fontWeight: 700, letterSpacing: "1px", borderRadius: '16px' }}>
+                        {loading ? (
+                            <div className="loading-dots">Authenticating...</div>
+                        ) : (isLogin ? t('login').toUpperCase() : t('signup').toUpperCase())}
                     </button>
                 </form>
 
-                <div style={{ position: "relative", textAlign: "center", margin: "16px 0" }}>
-                    <div style={{ position: "absolute", top: "50%", left: 0, right: 0, height: "1px", background: "rgba(255,255,255,0.1)", zIndex: 0 }}></div>
-                    <span style={{ position: "relative", zIndex: 1, background: "var(--panel-bg)", padding: "0 16px", fontSize: "12px", color: "var(--text-secondary)", textTransform: "uppercase", letterSpacing: "1px" }}>
+                <div style={{ position: "relative", textAlign: "center", margin: "12px 0" }}>
+                    <div style={{ position: "absolute", top: "50%", left: 0, right: 0, height: "1px", background: "rgba(255,255,255,0.08)", zIndex: 0 }}></div>
+                    <span style={{ position: "relative", zIndex: 1, background: "#080808", padding: "0 20px", fontSize: "11px", fontWeight: 700, color: "var(--text-secondary)", textTransform: "uppercase", letterSpacing: "2px" }}>
                         {t('continueWith')}
                     </span>
                 </div>
 
-                <div style={{ display: "flex", justifyContent: "center", minHeight: "40px" }}>
+                <div style={{ display: "flex", justifyContent: "center", minHeight: "44px" }}>
                     {/* Real Google Login Button - restored for compatibility with ID Token validation */}
                     <GoogleLogin
                         onSuccess={handleGoogleSuccess}

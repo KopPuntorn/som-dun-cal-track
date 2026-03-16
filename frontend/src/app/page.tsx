@@ -1116,80 +1116,88 @@ export default function Home() {
             </section>
           )}
 
-          {/* Water Tracker */}
-          <section className="glass-panel" style={{ padding: '24px', position: 'relative', marginBottom: '20px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '16px', marginBottom: '20px' }}>
+          {/* Water Tracker - Quieter Version */}
+          <section className="glass-panel" style={{ padding: '24px', background: 'transparent', border: 'none', boxShadow: 'none' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
               <div>
-                <h3 style={{ margin: '0 0 4px 0', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '16px', fontWeight: 600 }}>
-                  <span style={{ color: '#00d2ff', fontSize: '18px' }}>💧</span> Daily Water
+                <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', fontWeight: 600, color: 'var(--text-secondary)' }}>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"></path></svg>
+                  WATER
                 </h3>
-                <p style={{ margin: 0, fontSize: '13px', color: 'var(--text-secondary)' }}>
-                  {waterGlasses} / 8 glasses
+                <p style={{ margin: '4px 0 0 0', fontSize: '11px', color: 'rgba(255,255,255,0.4)', fontWeight: 500, letterSpacing: '1px' }}>
+                  {waterGlasses} / 8 GLASSES
                 </p>
               </div>
-              <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                <button onClick={() => handleUpdateWater(-1)} className="icon-btn" style={{ width: '36px', height: '36px', borderRadius: '10px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)' }}>-</button>
-                <button onClick={() => handleUpdateWater(1)} className="icon-btn" style={{ width: '36px', height: '36px', borderRadius: '10px', background: 'rgba(0, 210, 255, 0.2)', color: '#00d2ff', border: '1px solid rgba(0, 210, 255, 0.3)' }}>+</button>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button onClick={() => handleUpdateWater(-1)} className="glass-btn" style={{ width: '32px', height: '32px', padding: 0, borderRadius: '8px', minHeight: '32px', background: 'transparent', border: '1px solid rgba(255,255,255,0.1)' }}>-</button>
+                <button onClick={() => handleUpdateWater(1)} className="glass-btn" style={{ width: '32px', height: '32px', padding: 0, borderRadius: '8px', minHeight: '32px', background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)' }}>+</button>
               </div>
             </div>
 
-            <div style={{ display: 'flex', gap: '6px', height: '24px', width: '100%' }}>
+            <div style={{ display: 'flex', gap: '4px', height: '8px', width: '100%' }}>
               {Array.from({ length: 8 }).map((_, i) => (
                 <div
                   key={i}
                   style={{
                     flex: 1,
-                    borderRadius: '6px',
-                    background: i < waterGlasses ? '#00d2ff' : 'rgba(255,255,255,0.05)',
-                    transition: 'background 0.3s ease, box-shadow 0.3s ease',
-                    boxShadow: i < waterGlasses ? '0 0 12px rgba(0,210,255,0.4)' : 'none'
+                    borderRadius: '2px',
+                    background: i < waterGlasses ? 'var(--text-secondary)' : 'rgba(255,255,255,0.03)',
+                    transition: 'all 0.4s cubic-bezier(0.16, 1, 0.3, 1)'
                   }}
                 ></div>
               ))}
             </div>
           </section>
 
-          {/* Exercise Logger */}
-          <section className="glass-panel" style={{ padding: '20px', marginBottom: '20px' }}>
-            <h3 style={{ margin: '0 0 16px 0', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '16px', fontWeight: 600 }}>
-              <span style={{ color: '#ff375f', fontSize: '18px' }}>🔥</span> {t('fit')}
+          {/* Exercise Logger - Quieter Version */}
+          <section className="glass-panel" style={{ padding: '24px', background: 'transparent', border: '1px solid rgba(255,255,255,0.03)', boxShadow: 'none' }}>
+            <h3 style={{ margin: '0 0 16px 0', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', fontWeight: 600, color: 'var(--text-secondary)' }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8h1a4 4 0 0 1 0 8h-1"></path><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"></path><line x1="6" y1="1" x2="6" y2="4"></line><line x1="10" y1="1" x2="10" y2="4"></line><line x1="14" y1="1" x2="14" y2="4"></line></svg>
+              ACTIVITY
             </h3>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <input
+                type="text"
+                placeholder="What did you do?"
+                value={exerciseInput.name}
+                onChange={e => setExerciseInput({ ...exerciseInput, name: e.target.value })}
+                style={{ padding: '10px 14px', borderRadius: '10px', height: '40px', background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.05)', fontSize: '13px' }}
+              />
               <div style={{ display: 'flex', gap: '8px' }}>
-                <input
-                  type="text"
-                  placeholder="Activity (e.g. Run)"
-                  value={exerciseInput.name}
-                  onChange={e => setExerciseInput({ ...exerciseInput, name: e.target.value })}
-                  style={{ flex: 1.5, padding: '10px 14px', borderRadius: '10px', fontSize: '14px' }}
-                />
-                <input
-                  type="number"
-                  placeholder="Mins"
-                  value={exerciseInput.durationMinutes || ''}
-                  onChange={e => setExerciseInput({ ...exerciseInput, durationMinutes: Number(e.target.value) })}
-                  style={{ flex: 0.8, padding: '10px 14px', borderRadius: '10px', fontSize: '14px' }}
-                />
-                <input
-                  type="number"
-                  placeholder="Kcal"
-                  value={exerciseInput.caloriesBurned || ''}
-                  onChange={e => setExerciseInput({ ...exerciseInput, caloriesBurned: Number(e.target.value) })}
-                  style={{ flex: 0.8, padding: '10px 14px', borderRadius: '10px', fontSize: '14px' }}
-                />
+                <div style={{ flex: 1, position: 'relative' }}>
+                  <input
+                    type="number"
+                    placeholder="Min"
+                    value={exerciseInput.durationMinutes || ''}
+                    onChange={e => setExerciseInput({ ...exerciseInput, durationMinutes: Number(e.target.value) })}
+                    style={{ width: '100%', padding: '10px 14px', borderRadius: '10px', height: '40px', background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.05)', fontSize: '13px' }}
+                  />
+                  <span style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', fontSize: '10px', color: 'rgba(255,255,255,0.3)', fontWeight: 600 }}>MIN</span>
+                </div>
+                <div style={{ flex: 1, position: 'relative' }}>
+                  <input
+                    type="number"
+                    placeholder="Kcal"
+                    value={exerciseInput.caloriesBurned || ''}
+                    onChange={e => setExerciseInput({ ...exerciseInput, caloriesBurned: Number(e.target.value) })}
+                    style={{ width: '100%', padding: '10px 14px', borderRadius: '10px', height: '40px', background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.05)', fontSize: '13px' }}
+                  />
+                  <span style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', fontSize: '10px', color: 'rgba(255,255,255,0.3)', fontWeight: 600 }}>KCAL</span>
+                </div>
               </div>
-              <button onClick={handleLogExercise} className="primary-btn" style={{ margin: 0, padding: '10px', fontSize: '14px', background: 'var(--accent-cal-gradient)', border: 'none' }}>
+              <button onClick={handleLogExercise} className="glass-btn" style={{ margin: 0, padding: '10px', fontSize: '12px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '10px', minHeight: '40px', color: 'var(--text-secondary)' }}>
                 Log Activity ({exerciseToday}m today)
               </button>
             </div>
           </section>
 
-          {/* Sleep Logger */}
-          <section className="glass-panel" style={{ padding: '20px', marginBottom: '20px' }}>
-            <h3 style={{ margin: '0 0 16px 0', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '16px', fontWeight: 600 }}>
-              <span style={{ color: '#bf5af2', fontSize: '18px' }}>🌙</span> {t('rec')}
+          {/* Sleep Logger - Quieter Version */}
+          <section className="glass-panel" style={{ padding: '24px', background: 'transparent', border: '1px solid rgba(255,255,255,0.03)', boxShadow: 'none' }}>
+            <h3 style={{ margin: '0 0 16px 0', display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px', fontWeight: 600, color: 'var(--text-secondary)' }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+              SLEEP
             </h3>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
               <div style={{ display: 'flex', gap: '8px' }}>
                 <div style={{ flex: 1, position: 'relative' }}>
                   <input
@@ -1197,9 +1205,9 @@ export default function Home() {
                     placeholder="Hr"
                     value={sleepInput.durationHours || ''}
                     onChange={e => setSleepInput({ ...sleepInput, durationHours: Number(e.target.value) })}
-                    style={{ width: '100%', padding: '10px 14px', borderRadius: '10px', fontSize: '14px' }}
+                    style={{ width: '100%', padding: '10px 14px', borderRadius: '10px', height: '40px', background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.05)', fontSize: '13px' }}
                   />
-                  <span style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', fontSize: '12px', color: 'var(--text-secondary)' }}>h</span>
+                  <span style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', fontSize: '10px', color: 'rgba(255,255,255,0.3)', fontWeight: 600 }}>HR</span>
                 </div>
                 <div style={{ flex: 1, position: 'relative' }}>
                   <input
@@ -1207,23 +1215,23 @@ export default function Home() {
                     placeholder="Min"
                     value={sleepInput.durationMinutes || ''}
                     onChange={e => setSleepInput({ ...sleepInput, durationMinutes: Number(e.target.value) })}
-                    style={{ width: '100%', padding: '10px 14px', borderRadius: '10px', fontSize: '14px' }}
+                    style={{ width: '100%', padding: '10px 14px', borderRadius: '10px', height: '40px', background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.05)', fontSize: '13px' }}
                   />
-                  <span style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', fontSize: '12px', color: 'var(--text-secondary)' }}>m</span>
+                  <span style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', fontSize: '10px', color: 'rgba(255,255,255,0.3)', fontWeight: 600 }}>MIN</span>
                 </div>
               </div>
               <div style={{ display: 'flex', gap: '8px' }}>
                 <select
                   value={sleepInput.quality}
                   onChange={e => setSleepInput({ ...sleepInput, quality: e.target.value })}
-                  style={{ flex: 1, padding: '10px', borderRadius: '10px', border: '1px solid var(--panel-border)', background: 'var(--bg-color)', color: 'var(--text-primary)', fontSize: '14px' }}
+                  style={{ flex: 1, padding: '10px 14px', borderRadius: '10px', height: '40px', background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.05)', fontSize: '13px', color: 'var(--text-secondary)' }}
                 >
                   <option value="Good">Good</option>
                   <option value="Fair">Fair</option>
                   <option value="Poor">Poor</option>
                 </select>
-                <button onClick={handleLogSleep} className="primary-btn outline" style={{ flex: 1.5, margin: 0, padding: '10px', fontSize: '14px' }}>
-                  Log Sleep ({Math.round(sleepToday * 10) / 10}h today)
+                <button onClick={handleLogSleep} className="glass-btn" style={{ flex: 1.5, padding: '10px', fontSize: '12px', background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: '10px', minHeight: '40px', color: 'var(--text-secondary)' }}>
+                  Log Sleep
                 </button>
               </div>
             </div>

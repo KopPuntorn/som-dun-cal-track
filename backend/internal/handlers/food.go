@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 	"net/http"
+	"regexp"
 	"time"
 
 	"backend/internal/db"
@@ -77,13 +78,16 @@ func SearchFoods(c echo.Context) error {
 		return c.JSON(http.StatusOK, []models.Food{})
 	}
 
+	// Sanitize regex: escape special characters
+	escapedQuery := regexp.QuoteMeta(query)
+
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	// Use regex for partial/substring match (case-insensitive)
 	filter := bson.M{
 		"userId": userID,
-		"name":   bson.M{"$regex": primitive.Regex{Pattern: query, Options: "i"}},
+		"name":   bson.M{"$regex": primitive.Regex{Pattern: escapedQuery, Options: "i"}},
 	}
 
 	cursor, err := db.FoodsCollection.Find(ctx, filter)

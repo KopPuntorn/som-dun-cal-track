@@ -29,8 +29,20 @@ export default function RootLayout({
         <svg style={{ width: 0, height: 0, position: 'absolute' }} aria-hidden="true" focusable="false">
           <defs>
             <linearGradient id="cal-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
-              <stop offset="0%" stopColor="#ff7b00" />
-              <stop offset="100%" stopColor="#ff0055" />
+              <stop offset="0%" stopColor="#ff6b00" />
+              <stop offset="100%" stopColor="#ff2a55" />
+            </linearGradient>
+            <linearGradient id="pro-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="#0ea5e9" />
+              <stop offset="100%" stopColor="#6366f1" />
+            </linearGradient>
+            <linearGradient id="fat-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="#a855f7" />
+              <stop offset="100%" stopColor="#ec4899" />
+            </linearGradient>
+            <linearGradient id="water-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+              <stop offset="0%" stopColor="#0ea5e9" />
+              <stop offset="100%" stopColor="#38bdf8" />
             </linearGradient>
           </defs>
         </svg>

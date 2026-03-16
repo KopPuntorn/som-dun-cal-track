@@ -21,7 +21,7 @@ func JWTMiddleware(next echo.HandlerFunc) echo.HandlerFunc {
 		tokenStr := authHeader[7:]
 		secret := os.Getenv("JWT_SECRET")
 		if secret == "" {
-			secret = "default-secret-key-change-me"
+			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "JWT_SECRET not configured"})
 		}
 
 		token, err := jwt.Parse(tokenStr, func(token *jwt.Token) (interface{}, error) {
