@@ -113,30 +113,41 @@ export default function DashboardPage() {
     const [aiAdvice, setAiAdvice] = useState<string | null>(null);
 
     const handleGetAiAdvice = async () => {
-        if (!chartData.length) return;
         setAiLoading(true);
         setAiAdvice(null);
         setError(null);
 
-        const activeDays = chartData.filter(d => d.calories > 0).length || 1;
-        const totalCals = chartData.reduce((sum, d) => sum + d.calories, 0);
-        const avgCals = Math.round(totalCals / activeDays);
-        const totalPro = Math.round(chartData.reduce((sum, d) => sum + d.protein, 0) * 10) / 10;
-        const avgPro = Math.round(totalPro / activeDays * 10) / 10;
-        
-        let measureCtx = "";
-        if (measurements.length > 0) {
-            const latest = measurements[measurements.length - 1];
-            measureCtx = ` น้ำหนักล่าสุด ${latest.weight}kg, เอว ${latest.waistCircumference}cm, ไขมัน ${latest.bodyFatPercentage}%.`;
-        }
+        const now = new Date();
+        let startStr: string;
+        let endStr: string = format(now, 'yyyy-MM-dd');
 
-        const summary = `ข้อมูลย้อนหลัง (${range}): มีข้อมูล ${activeDays}/${chartData.length} วัน. กินเฉลี่ย (เฉพาะวันที่บันทึก) คือ ${avgCals} kcal, โปรตีนเฉลี่ย ${avgPro}g. เป้าหมายแคลอรี่: ${goals.calories} kcal.${measureCtx} ช่วยวิเคราะห์และให้คำแนะนำหน่อยครับ`;
+        switch (range) {
+            case 'today':
+                startStr = endStr;
+                break;
+            case 'week':
+                startStr = format(subDays(now, 6), 'yyyy-MM-dd');
+                break;
+            case 'month':
+                startStr = format(subDays(now, 29), 'yyyy-MM-dd');
+                break;
+            case 'custom':
+                startStr = customStart;
+                endStr = customEnd;
+                break;
+            default:
+                startStr = format(subDays(now, 6), 'yyyy-MM-dd');
+        }
 
         try {
             const res = await fetch(`${API_BASE}/consult`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ summary, language }),
+                body: JSON.stringify({ 
+                    startDate: startStr, 
+                    endDate: endStr, 
+                    language 
+                }),
             });
 
             if (res.ok) {

@@ -102,8 +102,11 @@ export default function Home() {
   const [editingExercise, setEditingExercise] = useState<ExerciseRecord | null>(null);
   const [editingSleep, setEditingSleep] = useState<SleepRecord | null>(null);
   const [editInputs, setEditInputs] = useState({ name: "", calories: "", protein: "", carbs: "", fat: "", sugar: "", sodium: "", fiber: "", mealCategory: "Breakfast" });
-  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [logModalTab, setLogModalTab] = useState<'food' | 'exercise' | 'sleep'>('food');
+  const [isFoodModalOpen, setIsFoodModalOpen] = useState(false);
+  const [isActivityModalOpen, setIsActivityModalOpen] = useState(false);
+  const [logModalTab, setLogModalTab] = useState<'exercise' | 'sleep'>('exercise');
+  const [detailView, setDetailView] = useState<'training' | 'recovery' | null>(null);
+  const [aiAdvice, setAiAdvice] = useState<string | null>(null);
   const dataFetchedRef = useRef(false);
 
   // Helper for image compression
@@ -204,11 +207,11 @@ export default function Home() {
 
     // Check if URL has ?add=true and open modal
     if (window.location.search.includes('add=true')) {
-      setIsAddModalOpen(true);
+      setIsFoodModalOpen(true);
       window.history.replaceState({}, '', '/');
     }
 
-    const handleOpenModal = () => setIsAddModalOpen(true);
+    const handleOpenModal = () => setIsFoodModalOpen(true);
     window.addEventListener('openAddFoodModal', handleOpenModal);
 
     async function fetchData() {
@@ -253,17 +256,20 @@ export default function Home() {
 
         // Today's summary for Exercise & Sleep
         const today = format(new Date(), 'yyyy-MM-dd');
-        const exToday = (data.exerciseRecent || [])
-          .filter((e: ExerciseRecord) => format(new Date(e.date), 'yyyy-MM-dd') === today)
-          .reduce((sum: number, e: ExerciseRecord) => sum + e.durationMinutes, 0);
+        
+        const filteredExercise = (data.exerciseRecent || [])
+          .filter((e: ExerciseRecord) => format(new Date(e.date), 'yyyy-MM-dd') === today);
+        
+        const exToday = filteredExercise.reduce((sum: number, e: ExerciseRecord) => sum + e.durationMinutes, 0);
         setExerciseToday(exToday);
-        setExerciseRecords(data.exerciseRecent || []);
+        setExerciseRecords(filteredExercise);
 
-        const slToday = (data.sleepRecent || [])
-          .filter((s: SleepRecord) => format(new Date(s.date), 'yyyy-MM-dd') === today)
-          .reduce((sum: number, s: SleepRecord) => sum + s.durationHours, 0);
+        const filteredSleep = (data.sleepRecent || [])
+          .filter((s: SleepRecord) => format(new Date(s.date), 'yyyy-MM-dd') === today);
+
+        const slToday = filteredSleep.reduce((sum: number, s: SleepRecord) => sum + s.durationHours, 0);
         setSleepToday(slToday);
-        setSleepRecords(data.sleepRecent || []);
+        setSleepRecords(filteredSleep);
         setWeightRecords(data.weightRecent || []);
       } catch (err) {
         console.error("Failed to fetch data", err);
@@ -374,8 +380,6 @@ export default function Home() {
       return;
     }
     try {
-      // Attribute sleep to yesterday (the night that just passed)
-      const yesterday = subDays(new Date(), 1).toISOString();
       const totalHours = Number(sleepInput.durationHours) + (Number(sleepInput.durationMinutes) / 60);
       const res = await fetch(`${API_BASE}/sleep`, {
         method: 'POST',
@@ -383,7 +387,7 @@ export default function Home() {
         body: JSON.stringify({ 
           durationHours: totalHours,
           quality: sleepInput.quality,
-          date: yesterday 
+          date: new Date().toISOString()
         })
       });
       if (res.ok) {
@@ -391,7 +395,7 @@ export default function Home() {
         setSleepRecords([record, ...sleepRecords]);
         setSleepToday(prev => prev + totalHours);
         setSleepInput({ durationHours: 8, durationMinutes: 0, quality: 'Good' });
-        showToast("Sleep logged for yesterday!", "success");
+        showToast("Sleep logged!", "success");
       }
     } catch (err) {
       console.error(err);
@@ -544,6 +548,10 @@ export default function Home() {
     try {
       const res = await fetch(`${API_BASE}/exercise/${id}`, { method: "DELETE" });
       if (res.ok) {
+        const deletedRecord = exerciseRecords.find(r => r.id === id);
+        if (deletedRecord) {
+          setExerciseToday(prev => Math.max(0, prev - deletedRecord.durationMinutes));
+        }
         setExerciseRecords(exerciseRecords.filter(r => r.id !== id));
         showToast("Exercise deleted", "info");
       }
@@ -554,6 +562,10 @@ export default function Home() {
     try {
       const res = await fetch(`${API_BASE}/sleep/${id}`, { method: "DELETE" });
       if (res.ok) {
+        const deletedRecord = sleepRecords.find(r => r.id === id);
+        if (deletedRecord) {
+          setSleepToday(prev => Math.max(0, prev - deletedRecord.durationHours));
+        }
         setSleepRecords(sleepRecords.filter(r => r.id !== id));
         showToast("Sleep record deleted", "info");
       }
@@ -759,6 +771,35 @@ export default function Home() {
     }
   };
 
+  const handleGetAiAdvice = async () => {
+    setAiLoading(true);
+    setAiAdvice(null);
+    setError(null);
+
+    try {
+      const res = await fetch(`${API_BASE}/consult`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          date: format(new Date(), 'yyyy-MM-dd'), 
+          language 
+        }),
+      });
+
+      if (res.ok) {
+        const advice = await res.text();
+        setAiAdvice(advice);
+      } else {
+        showToast("Failed to get AI advice", "error");
+      }
+    } catch (err) {
+      console.error(err);
+      showToast("AI Consultant unavailable", "error");
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
   // Calculations
   const totals = foods.reduce(
     (acc, food) => ({
@@ -819,12 +860,21 @@ export default function Home() {
         </div>
         <div className="header-actions" style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
           <button
-            onClick={() => { setLogModalTab('food'); setIsAddModalOpen(true); }}
-            className="icon-btn active"
-            style={{ background: 'var(--accent-pro-gradient)', border: 'none', width: '40px', height: '40px', borderRadius: '12px' }}
-            title={t('logActivity') || 'Add Entry'}
+            onClick={() => setIsFoodModalOpen(true)}
+            className="icon-btn active mobile-hidden"
+            style={{ background: 'var(--accent-pro-gradient)', border: 'none', width: '40px', height: '40px', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+            title="Add Food"
           >
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+          </button>
+          
+          <button
+            onClick={() => setIsActivityModalOpen(true)}
+            className="icon-btn mobile-hidden"
+            style={{ background: 'rgba(255,255,255,0.05)', width: '40px', height: '40px', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+            title="Log Activity"
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
           </button>
           <button
             onClick={() => setLanguage(language === 'en' ? 'th' : 'en')}
@@ -841,7 +891,7 @@ export default function Home() {
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
           </Link>
           <Link href="/profile" className="icon-btn mobile-hidden" title={t('profileSettings')}>
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
           </Link>
         </div>
       </header>
@@ -948,7 +998,7 @@ export default function Home() {
           {/* Unified Activity Feed */}
           <div className="dashboard-logs" style={{ display: 'flex', flexDirection: 'column', gap: '24px', marginTop: '16px' }}>
             <section className="foods-list-section">
-              <h3 className="section-title" style={{ fontSize: '16px', marginBottom: '16px' }}>Today's Feed</h3>
+              <h3 className="section-title" style={{ fontSize: '16px', marginBottom: '16px' }}>{t('todayFeed')}</h3>
               <div className="foods-list">
                 {loading ? (
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
@@ -956,9 +1006,11 @@ export default function Home() {
                       <div key={i} className="food-item skeleton" style={{ height: '72px', border: 'none' }}></div>
                     ))}
                   </div>
-                ) : (foods.length === 0 && exerciseRecords.length === 0 && sleepRecords.length === 0) ? (
-                  <div className="food-item" style={{ justifyContent: 'center', color: 'var(--text-secondary)', fontSize: '14px', borderStyle: 'dashed' }}>
-                    No activity logged yet today.
+                ) : (foods.length === 0) ? (
+                  <div className="glass-panel" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px 20px', color: 'var(--text-secondary)', textAlign: 'center', gap: '12px', background: 'rgba(255,255,255,0.02)' }}>
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.5 }}><path d="M18 8h1a4 4 0 0 1 0 8h-1"></path><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"></path><line x1="6" y1="1" x2="6" y2="4"></line><line x1="10" y1="1" x2="10" y2="4"></line><line x1="14" y1="1" x2="14" y2="4"></line></svg>
+                    <div style={{ fontSize: '14px', fontWeight: 600 }}>{t('noFoodLogged') || "No food logged yet"}</div>
+                    <div style={{ fontSize: '12px', opacity: 0.6 }}>{t('tapFoodButton') || "Tap the FOOD button above to get started."}</div>
                   </div>
                 ) : (
                   <>
@@ -971,7 +1023,7 @@ export default function Home() {
                         <div key={category} style={{ marginBottom: '16px' }}>
                           <h4 style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '12px', textTransform: 'uppercase', letterSpacing: '1px', display: 'flex', alignItems: 'center', gap: '8px', opacity: 0.8 }}>
                             <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--accent-pro)' }}></span>
-                            {category}
+                            {t(category.toLowerCase() as any) || category}
                           </h4>
                           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                             {categoryFoods.map(food => (
@@ -993,59 +1045,6 @@ export default function Home() {
                         </div>
                       );
                     })}
-
-                    {/* Exercise Entries */}
-                    {exerciseRecords.length > 0 && (
-                      <div style={{ marginBottom: '16px' }}>
-                        <h4 style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '12px', textTransform: 'uppercase', letterSpacing: '1px', display: 'flex', alignItems: 'center', gap: '8px', opacity: 0.8 }}>
-                          <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: '#f43f5e' }}></span>
-                          Training
-                        </h4>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                          {exerciseRecords.map(ex => (
-                            <div key={ex.id} className="food-item" style={{ padding: '12px 20px', borderLeft: '3px solid #f43f5e' }}>
-                              <div className="food-info">
-                                <h4 style={{ fontSize: '14px', fontWeight: 600 }}>{ex.name}</h4>
-                                <div className="food-stats" style={{ marginTop: '2px', fontSize: '12px' }}>
-                                  <span><strong>{ex.durationMinutes}</strong> min</span>
-                                  <span style={{ color: 'var(--accent-cal)' }}><strong>{ex.caloriesBurned}</strong> kcal</span>
-                                </div>
-                              </div>
-                              <div style={{ display: 'flex', gap: '4px' }}>
-                                <button className="icon-btn" onClick={() => setEditingExercise(ex)} style={{ width: '32px', height: '32px' }}><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg></button>
-                                <button className="icon-btn" onClick={() => handleDeleteExercise(ex.id)} style={{ width: '32px', height: '32px' }}><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></button>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Sleep Entries */}
-                    {sleepRecords.length > 0 && (
-                      <div style={{ marginBottom: '16px' }}>
-                        <h4 style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '12px', textTransform: 'uppercase', letterSpacing: '1px', display: 'flex', alignItems: 'center', gap: '8px', opacity: 0.8 }}>
-                          <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--accent-fat)' }}></span>
-                          Recovery
-                        </h4>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                          {sleepRecords.map(sl => (
-                            <div key={sl.id} className="food-item" style={{ padding: '12px 20px', borderLeft: '3px solid var(--accent-fat)' }}>
-                              <div className="food-info">
-                                <h4 style={{ fontSize: '14px', fontWeight: 600 }}>{Math.round(sl.durationHours * 10) / 10} hours</h4>
-                                <div className="food-stats" style={{ marginTop: '2px', fontSize: '12px' }}>
-                                  <span style={{ color: 'var(--accent-fat)' }}>Quality: <strong>{sl.quality}</strong></span>
-                                </div>
-                              </div>
-                              <div style={{ display: 'flex', gap: '4px' }}>
-                                <button className="icon-btn" onClick={() => setEditingSleep(sl)} style={{ width: '32px', height: '32px' }}><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg></button>
-                                <button className="icon-btn" onClick={() => handleDeleteSleep(sl.id)} style={{ width: '32px', height: '32px' }}><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></button>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      </div>
-                    )}
                   </>
                 )}
               </div>
@@ -1056,7 +1055,7 @@ export default function Home() {
         <div className="layout-column">
           {/* Quick Stats Summary */}
           <section className="glass-panel" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
-            <h3 style={{ fontSize: '13px', fontWeight: 700, margin: 0, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '1px' }}>Daily Progress</h3>
+            <h3 style={{ fontSize: '13px', fontWeight: 700, margin: 0, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '1px' }}>{t('dailyProgress')}</h3>
             
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
               {/* Water Summary */}
@@ -1066,8 +1065,8 @@ export default function Home() {
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"></path></svg>
                   </div>
                   <div>
-                    <div style={{ fontSize: '14px', fontWeight: 700 }}>{waterGlasses} Glasses</div>
-                    <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>Hydration Goal: 8</div>
+                    <div style={{ fontSize: '14px', fontWeight: 700 }}>{waterGlasses} {t('glasses')}</div>
+                    <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>{t('hydrationGoal')}: 8</div>
                   </div>
                 </div>
                 <div style={{ display: 'flex', gap: '4px' }}>
@@ -1078,38 +1077,75 @@ export default function Home() {
 
               {/* Activity Summary */}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div 
+                  onClick={() => setDetailView('training')}
+                  className="interactive-card"
+                  style={{ display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer', flex: 1, padding: '8px', borderRadius: '12px', transition: 'all 0.2s ease', margin: '-8px' }}
+                >
                   <div className="icon-btn" style={{ width: '32px', height: '32px', background: 'rgba(244, 63, 94, 0.1)', border: 'none', color: '#f43f5e' }}>
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M18 8h1a4 4 0 0 1 0 8h-1"></path><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"></path><line x1="6" y1="1" x2="6" y2="4"></line><line x1="10" y1="1" x2="10" y2="4"></line><line x1="14" y1="1" x2="14" y2="4"></line></svg>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
                   </div>
                   <div>
-                    <div style={{ fontSize: '14px', fontWeight: 700 }}>{exerciseToday} Mins</div>
-                    <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>Total Training</div>
+                    <div style={{ fontSize: '14px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      {exerciseToday} {t('mins')}
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" style={{ opacity: 0.5 }}><polyline points="9 18 15 12 9 6"></polyline></svg>
+                    </div>
+                    <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>{t('totalTraining')}</div>
                   </div>
                 </div>
-                <button onClick={() => { setLogModalTab('exercise'); setIsAddModalOpen(true); }} className="glass-btn" style={{ height: '28px', padding: '0 10px', fontSize: '11px', minHeight: '28px' }}>LOG</button>
               </div>
 
               {/* Sleep Summary */}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div 
+                  onClick={() => setDetailView('recovery')}
+                  className="interactive-card"
+                  style={{ display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer', flex: 1, padding: '8px', borderRadius: '12px', transition: 'all 0.2s ease', margin: '-8px' }}
+                >
                   <div className="icon-btn" style={{ width: '32px', height: '32px', background: 'rgba(168, 85, 247, 0.1)', border: 'none', color: 'var(--accent-fat)' }}>
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
                   </div>
                   <div>
-                    <div style={{ fontSize: '14px', fontWeight: 700 }}>{Math.round(sleepToday * 10) / 10} Hours</div>
-                    <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>Rest & Recovery</div>
+                    <div style={{ fontSize: '14px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      {Math.round(sleepToday * 10) / 10} {t('hours')}
+                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" style={{ opacity: 0.5 }}><polyline points="9 18 15 12 9 6"></polyline></svg>
+                    </div>
+                    <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>{t('restRecovery')}</div>
                   </div>
                 </div>
-                <button onClick={() => { setLogModalTab('sleep'); setIsAddModalOpen(true); }} className="glass-btn" style={{ height: '28px', padding: '0 10px', fontSize: '11px', minHeight: '28px' }}>LOG</button>
               </div>
             </div>
+          </section>
+
+          {/* AI Advice Summary */}
+          <section className="glass-panel" style={{ padding: '24px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div className="icon-btn" style={{ background: 'var(--accent-cal-gradient)', border: 'none', width: '40px', height: '40px' }}>
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5"><path d="M12 2a10 10 0 1 0 10 10H12V2z"></path><path d="M12 2a10 10 0 0 1 10 10"></path><path d="M12 12L2.7 16.5"></path></svg>
+                </div>
+                <h3 style={{ margin: 0, fontSize: '17px', color: 'var(--text-primary)' }}>{t('aiAdvice')}</h3>
+              </div>
+              <button 
+                onClick={handleGetAiAdvice} 
+                className="primary-btn active" 
+                disabled={aiLoading || loading} 
+                style={{ margin: 0, padding: '10px 20px', fontSize: '14px' }}
+              >
+                {aiLoading ? t('analyzing') : t('getInsights')}
+              </button>
+            </div>
+            {aiAdvice && (
+              <div className="markdown-content" style={{ fontSize: '14px', background: 'rgba(255,255,255,0.02)', padding: '20px', borderRadius: '20px', borderLeft: '4px solid var(--accent-cal)', marginTop: '16px' }}>
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>{aiAdvice}</ReactMarkdown>
+              </div>
+            )}
           </section>
 
           {/* Recent Foods */}
           {recentFoods.length > 0 && (
             <section className="glass-panel" style={{ padding: '24px' }}>
-              <h3 style={{ fontSize: '13px', fontWeight: 700, marginBottom: '16px', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '1px' }}>Quick Add</h3>
+              <h3 style={{ fontSize: '13px', fontWeight: 700, marginBottom: '16px', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '1px' }}>{t('quickAdd')}</h3>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
                 {recentFoods.slice(0, 6).map((f, i) => (
                   <button key={i} onClick={() => handleQuickAdd(f)} className="glass-btn" style={{ padding: '8px 14px', fontSize: '13px' }}>
@@ -1122,33 +1158,188 @@ export default function Home() {
         </div>
       </div>
 
-      {/* Unified Log Modal */}
-      {isAddModalOpen && (
-        <div className="modal-overlay" onClick={() => setIsAddModalOpen(false)}>
+      {/* Add Food Modal */}
+      {isFoodModalOpen && (
+        <div className="modal-overlay" onClick={() => setIsFoodModalOpen(false)}>
+          <div className="glass-panel modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '500px', padding: '32px', borderRadius: '28px' }}>
+            <div className="modal-header" style={{ marginBottom: '24px' }}>
+              <h3 style={{ fontSize: '20px', fontWeight: 800 }}>Add Food</h3>
+              <button onClick={() => setIsFoodModalOpen(false)} className="icon-btn" style={{ borderRadius: '50%', width: '32px', height: '32px' }}>&times;</button>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginBottom: '24px' }}>
+              <div style={{ display: 'flex', gap: '12px', width: '100%' }}>
+                <button
+                  onClick={() => setIsScanning(!isScanning)}
+                  className={`glass-btn ${isScanning ? 'active' : ''}`}
+                  style={{ flex: 1, height: '48px', borderRadius: '16px' }}
+                >
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2"></path><path d="M17 3h2a2 2 0 0 1 2 2v2"></path><path d="M21 17v2a2 2 0 0 1-2 2h-2"></path><path d="M7 21H5a2 2 0 0 1-2-2v-2"></path><rect x="7" y="7" width="10" height="10" rx="1"></rect></svg>
+                  {isScanning ? 'Stop' : 'Scan'}
+                </button>
+
+                <div style={{ flex: 1 }}>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleImageScan}
+                    style={{ display: 'none' }}
+                    id="ai-scan-input"
+                  />
+                  <label
+                    htmlFor="ai-scan-input"
+                    className="primary-btn"
+                    style={{ width: '100%', margin: 0, height: '48px', fontSize: '14px', background: 'var(--accent-pro-gradient)', color: 'white', display: 'flex', justifyContent: 'center', borderRadius: '16px', cursor: 'pointer' }}
+                  >
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '8px' }}><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
+                    {aiLoading ? '...' : 'AI Scan'}
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            {isScanning && (
+              <div style={{ marginBottom: '24px', borderRadius: '20px', overflow: 'hidden', border: '2px solid var(--panel-border)', background: '#000', position: 'relative', height: '240px' }}>
+                <video ref={zxingRef} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate( -50%, -50%)', width: '180px', height: '120px', border: '2px solid var(--accent-pro)', borderRadius: '12px', boxShadow: '0 0 0 1000px rgba(0,0,0,0.5)' }}></div>
+              </div>
+            )}
+
+            <form id="add-food-form" onSubmit={(e) => { handleAddFood(e); setIsFoodModalOpen(false); }}>
+              <div className="input-group" style={{ position: 'relative' }}>
+                <input
+                  type="text"
+                  required
+                  placeholder="What did you eat?"
+                  value={foodInputs.name}
+                  onChange={e => {
+                    setFoodInputs({ ...foodInputs, name: e.target.value });
+                    handleSearch(e.target.value);
+                  }}
+                  style={{ height: '52px', fontSize: '16px', padding: '0 20px', borderRadius: '16px' }}
+                  onBlur={() => setTimeout(() => setSearchResults([]), 200)}
+                />
+                {searchResults.length > 0 && (
+                  <div className="glass-panel" style={{
+                    position: 'absolute',
+                    top: '100%',
+                    left: 0,
+                    right: 0,
+                    zIndex: 50,
+                    marginTop: '8px',
+                    padding: '8px',
+                    maxHeight: '240px',
+                    overflowY: 'auto',
+                    borderRadius: '16px'
+                  }}>
+                    {searchResults.map((item, idx) => (
+                      <div
+                        key={idx}
+                        onClick={() => selectSearchResult(item)}
+                        style={{
+                          padding: '12px 16px',
+                          cursor: 'pointer',
+                          borderRadius: '10px',
+                          display: 'flex',
+                          justifyContent: 'space-between',
+                          alignItems: 'center',
+                          transition: 'background 0.2s'
+                        }}
+                        onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
+                        onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                      >
+                        <div>
+                          <div style={{ fontSize: '14px', fontWeight: 600 }}>{item.name}</div>
+                          <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                            P:{item.protein}g | C:{item.carbs}g | F:{item.fat}g
+                          </div>
+                        </div>
+                        <span style={{ fontSize: '13px', fontWeight: 800, color: 'var(--accent-cal)' }}>{item.calories} kcal</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+              
+              <div className="input-row" style={{ marginTop: '16px' }}>
+                <select
+                  value={foodInputs.mealCategory}
+                  onChange={e => setFoodInputs({ ...foodInputs, mealCategory: e.target.value })}
+                  style={{ flex: 1, height: '52px', padding: '0 16px', borderRadius: '16px', border: '1px solid var(--panel-border)', background: 'rgba(0,0,0,0.3)', color: 'var(--text-primary)', fontWeight: 600 }}
+                >
+                  <option value="Breakfast">🍳 Breakfast</option>
+                  <option value="Lunch">🥗 Lunch</option>
+                  <option value="Dinner">🍲 Dinner</option>
+                  <option value="Snack">🍪 Snack</option>
+                </select>
+                <div style={{ flex: 1 }}>
+                  <input
+                    type="number"
+                    required
+                    min="0"
+                    placeholder="Calories"
+                    value={foodInputs.calories}
+                    onChange={e => setFoodInputs({ ...foodInputs, calories: e.target.value })}
+                    style={{ height: '52px', padding: '0 16px', borderRadius: '16px' }}
+                  />
+                </div>
+              </div>
+
+              <div className="input-row" style={{ marginTop: '12px' }}>
+                <div style={{ flex: 1, position: 'relative' }}>
+                  <input
+                    type="number"
+                    required
+                    min="0"
+                    step="0.1"
+                    placeholder="Protein"
+                    value={foodInputs.protein}
+                    onChange={e => setFoodInputs({ ...foodInputs, protein: e.target.value })}
+                    style={{ height: '52px', padding: '0 16px', borderRadius: '16px' }}
+                  />
+                  <span style={{ position: 'absolute', right: '16px', top: '50%', transform: 'translateY(-50%)', fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 700 }}>G</span>
+                </div>
+                <div style={{ flex: 1, position: 'relative' }}>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.1"
+                    placeholder="Fat"
+                    value={foodInputs.fat}
+                    onChange={e => setFoodInputs({ ...foodInputs, fat: e.target.value })}
+                    style={{ height: '52px', padding: '0 16px', borderRadius: '16px' }}
+                  />
+                  <span style={{ position: 'absolute', right: '16px', top: '50%', transform: 'translateY(-50%)', fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 700 }}>G</span>
+                </div>
+              </div>
+
+              <button type="submit" className="primary-btn active" disabled={loading} style={{ marginTop: '24px', width: '100%', height: '56px', borderRadius: '18px' }}>
+                <span>ADD FOOD</span>
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Log Activity Modal */}
+      {isActivityModalOpen && (
+        <div className="modal-overlay" onClick={() => setIsActivityModalOpen(false)}>
           <div className="glass-panel modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '500px', padding: '32px', borderRadius: '28px' }}>
             <div className="modal-header" style={{ marginBottom: '24px', flexDirection: 'column', alignItems: 'flex-start', gap: '16px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center' }}>
-                <h3 style={{ fontSize: '20px', fontWeight: 800 }}>{t('logActivity') || 'Add Entry'}</h3>
-                <button onClick={() => setIsAddModalOpen(false)} className="icon-btn" style={{ borderRadius: '50%', width: '32px', height: '32px' }}>&times;</button>
+                <h3 style={{ fontSize: '20px', fontWeight: 800 }}>Log Activity</h3>
+                <button onClick={() => setIsActivityModalOpen(false)} className="icon-btn" style={{ borderRadius: '50%', width: '32px', height: '32px' }}>&times;</button>
               </div>
               
               {/* Tab Switcher */}
               <div style={{ display: "flex", background: "rgba(0,0,0,0.4)", borderRadius: '14px', padding: "4px", border: '1px solid var(--panel-border)', width: '100%' }}>
                 <button
                   type="button"
-                  onClick={() => setLogModalTab('food')}
-                  className={`glass-btn ${logModalTab === 'food' ? 'active' : ''}`}
-                  style={{ flex: 1, border: 'none', borderRadius: '10px', minHeight: '36px', fontSize: '13px' }}
-                >
-                  FOOD
-                </button>
-                <button
-                  type="button"
                   onClick={() => setLogModalTab('exercise')}
                   className={`glass-btn ${logModalTab === 'exercise' ? 'active' : ''}`}
                   style={{ flex: 1, border: 'none', borderRadius: '10px', minHeight: '36px', fontSize: '13px' }}
                 >
-                  ACTIVITY
+                  TRAINING
                 </button>
                 <button
                   type="button"
@@ -1156,165 +1347,10 @@ export default function Home() {
                   className={`glass-btn ${logModalTab === 'sleep' ? 'active' : ''}`}
                   style={{ flex: 1, border: 'none', borderRadius: '10px', minHeight: '36px', fontSize: '13px' }}
                 >
-                  SLEEP
+                  RECOVERY
                 </button>
               </div>
             </div>
-
-            {logModalTab === 'food' && (
-              <>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginBottom: '24px' }}>
-                  <div style={{ display: 'flex', gap: '12px', width: '100%' }}>
-                    <button
-                      onClick={() => setIsScanning(!isScanning)}
-                      className={`glass-btn ${isScanning ? 'active' : ''}`}
-                      style={{ flex: 1, height: '48px', borderRadius: '16px' }}
-                    >
-                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2"></path><path d="M17 3h2a2 2 0 0 1 2 2v2"></path><path d="M21 17v2a2 2 0 0 1-2 2h-2"></path><path d="M7 21H5a2 2 0 0 1-2-2v-2"></path><rect x="7" y="7" width="10" height="10" rx="1"></rect></svg>
-                      {isScanning ? 'Stop' : 'Scan'}
-                    </button>
-
-                    <div style={{ flex: 1 }}>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        onChange={handleImageScan}
-                        style={{ display: 'none' }}
-                        id="ai-scan-input"
-                      />
-                      <label
-                        htmlFor="ai-scan-input"
-                        className="primary-btn"
-                        style={{ width: '100%', margin: 0, height: '48px', fontSize: '14px', background: 'var(--accent-pro-gradient)', color: 'white', display: 'flex', justifyContent: 'center', borderRadius: '16px', cursor: 'pointer' }}
-                      >
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '8px' }}><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
-                        {aiLoading ? '...' : 'AI Scan'}
-                      </label>
-                    </div>
-                  </div>
-                </div>
-
-                {isScanning && (
-                  <div style={{ marginBottom: '24px', borderRadius: '20px', overflow: 'hidden', border: '2px solid var(--panel-border)', background: '#000', position: 'relative', height: '240px' }}>
-                    <video ref={zxingRef} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                    <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate( -50%, -50%)', width: '180px', height: '120px', border: '2px solid var(--accent-pro)', borderRadius: '12px', boxShadow: '0 0 0 1000px rgba(0,0,0,0.5)' }}></div>
-                  </div>
-                )}
-
-                <form id="add-food-form" onSubmit={(e) => { handleAddFood(e); setIsAddModalOpen(false); }}>
-                  <div className="input-group" style={{ position: 'relative' }}>
-                    <input
-                      type="text"
-                      required
-                      placeholder="What did you eat?"
-                      value={foodInputs.name}
-                      onChange={e => {
-                        setFoodInputs({ ...foodInputs, name: e.target.value });
-                        handleSearch(e.target.value);
-                      }}
-                      style={{ height: '52px', fontSize: '16px', padding: '0 20px', borderRadius: '16px' }}
-                      onBlur={() => setTimeout(() => setSearchResults([]), 200)}
-                    />
-                    {searchResults.length > 0 && (
-                      <div className="glass-panel" style={{
-                        position: 'absolute',
-                        top: '100%',
-                        left: 0,
-                        right: 0,
-                        zIndex: 50,
-                        marginTop: '8px',
-                        padding: '8px',
-                        maxHeight: '240px',
-                        overflowY: 'auto',
-                        borderRadius: '16px'
-                      }}>
-                        {searchResults.map((item, idx) => (
-                          <div
-                            key={idx}
-                            onClick={() => selectSearchResult(item)}
-                            style={{
-                              padding: '12px 16px',
-                              cursor: 'pointer',
-                              borderRadius: '10px',
-                              display: 'flex',
-                              justifyContent: 'space-between',
-                              alignItems: 'center',
-                              transition: 'background 0.2s'
-                            }}
-                            onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
-                            onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                          >
-                            <div>
-                              <div style={{ fontSize: '14px', fontWeight: 600 }}>{item.name}</div>
-                              <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '2px' }}>
-                                P:{item.protein}g | C:{item.carbs}g | F:{item.fat}g
-                              </div>
-                            </div>
-                            <span style={{ fontSize: '13px', fontWeight: 800, color: 'var(--accent-cal)' }}>{item.calories} kcal</span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                  
-                  <div className="input-row" style={{ marginTop: '16px' }}>
-                    <select
-                      value={foodInputs.mealCategory}
-                      onChange={e => setFoodInputs({ ...foodInputs, mealCategory: e.target.value })}
-                      style={{ flex: 1, height: '52px', padding: '0 16px', borderRadius: '16px', border: '1px solid var(--panel-border)', background: 'rgba(0,0,0,0.3)', color: 'var(--text-primary)', fontWeight: 600 }}
-                    >
-                      <option value="Breakfast">🍳 Breakfast</option>
-                      <option value="Lunch">🥗 Lunch</option>
-                      <option value="Dinner">🍲 Dinner</option>
-                      <option value="Snack">🍪 Snack</option>
-                    </select>
-                    <div style={{ flex: 1 }}>
-                      <input
-                        type="number"
-                        required
-                        min="0"
-                        placeholder="Calories"
-                        value={foodInputs.calories}
-                        onChange={e => setFoodInputs({ ...foodInputs, calories: e.target.value })}
-                        style={{ height: '52px', padding: '0 16px', borderRadius: '16px' }}
-                      />
-                    </div>
-                  </div>
-
-                  <div className="input-row" style={{ marginTop: '12px' }}>
-                    <div style={{ flex: 1, position: 'relative' }}>
-                      <input
-                        type="number"
-                        required
-                        min="0"
-                        step="0.1"
-                        placeholder="Protein"
-                        value={foodInputs.protein}
-                        onChange={e => setFoodInputs({ ...foodInputs, protein: e.target.value })}
-                        style={{ height: '52px', padding: '0 16px', borderRadius: '16px' }}
-                      />
-                      <span style={{ position: 'absolute', right: '16px', top: '50%', transform: 'translateY(-50%)', fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 700 }}>G</span>
-                    </div>
-                    <div style={{ flex: 1, position: 'relative' }}>
-                      <input
-                        type="number"
-                        min="0"
-                        step="0.1"
-                        placeholder="Fat"
-                        value={foodInputs.fat}
-                        onChange={e => setFoodInputs({ ...foodInputs, fat: e.target.value })}
-                        style={{ height: '52px', padding: '0 16px', borderRadius: '16px' }}
-                      />
-                      <span style={{ position: 'absolute', right: '16px', top: '50%', transform: 'translateY(-50%)', fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 700 }}>G</span>
-                    </div>
-                  </div>
-
-                  <button type="submit" className="primary-btn active" disabled={loading} style={{ marginTop: '24px', width: '100%', height: '56px', borderRadius: '18px' }}>
-                    <span>ADD FOOD</span>
-                  </button>
-                </form>
-              </>
-            )}
 
             {logModalTab === 'exercise' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
@@ -1349,7 +1385,7 @@ export default function Home() {
                     <span style={{ position: 'absolute', right: '16px', top: '50%', transform: 'translateY(-50%)', fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 700 }}>KCAL</span>
                   </div>
                 </div>
-                <button onClick={(e) => { handleLogExercise(); setIsAddModalOpen(false); }} className="primary-btn active" style={{ height: '56px', borderRadius: '18px', marginTop: '8px' }}>
+                <button onClick={(e) => { handleLogExercise(); setIsActivityModalOpen(false); }} className="primary-btn active" style={{ height: '56px', borderRadius: '18px', marginTop: '8px' }}>
                   LOG ACTIVITY
                 </button>
               </div>
@@ -1388,7 +1424,7 @@ export default function Home() {
                   <option value="Fair">Fair Quality</option>
                   <option value="Poor">Poor Quality</option>
                 </select>
-                <button onClick={(e) => { handleLogSleep(); setIsAddModalOpen(false); }} className="primary-btn active" style={{ height: '56px', borderRadius: '18px', marginTop: '8px' }}>
+                <button onClick={(e) => { handleLogSleep(); setIsActivityModalOpen(false); }} className="primary-btn active" style={{ height: '56px', borderRadius: '18px', marginTop: '8px' }}>
                   RECORD SLEEP
                 </button>
               </div>
@@ -1487,6 +1523,77 @@ export default function Home() {
               </div>
               <button type="submit" className="primary-btn" style={{ width: '100%' }}>Save Changes</button>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Details View Modal */}
+      {detailView && (
+        <div className="modal-overlay" onClick={() => setDetailView(null)}>
+          <div className="glass-panel modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '450px', padding: '24px', borderRadius: '24px' }}>
+            <div className="modal-header" style={{ marginBottom: '20px' }}>
+              <h3 style={{ fontSize: '18px', fontWeight: 800 }}>
+                {detailView === 'training' ? t('todayTraining') : t('todayRecovery')}
+              </h3>
+              <button onClick={() => setDetailView(null)} className="icon-btn" style={{ borderRadius: '50%', width: '32px', height: '32px' }}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+              </button>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              {detailView === 'training' ? (
+                exerciseRecords.length > 0 ? (
+                  exerciseRecords.map(ex => (
+                    <div key={ex.id} className="food-item" style={{ padding: '12px 16px', borderLeft: '3px solid #f43f5e' }}>
+                      <div className="food-info">
+                        <h4 style={{ fontSize: '14px', fontWeight: 600 }}>{ex.name}</h4>
+                        <div className="food-stats" style={{ marginTop: '2px', fontSize: '12px' }}>
+                          <span><strong>{ex.durationMinutes}</strong> {t('mins').toLowerCase()}</span>
+                          <span style={{ color: 'var(--accent-cal)' }}><strong>{ex.caloriesBurned}</strong> kcal</span>
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', gap: '4px' }}>
+                        <button className="icon-btn" onClick={() => setEditingExercise(ex)} style={{ width: '32px', height: '32px' }}><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg></button>
+                        <button className="icon-btn" onClick={() => handleDeleteExercise(ex.id)} style={{ width: '32px', height: '32px' }}><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></button>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <p style={{ textAlign: 'center', opacity: 0.5, padding: '20px' }}>{t('noTrainingToday')}</p>
+                )
+              ) : (
+                sleepRecords.length > 0 ? (
+                  sleepRecords.map(sl => (
+                    <div key={sl.id} className="food-item" style={{ padding: '12px 16px', borderLeft: '3px solid var(--accent-fat)' }}>
+                      <div className="food-info">
+                        <h4 style={{ fontSize: '14px', fontWeight: 600 }}>{Math.round(sl.durationHours * 10) / 10} {t('hours').toLowerCase()}</h4>
+                        <div className="food-stats" style={{ marginTop: '2px', fontSize: '12px' }}>
+                          <span style={{ color: 'var(--accent-fat)' }}>Quality: <strong>{sl.quality}</strong></span>
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', gap: '4px' }}>
+                        <button className="icon-btn" onClick={() => setEditingSleep(sl)} style={{ width: '32px', height: '32px' }}><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg></button>
+                        <button className="icon-btn" onClick={() => handleDeleteSleep(sl.id)} style={{ width: '32px', height: '32px' }}><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></button>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <p style={{ textAlign: 'center', opacity: 0.5, padding: '20px' }}>{t('noSleepToday')}</p>
+                )
+              )}
+            </div>
+
+            <button 
+              onClick={() => {
+                setLogModalTab(detailView === 'training' ? 'exercise' : 'sleep');
+                setIsActivityModalOpen(true);
+                setDetailView(null);
+              }}
+              className="primary-btn active" 
+              style={{ marginTop: '24px', width: '100%', height: '48px', borderRadius: '14px', fontSize: '14px' }}
+            >
+              {detailView === 'training' ? t('logNewActivity') : t('logNewSleep')}
+            </button>
           </div>
         </div>
       )}
