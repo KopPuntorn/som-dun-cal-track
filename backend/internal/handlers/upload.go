@@ -28,6 +28,25 @@ func UploadImage(c echo.Context) error {
 	}
 	defer src.Close()
 
+	// Validate extension
+	ext := filepath.Ext(file.Filename)
+	allowedExts := map[string]bool{".jpg": true, ".jpeg": true, ".png": true, ".webp": true, ".gif": true}
+	if !allowedExts[ext] {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid file extension"})
+	}
+
+	// Validate content type
+	buff := make([]byte, 512)
+	if _, err := src.Read(buff); err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "failed to read file for validation"})
+	}
+	fileType := http.DetectContentType(buff)
+	if fileType[:5] != "image" {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "file is not an image"})
+	}
+	// Seek back to start of file for copying
+	src.Seek(0, io.SeekStart)
+
 	// Ensure uploads directory exists
 	uploadDir := "uploads"
 	if _, err := os.Stat(uploadDir); os.IsNotExist(err) {
@@ -40,24 +59,20 @@ func UploadImage(c echo.Context) error {
 	}
 
 	// Generate unique filename
-	ext := filepath.Ext(file.Filename)
-	if ext == "" {
-		ext = ".jpg" // default extension if none provided
-	}
 	filename := fmt.Sprintf("%d%s", time.Now().UnixNano(), ext)
-	filepath := filepath.Join(uploadDir, filename)
+	targetPath := filepath.Join(uploadDir, filename)
 
 	// Destination
-	dst, err := os.Create(filepath)
+	dst, err := os.Create(targetPath)
 	if err != nil {
-		slog.Error("Upload failed: could not create destination file", "path", filepath, "error", err)
+		slog.Error("Upload failed: could not create destination file", "path", targetPath, "error", err)
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "failed to create destination file"})
 	}
 	defer dst.Close()
 
 	// Copy
 	if _, err = io.Copy(dst, src); err != nil {
-		slog.Error("Upload failed: could not copy file content", "path", filepath, "error", err)
+		slog.Error("Upload failed: could not copy file content", "path", targetPath, "error", err)
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "failed to save image"})
 	}
 

@@ -125,133 +125,169 @@ export default function ProfilePage() {
     }
 
     return (
-        <div className="app-container" style={{ maxWidth: '800px' }}>
-            <header className="main-header" style={{ background: 'transparent', padding: '16px 0', borderBottom: '1px solid rgba(255,255,255,0.1)', borderRadius: 0, marginBottom: '24px', display: 'flex', alignItems: 'center' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+        <div className="app-container" style={{ maxWidth: '600px', alignItems: 'center' }}>
+            {/* Header */}
+            <header className="glass-panel" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", padding: "16px 24px", borderRadius: '24px', marginBottom: '24px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <button onClick={() => router.push("/")} className="icon-btn" title={t('back')}>
                         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
                     </button>
-                    <h1>{t('profileSettings')}</h1>
                 </div>
+                <h1 style={{ fontSize: "20px", margin: 0, background: 'none', WebkitTextFillColor: 'var(--text-primary)' }}>{t('profileSettings')}</h1>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <Link href="/player-card" className="icon-btn" title="Player Card">
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>
                     </Link>
                     <button onClick={handleLogout} className="icon-btn" title={t('logout')} style={{ color: "var(--danger)" }}>
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
                     </button>
                 </div>
             </header>
 
             {error && (
-                <div style={{ background: "var(--danger)", padding: "12px", borderRadius: "12px", fontSize: "14px", color: "white", marginBottom: '20px' }}>
+                <div style={{ background: "rgba(255, 45, 85, 0.1)", borderLeft: "4px solid var(--danger)", padding: "14px 20px", borderRadius: "12px", fontSize: "14px", color: "var(--text-primary)", width: '100%', marginBottom: '20px' }}>
                     {error}
                 </div>
             )}
 
-            <div className="glass-panel" style={{ marginBottom: '100px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '20px', marginBottom: '32px' }}>
-                    <div style={{ width: '80px', height: '80px', borderRadius: '40px', background: 'var(--accent-pro-gradient)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '32px', fontWeight: 'bold' }}>
+            <div className="glass-panel" style={{ width: '100%', padding: '40px', borderRadius: '32px', marginBottom: '80px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', marginBottom: '40px' }}>
+                    <div style={{ width: '100px', height: '100px', borderRadius: '35px', background: 'var(--accent-cal-gradient)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '40px', fontWeight: 800, color: '#fff', boxShadow: '0 15px 35px rgba(255, 107, 0, 0.25)', marginBottom: '20px' }}>
                         {userInputs.name.charAt(0).toUpperCase()}
                     </div>
-                    <div>
-                        <h2 style={{ margin: 0 }}>{userInputs.name}</h2>
-                        <p style={{ color: 'var(--text-secondary)', margin: '4px 0 0 0' }}>{authUser?.email}</p>
-                    </div>
+                    <h2 style={{ fontSize: '24px', fontWeight: 800, margin: 0 }}>{userInputs.name}</h2>
+                    <p style={{ color: 'var(--text-secondary)', fontSize: '15px', marginTop: '4px' }}>{authUser?.email}</p>
                 </div>
 
-                <form className="settings-form" onSubmit={handleUpdateSettings}>
+                <form onSubmit={handleUpdateSettings}>
                     <div style={{ marginBottom: '40px' }}>
-                        <h4 style={{ color: 'var(--accent-cal)', marginBottom: '20px', fontSize: '15px', textTransform: 'uppercase', letterSpacing: '1px', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '8px' }}>{t('userProfile')}</h4>
-                        <div className="responsive-layout" style={{ gap: '20px' }}>
-                            <div className="input-group" style={{ gridColumn: '1 / -1' }}>
-                                <label>{t('name')}</label>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px' }}>
+                            <div className="icon-btn" style={{ background: 'rgba(255,255,255,0.05)', border: 'none', width: '32px', height: '32px', cursor: 'default' }}>
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent-pro)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                            </div>
+                            <h4 style={{ margin: 0, fontSize: '14px', textTransform: 'uppercase', letterSpacing: '2px', color: 'var(--text-secondary)', fontWeight: 700 }}>{t('userProfile')}</h4>
+                        </div>
+                        
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                            <div className="input-group">
+                                <label style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '8px', display: 'block' }}>{t('name')}</label>
                                 <input
                                     type="text"
                                     value={userInputs.name}
                                     onChange={e => setUserInputs({ ...userInputs, name: e.target.value })}
+                                    style={{ height: '52px', borderRadius: '14px', background: 'rgba(0,0,0,0.2)', border: '1px solid var(--panel-border)', padding: '0 20px', width: '100%' }}
                                 />
                             </div>
-                            <div className="input-group">
-                                <label>{t('sex')}</label>
-                                <select
-                                    value={userInputs.sex}
-                                    onChange={e => setUserInputs({ ...userInputs, sex: e.target.value })}
-                                    style={{ background: 'rgba(0,0,0,0.4)', color: 'white', border: '1px solid rgba(255,255,255,0.1)', borderRadius: '16px', padding: '14px 18px', fontSize: '15px', appearance: 'none', width: '100%' }}
-                                >
-                                    <option value="male">{t('male')}</option>
-                                    <option value="female">{t('female')}</option>
-                                    <option value="other">{t('other')}</option>
-                                </select>
+                            
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+                                <div className="input-group">
+                                    <label style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '8px', display: 'block' }}>{t('sex')}</label>
+                                    <select
+                                        value={userInputs.sex}
+                                        onChange={e => setUserInputs({ ...userInputs, sex: e.target.value })}
+                                        style={{ height: '52px', borderRadius: '14px', background: 'rgba(0,0,0,0.2)', border: '1px solid var(--panel-border)', padding: '0 16px', color: '#fff', width: '100%', fontWeight: 600 }}
+                                    >
+                                        <option value="male">{t('male')}</option>
+                                        <option value="female">{t('female')}</option>
+                                        <option value="other">{t('other')}</option>
+                                    </select>
+                                </div>
+                                <div className="input-group">
+                                    <label style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '8px', display: 'block' }}>{t('age')}</label>
+                                    <input
+                                        type="number"
+                                        value={userInputs.age}
+                                        onChange={e => setUserInputs({ ...userInputs, age: parseInt(e.target.value) || 0 })}
+                                        style={{ height: '52px', borderRadius: '14px', background: 'rgba(0,0,0,0.2)', border: '1px solid var(--panel-border)', padding: '0 20px', width: '100%' }}
+                                    />
+                                </div>
                             </div>
-                            <div className="input-group">
-                                <label>{t('age')}</label>
-                                <input
-                                    type="number"
-                                    value={userInputs.age}
-                                    onChange={e => setUserInputs({ ...userInputs, age: parseInt(e.target.value) || 0 })}
-                                />
-                            </div>
-                            <div className="input-group">
-                                <label>{t('weight')} (kg)</label>
-                                <input
-                                    type="number"
-                                    step="0.1"
-                                    value={userInputs.weight}
-                                    onChange={e => setUserInputs({ ...userInputs, weight: parseFloat(e.target.value) || 0 })}
-                                />
-                            </div>
-                            <div className="input-group">
-                                <label>{t('height')} (cm)</label>
-                                <input
-                                    type="number"
-                                    step="0.1"
-                                    value={userInputs.height}
-                                    onChange={e => setUserInputs({ ...userInputs, height: parseFloat(e.target.value) || 0 })}
-                                />
+
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+                                <div className="input-group" style={{ position: 'relative' }}>
+                                    <label style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '8px', display: 'block' }}>{t('weight')}</label>
+                                    <input
+                                        type="number"
+                                        step="0.1"
+                                        value={userInputs.weight}
+                                        onChange={e => setUserInputs({ ...userInputs, weight: parseFloat(e.target.value) || 0 })}
+                                        style={{ height: '52px', borderRadius: '14px', background: 'rgba(0,0,0,0.2)', border: '1px solid var(--panel-border)', padding: '0 20px', width: '100%' }}
+                                    />
+                                    <span style={{ position: 'absolute', right: '16px', top: '42px', fontSize: '11px', fontWeight: 800, color: 'var(--text-secondary)' }}>KG</span>
+                                </div>
+                                <div className="input-group" style={{ position: 'relative' }}>
+                                    <label style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '8px', display: 'block' }}>{t('height')}</label>
+                                    <input
+                                        type="number"
+                                        step="0.1"
+                                        value={userInputs.height}
+                                        onChange={e => setUserInputs({ ...userInputs, height: parseFloat(e.target.value) || 0 })}
+                                        style={{ height: '52px', borderRadius: '14px', background: 'rgba(0,0,0,0.2)', border: '1px solid var(--panel-border)', padding: '0 20px', width: '100%' }}
+                                    />
+                                    <span style={{ position: 'absolute', right: '16px', top: '42px', fontSize: '11px', fontWeight: 800, color: 'var(--text-secondary)' }}>CM</span>
+                                </div>
                             </div>
                         </div>
                     </div>
 
-                    <div style={{ marginBottom: '16px' }}>
-                        <h4 style={{ color: 'var(--accent-pro)', marginBottom: '20px', fontSize: '15px', textTransform: 'uppercase', letterSpacing: '1px', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '8px' }}>{t('dailyGoals')}</h4>
-                        <div className="responsive-layout" style={{ gap: '20px' }}>
-                            <div className="input-group" style={{ gridColumn: '1 / -1' }}>
-                                <label>{t('calories')} (kcal)</label>
-                                <input
-                                    type="number"
-                                    required
-                                    min="500"
-                                    value={goalInputs.calories}
-                                    onChange={e => setGoalInputs({ ...goalInputs, calories: parseFloat(e.target.value) || 0 })}
-                                />
+                    <div style={{ marginBottom: '40px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px' }}>
+                            <div className="icon-btn" style={{ background: 'rgba(255,255,255,0.05)', border: 'none', width: '32px', height: '32px', cursor: 'default' }}>
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent-cal)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
                             </div>
-                            <div className="input-group">
-                                <label>{t('protein')} (g)</label>
+                            <h4 style={{ margin: 0, fontSize: '14px', textTransform: 'uppercase', letterSpacing: '2px', color: 'var(--text-secondary)', fontWeight: 700 }}>{t('dailyGoals')}</h4>
+                        </div>
+
+                        <div className="input-group" style={{ position: 'relative', marginBottom: '20px' }}>
+                            <label style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '8px', display: 'block' }}>{t('calories')}</label>
+                            <input
+                                type="number"
+                                required
+                                min="500"
+                                value={goalInputs.calories}
+                                onChange={e => setGoalInputs({ ...goalInputs, calories: parseFloat(e.target.value) || 0 })}
+                                style={{ height: '52px', borderRadius: '14px', background: 'rgba(0,0,0,0.2)', border: '1px solid var(--panel-border)', padding: '0 20px', width: '100%' }}
+                            />
+                            <span style={{ position: 'absolute', right: '16px', top: '42px', fontSize: '11px', fontWeight: 800, color: 'var(--accent-cal)' }}>KCAL</span>
+                        </div>
+
+                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+                            <div className="input-group" style={{ position: 'relative' }}>
+                                <label style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '8px', display: 'block' }}>{t('protein')}</label>
                                 <input
                                     type="number"
                                     required
                                     min="10"
                                     value={goalInputs.protein}
                                     onChange={e => setGoalInputs({ ...goalInputs, protein: parseFloat(e.target.value) || 0 })}
+                                    style={{ height: '52px', borderRadius: '14px', background: 'rgba(0,0,0,0.2)', border: '1px solid var(--panel-border)', padding: '0 20px', width: '100%' }}
                                 />
+                                <span style={{ position: 'absolute', right: '16px', top: '42px', fontSize: '11px', fontWeight: 800, color: 'var(--accent-pro)' }}>G</span>
                             </div>
-                            <div className="input-group">
-                                <label>{t('fat')} (g)</label>
+                            <div className="input-group" style={{ position: 'relative' }}>
+                                <label style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '8px', display: 'block' }}>{t('fat')}</label>
                                 <input
                                     type="number"
                                     required
                                     min="5"
                                     value={goalInputs.fat}
                                     onChange={e => setGoalInputs({ ...goalInputs, fat: parseFloat(e.target.value) || 0 })}
+                                    style={{ height: '52px', borderRadius: '14px', background: 'rgba(0,0,0,0.2)', border: '1px solid var(--panel-border)', padding: '0 20px', width: '100%' }}
                                 />
+                                <span style={{ position: 'absolute', right: '16px', top: '42px', fontSize: '11px', fontWeight: 800, color: 'var(--accent-fat)' }}>G</span>
                             </div>
                         </div>
                     </div>
 
                     <div style={{ marginBottom: '40px' }}>
-                        <h4 style={{ color: 'var(--accent-fat)', marginBottom: '20px', fontSize: '15px', textTransform: 'uppercase', letterSpacing: '1px', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '8px' }}>🎯 {t('healthObjective')}</h4>
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px' }}>
+                            <div className="icon-btn" style={{ background: 'rgba(255,255,255,0.05)', border: 'none', width: '32px', height: '32px', cursor: 'default' }}>
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent-fat)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+                            </div>
+                            <h4 style={{ margin: 0, fontSize: '14px', textTransform: 'uppercase', letterSpacing: '2px', color: 'var(--text-secondary)', fontWeight: 700 }}>{t('healthObjective')}</h4>
+                        </div>
+                        
+                        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "12px" }}>
                             {[
                                 { value: '', label: t('noObjective'), emoji: '➖' },
                                 { value: 'lose_fat', label: t('loseFat'), emoji: '🔥' },
@@ -264,37 +300,33 @@ export default function ProfilePage() {
                                     key={opt.value}
                                     type="button"
                                     onClick={() => setGoalInputs({ ...goalInputs, objective: opt.value })}
+                                    className="glass-btn"
                                     style={{
                                         padding: '16px 8px',
-                                        borderRadius: '16px',
-                                        border: goalInputs.objective === opt.value ? '2px solid var(--accent-pro)' : '1px solid rgba(255,255,255,0.1)',
-                                        background: goalInputs.objective === opt.value ? 'rgba(var(--accent-pro-rgb, 100, 200, 255), 0.15)' : 'rgba(0,0,0,0.3)',
-                                        color: goalInputs.objective === opt.value ? 'var(--accent-pro)' : 'var(--text-secondary)',
-                                        cursor: 'pointer',
-                                        fontSize: '13px',
-                                        fontWeight: goalInputs.objective === opt.value ? '600' : '400',
-                                        display: 'flex',
                                         flexDirection: 'column',
-                                        alignItems: 'center',
-                                        gap: '6px',
-                                        transition: 'all 0.2s ease',
+                                        gap: '8px',
+                                        height: 'auto',
+                                        border: goalInputs.objective === opt.value ? '2px solid var(--accent-pro)' : '1px solid var(--panel-border)',
+                                        background: goalInputs.objective === opt.value ? 'rgba(14, 165, 233, 0.1)' : 'rgba(0,0,0,0.2)'
                                     }}
                                 >
                                     <span style={{ fontSize: '24px' }}>{opt.emoji}</span>
-                                    {opt.label}
+                                    <span style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase' }}>{opt.label}</span>
                                 </button>
                             ))}
                         </div>
                     </div>
 
-                    <div style={{ marginTop: '24px', marginBottom: '24px', padding: '12px', background: 'rgba(255,255,255,0.03)', borderRadius: '12px', borderLeft: '3px solid var(--accent-pro)' }}>
-                        <p style={{ fontSize: '12px', color: 'var(--text-secondary)', fontStyle: 'italic', margin: 0 }}>
+                    <div style={{ marginBottom: '24px', padding: '16px 20px', background: 'rgba(255,255,255,0.03)', borderRadius: '16px', borderLeft: '4px solid var(--accent-pro)' }}>
+                        <p style={{ fontSize: '12px', color: 'var(--text-secondary)', fontStyle: 'italic', margin: 0, lineHeight: 1.5 }}>
                             * {t('medicalDisclaimer')}
                         </p>
                     </div>
 
-                    <button type="submit" className="primary-btn" disabled={saving} style={{ marginTop: '0', padding: '18px', width: '100%', fontSize: '16px' }}>
-                        {saving ? t('saving') : t('saveProfile')}
+                    <button type="submit" className="primary-btn active" disabled={saving} style={{ height: '60px', width: '100%', fontSize: '16px', fontWeight: 700, letterSpacing: '1px', borderRadius: '18px' }}>
+                        {saving ? (
+                            <div className="loading-dots">SAVING CHANGES...</div>
+                        ) : t('saveProfile').toUpperCase()}
                     </button>
                 </form>
             </div>

@@ -143,29 +143,6 @@ func GoogleLogin(c echo.Context) error {
 
 	clientId := os.Getenv("GOOGLE_CLIENT_ID")
 	if clientId == "" || clientId == "PLACEHOLDER" {
-		// Mock bypass for frontend testing without a real Client ID
-		if req.Token == "MOCK_GOOGLE_TOKEN_123" {
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-			defer cancel()
-
-			email := "mock-user@gmail.com"
-			var user models.User
-			err := db.UserCollection.FindOne(ctx, bson.M{"email": email}).Decode(&user)
-			if err != nil {
-				user = models.User{
-					Email:    email,
-					Name:     "Mock Google User",
-					GoogleID: "mock-google-id-123456",
-				}
-				res, _ := db.UserCollection.InsertOne(ctx, user)
-				user.ID = res.InsertedID.(primitive.ObjectID)
-				db.GoalsCollection.InsertOne(ctx, models.Goals{
-					UserID: user.ID, Calories: 2000, Protein: 150, Fat: 70,
-				})
-			}
-			token, _ := GenerateJWT(user)
-			return c.JSON(http.StatusOK, AuthResponse{Token: token, User: user})
-		}
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Google Client ID not configured. Please add it to your .env"})
 	}
 

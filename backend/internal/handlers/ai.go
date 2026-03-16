@@ -79,7 +79,7 @@ func AnalyzeImage(c echo.Context) error {
 
 	// Prepare Groq Request
 	groqReq := GroqChatRequest{
-		Model: "meta-llama/llama-4-scout-17b-16e-instruct",
+		Model: "llama-3.2-11b-vision-preview",
 		Messages: []GroqMessage{
 			{
 				Role: "system",
@@ -146,7 +146,7 @@ func ConsultAI(c echo.Context) error {
 	}
 
 	groqReq := GroqChatRequest{
-		Model: "openai/gpt-oss-120b",
+		Model: "llama-3.3-70b-versatile",
 		Messages: []GroqMessage{
 			{
 				Role: "system",

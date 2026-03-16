@@ -45,3 +45,26 @@ The frontend for SomDun is a high-performance, responsive web application built 
 npm run build
 npm start
 ```
+
+## 🎨 Design Context
+
+### Users
+The primary audience for SomDun ranges from **Athletes** to **Casual users** who want to track their nutrition and health metrics with ease. Athletes use it to maintain peak performance through granular tracking (macros, sleep, exercise), while casual users enjoy the gamified, high-performance feel (like the "Athlete Player Card") to stay motivated.
+
+### Brand Personality
+SomDun's personality is **High-performance, Sleek, and Energetic**. It feels like a premium sports training app—think Nike Training Club or FIFA Ultimate Team cards. It's built to evoke confidence, focus, and a sense of achievement.
+
+### Aesthetic Direction
+The visual tone is **Ultra-Modern Glassmorphism**.
+- **Theme:** Dark mode primary (`#050505`) with deep radial gradients.
+- **Visuals:** High-contrast typography (`Outfit`), vibrant neon-to-pastel gradients for functional accents (Calories = Orange/Pink, Protein = Sky/Indigo, etc.).
+- **Panels:** Semi-transparent glass panels with high blur (24px) and subtle 1px white-alpha borders.
+- **Animations:** Dynamic, snappy, and satisfying (3D-like hover effects, animated progress rings, sliding list items).
+
+### Design Principles
+
+1.  **Performance Visualization**: Every metric should feel like a "stat" on a high-end athlete card. Use gradients and progress bars to show progress at a glance.
+2.  **Focus on "The Flow"**: Navigation should be effortless, especially for food logging. Use the centralized "+" action for quick entry.
+3.  **Ultra-Premium Feel**: Every interaction should feel polished. No raw borders or flat colors. Use transparency, blur, and subtle inner shadows to create depth.
+4.  **Vibrant Clarity**: Use distinct, vibrant colors for different macro-nutrients to make the dashboard scannable. Never sacrifice legibility for aesthetics.
+5.  **Gamified Achievement**: Celebrate progress through visual feedback (animated rings, success states) to keep users engaged.
