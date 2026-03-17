@@ -117,16 +117,16 @@ func GetPlayerCard(c echo.Context) error {
 
 	// ─── Calculate Stats ───
 
-	// NUTRITION (NUT): % of days hitting calorie target within ±15%
+	// NUTRITION (NUT): % of days hitting calorie target within ±15%, plus Protein and Fat adherence
 	nutScore := calcNutritionScore(foods, goals, effectiveDays)
 
-	// HYDRATION (HYD): Avg glasses/day, 8 glasses = 99
-	hydScore := calcHydrationScore(waterRecords, startOfMonth, effectiveDays)
+	// HYDRATION (HYD): Avg glasses/day based on weight
+	hydScore := calcHydrationScore(waterRecords, user.Weight, startOfMonth, effectiveDays)
 
 	// FITNESS (FIT): Total exercise minutes + calories burned, scaled
 	fitScore := calcFitnessScore(exercises, effectiveDays)
 
-	// RECOVERY (REC): Avg sleep hours, 7-9h optimal = 99
+	// RECOVERY (REC): Avg sleep hours and Sleep Quality
 	recScore := calcRecoveryScore(sleepRecords)
 
 	// DISCIPLINE (DIS): % of days with ≥1 food entry logged
@@ -206,10 +206,12 @@ func calcNutritionScore(foods []models.Food, goals models.Goals, days int) int {
 	// Group calories by day
 	dailyCals := make(map[string]float64)
 	dailyPro := make(map[string]float64)
+	dailyFat := make(map[string]float64)
 	for _, f := range foods {
 		day := f.Date.Format("2006-01-02")
 		dailyCals[day] += f.Calories
 		dailyPro[day] += f.Protein
+		dailyFat[day] += f.Fat
 	}
 
 	hitDays := 0
@@ -221,12 +223,21 @@ func calcNutritionScore(foods []models.Food, goals models.Goals, days int) int {
 		}
 	}
 
-	// Also factor in protein adherence
+	// Also factor in protein and fat adherence
 	proHitDays := 0
 	for _, pro := range dailyPro {
 		proRatio := pro / goals.Protein
 		if proRatio >= 0.80 {
 			proHitDays++
+		}
+	}
+
+	fatHitDays := 0
+	for _, fat := range dailyFat {
+		// For fat, usually keeping it under 120% of goal is good, but hitting at least 70% is healthy
+		fatRatio := fat / goals.Fat
+		if fatRatio >= 0.70 && fatRatio <= 1.20 {
+			fatHitDays++
 		}
 	}
 
@@ -237,13 +248,21 @@ func calcNutritionScore(foods []models.Food, goals models.Goals, days int) int {
 
 	calScore := float64(hitDays) / float64(trackedDays) * 99
 	proScore := float64(proHitDays) / float64(trackedDays) * 99
+	fatScore := float64(fatHitDays) / float64(trackedDays) * 99
 
-	return clamp(int(math.Round(calScore*0.6+proScore*0.4)), 0, 99)
+	return clamp(int(math.Round(calScore*0.5+proScore*0.3+fatScore*0.2)), 0, 99)
 }
 
-func calcHydrationScore(waters []models.WaterIntake, startOfMonth time.Time, days int) int {
+func calcHydrationScore(waters []models.WaterIntake, userWeight float64, startOfMonth time.Time, days int) int {
 	if days == 0 {
 		return 0
+	}
+
+	// Optimal water = weight (kg) * 33 ml per kg. Example: 70kg * 33 = 2310 ml
+	// Assuming 1 glass = 250ml
+	targetGlasses := 8.0 // default
+	if userWeight > 0 {
+		targetGlasses = (userWeight * 33.0) / 250.0
 	}
 
 	// Filter water records for this month only
@@ -262,8 +281,8 @@ func calcHydrationScore(waters []models.WaterIntake, startOfMonth time.Time, day
 	}
 
 	avgGlasses := float64(totalGlasses) / float64(daysWithWater)
-	// 8 glasses/day = 99, scale linearly
-	score := (avgGlasses / 8.0) * 99
+	// target glasses/day = 99, scale linearly
+	score := (avgGlasses / targetGlasses) * 99
 	// Bonus for consistency
 	consistencyBonus := (float64(daysWithWater) / float64(days)) * 15
 
@@ -300,9 +319,12 @@ func calcRecoveryScore(sleepRecords []models.SleepRecord) int {
 	goodNights := 0
 	for _, s := range sleepRecords {
 		totalHours += s.DurationHours
-		// 7-9 hours is optimal
-		if s.DurationHours >= 7 && s.DurationHours <= 9 {
-			goodNights++
+		// 7-9 hours is optimal + "Good" quality bonus
+		isGoodDuration := s.DurationHours >= 7 && s.DurationHours <= 9
+		if isGoodDuration && s.Quality == "Good" {
+			goodNights += 2 // double points for perfect sleep
+		} else if isGoodDuration || s.Quality == "Good" {
+			goodNights += 1 // partial points
 		}
 	}
 
@@ -322,7 +344,7 @@ func calcRecoveryScore(sleepRecords []models.SleepRecord) int {
 		hourScore = math.Max(10, 40-(math.Abs(avgHours-8)*10))
 	}
 
-	qualityBonus := float64(goodNights) / float64(len(sleepRecords)) * 20
+	qualityBonus := float64(goodNights) / (float64(len(sleepRecords)) * 2) * 20
 
 	return clamp(int(math.Round(hourScore*0.7+qualityBonus+10)), 0, 99)
 }

@@ -768,6 +768,7 @@ input::placeholder {
   from {
     transform: translateY(30px) opacity(0);
   }
+
   to {
     transform: translateY(0) opacity(1);
   }
@@ -1065,6 +1066,54 @@ input::placeholder {
   margin: 16px 0;
 }
 
+/* Table Styles */
+.markdown-content table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 16px 0;
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.markdown-content th,
+.markdown-content td {
+  padding: 14px 16px;
+  text-align: left;
+  /* Default to left */
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+/* Align numeric/data columns to the center for better alignment with headers */
+.markdown-content th:not(:first-child),
+.markdown-content td:not(:first-child) {
+  text-align: center;
+}
+
+.markdown-content th {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--accent-cal);
+  font-weight: 700;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.markdown-content td {
+  font-size: 14px;
+  color: var(--text-primary);
+  vertical-align: middle;
+}
+
+.markdown-content tr:last-child td {
+  border-bottom: none;
+}
+
+.markdown-content tr:hover td {
+  background: rgba(255, 255, 255, 0.03);
+}
+
 /* 📱 Mobile Responsiveness (iPhone 11 & similar sizes <= 768px) */
 @media (max-width: 768px) {
 
@@ -1355,9 +1404,11 @@ input::placeholder {
     display: none !important;
   }
 }
+
 .interactive-card {
   transition: background-color 0.2s ease, transform 0.2s ease;
 }
+
 .interactive-card:hover {
   background-color: rgba(255, 255, 255, 0.03);
   transform: translateY(-2px);

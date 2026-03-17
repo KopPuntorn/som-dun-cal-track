@@ -90,18 +90,25 @@ func AnalyzeImage(c echo.Context) error {
 
 	// Prepare Groq Request
 	groqReq := GroqChatRequest{
-		Model: "llama-3.2-11b-vision-preview",
+		Model: "meta-llama/llama-4-scout-17b-16e-instruct",
 		Messages: []GroqMessage{
 			{
 				Role: "system",
-				Content: fmt.Sprintf("You are a high-level Culinary Nutritionist. Analyze the food in the image with extreme precision. "+
-					"CRITICAL: The response MUST be a pure raw JSON object with these exact keys: name (string, MUST be in %s), calories (number), protein (number), carbs (number), fat (number), sugar (number), sodium (number), fiber (number). "+
+				Content: fmt.Sprintf("You are an elite, highly precise Culinary Nutritionist and Clinical Dietitian. Analyze the food in the image with extreme accuracy. "+
+					"Estimate portion sizes visually and calculate nutritional values based on standard USDA data or equivalent authoritative sources. "+
+					"Crucially, consider hidden calories from cooking oils, sauces, and sugars commonly used in such dishes. Be extremely realistic—Thai street food is often heavily oiled and sweetened. "+
+					"Ensure that the macronutrients mathematically align with the total calories (Calories should roughly be at least (Protein * 4) + (Fat * 9)). "+
+					"CRITICAL: The response MUST be a pure raw JSON object with these exact keys: name (string, MUST be in %s), calories (number), protein (number), fat (number). "+
 					"LANGUAGE CONSTRAINT: %s "+
-					"Respond ONLY with the JSON object. NO markdown, NO text before or after. Example: {\"name\": \"%s\", \"calories\": 450, \"protein\": 20, \"carbs\": 50, \"fat\": 15, \"sugar\": 5, \"sodium\": 800, \"fiber\": 2}", langName, langConstraint, exampleName),
+					"Respond ONLY with the JSON object. NO markdown, NO text before or after. Example: {\"name\": \"%s\", \"calories\": 450, \"protein\": 20, \"fat\": 15}", langName, langConstraint, exampleName),
 			},
 			{
 				Role: "user",
 				Content: []GroqContentPart{
+					{
+						Type: "text",
+						Text: "Analyze this image and return the nutritional data in the requested JSON format.",
+					},
 					{
 						Type: "image_url",
 						ImageURL: &GroqImageURL{
@@ -113,7 +120,7 @@ func AnalyzeImage(c echo.Context) error {
 		},
 	}
 
-	slog.Info("Analyzing image with AI", "model", groqReq.Model, "language", langName)
+	slog.Info("Analyzing image with AI", "model", groqReq.Model, "language", langName, "mimeType", mimeType)
 	return callGroq(c, groqReq)
 }
 
@@ -169,8 +176,8 @@ func ConsultAI(c echo.Context) error {
 	}
 
 	// Determine language instruction
-	langInstruction := "คุณคือ 'ที่ปรึกษาด้านโภชนาการและการออกกำลังกายระดับพรีเมียม' สื่อสารด้วยภาษาไทยที่สมบูรณ์แบบ (Perfect Thai) เป็นธรรมชาติ นุ่มนวลแต่มีความเป็นมืออาชีพสูง " +
-		"ห้ามใช้คำทับศัพท์ภาษาอังกฤษหากมีคำไทยที่เหมาะสม และห้ามมีภาษาอื่นปนเปื้อนเข้ามาในบทสนทนาเด็ดขาด "
+	langInstruction := "คุณคือ 'ที่ปรึกษาด้านโภชนาการและการออกกำลังกายระดับพรีเมียม' สื่อสารด้วยภาษาไทยที่สมบูรณ์แบบ (ตัวอักษรไทยและอังกฤษเท่านั้น) เป็นธรรมชาติ นุ่มนวลแต่มีความเป็นมืออาชีพสูง " +
+		"ห้ามใช้สำนวนแปลกๆ ที่เหมือนแปลตรงตัวจากภาษาอังกฤษ ห้ามใช้คำทับศัพท์ภาษาอังกฤษหากมีคำไทยที่เหมาะสม และห้ามมีภาษาอื่น (เช่น จีน, รัสเซีย, ญี่ปุ่น) ปนเปื้อนเข้ามาในบทสนทนาเด็ดขาด ห้ามใช้ตัวอักษรจีน '营养' โดยเด็ดขาด ให้ใช้คำว่า 'โภชนาการ' เท่านั้น "
 	if data.Language == "en" {
 		langInstruction = "You are a 'Premium Nutrition & Fitness Consultant'. Respond entirely in high-level, sophisticated English. Use a professional, encouraging, and natural tone. Do not use any slang or non-English phrases. "
 	}
@@ -185,7 +192,7 @@ func ConsultAI(c echo.Context) error {
 	// 1. Fetch Food Logs & Aggregates
 	foodFilter := bson.M{"userId": userID, "date": bson.M{"$gte": startOfDay, "$lte": endOfRange}}
 	fCursor, err := db.FoodsCollection.Find(ctx, foodFilter)
-	var totalCal, totalPro, totalCarb, totalFat float64
+	var totalCal, totalPro, totalFat float64
 	var foodItemsCount int
 	if err == nil {
 		var foods []models.Food
@@ -194,7 +201,6 @@ func ConsultAI(c echo.Context) error {
 			for _, f := range foods {
 				totalCal += f.Calories
 				totalPro += f.Protein
-				totalCarb += f.Carbs
 				totalFat += f.Fat
 			}
 		}
@@ -202,11 +208,10 @@ func ConsultAI(c echo.Context) error {
 
 	avgCal := totalCal / float64(numDays)
 	avgPro := totalPro / float64(numDays)
-	avgCarb := totalCarb / float64(numDays)
 	avgFat := totalFat / float64(numDays)
 
 	summaryStr := fmt.Sprintf("ช่วงเวลาที่วิเคราะห์: %s ถึง %s (%d วัน)\n", startStr, endStr, numDays)
-	summaryStr += fmt.Sprintf("สถิติเฉลี่ยต่อวัน:\n- พลังงาน: %.0f kcal\n- โปรตีน: %.1fg\n- คาร์โบไฮเดรต: %.1fg\n- ไขมัน: %.1fg\n", avgCal, avgPro, avgCarb, avgFat)
+	summaryStr += fmt.Sprintf("สถิติเฉลี่ยต่อวัน:\n- พลังงาน: %.0f kcal\n- โปรตีน: %.1fg\n- ไขมัน: %.1fg\n", avgCal, avgPro, avgFat)
 	summaryStr += fmt.Sprintf("จำนวนรายการอาหารที่บันทึกทั้งหมด: %d รายการ\n", foodItemsCount)
 
 	// 2. Fetch Weight Records in range
@@ -256,18 +261,18 @@ func ConsultAI(c echo.Context) error {
 	objectiveStr := "Not set"
 	if err := db.GoalsCollection.FindOne(ctx, bson.M{"userId": userID}).Decode(&g); err == nil {
 		objectiveStr = g.Objective
-		goalsStr = fmt.Sprintf("Cal:%.0f, Pro:%.1f, Carb:%.1f, Fat:%.1f", g.Calories, g.Protein, g.Carbs, g.Fat)
+		goalsStr = fmt.Sprintf("Cal:%.0f, Pro:%.1f, Fat:%.1f", g.Calories, g.Protein, g.Fat)
 	}
 	db.UserCollection.FindOne(ctx, bson.M{"_id": userID}).Decode(&u)
 
 	groqReq := GroqChatRequest{
-		Model: "llama-3.3-70b-versatile",
+		Model: "openai/gpt-oss-120b",
 		Messages: []GroqMessage{
 			{
 				Role: "system",
-				Content: "Persona: Premium Health & Performance Consultant. " +
+				Content: "Persona: Elite Clinical Dietitian & Performance Consultant. " +
 					langInstruction +
-					"TASK: Perform a Trend Analysis for the period " + startStr + " to " + endStr + ".\n\n" +
+					"TASK: Perform a highly accurate, evidence-based Trend Analysis for the period " + startStr + " to " + endStr + ".\n\n" +
 					"--- DATA SUMMARY ---\n" + summaryStr + "\n" +
 					"User Profile: " + fmt.Sprintf("W:%.1fkg, H:%.1fcm, Age:%d", u.Weight, u.Height, u.Age) + "\n" +
 					"Daily Goals: " + goalsStr + "\n" +
@@ -277,10 +282,10 @@ func ConsultAI(c echo.Context) error {
 					"Exercises:\n" + exerciseStr + "Total Burned: " + fmt.Sprintf("%.0f", totalExCal) + " kcal\n\n" +
 					"Sleep Patterns:\n" + sleepStr + "\n" +
 					"CRITICAL INSTRUCTIONS:\n" +
-					"1. Analyze the consistency: Compare their average daily intake with their goals. Are they consistent or fluctuating?\n" +
-					"2. Connect weight changes with their nutrition and exercise logs for this specific period.\n" +
-					"3. Provide deep, professional insights into how this week's trends impact their " + objectiveStr + " goal.\n" +
-					"4. Give 3 'Level-Up' recommendations for the upcoming week based on this analysis.\n" +
+					"1. Analyze consistency: Accurately compare their average daily intake with their goals using precise math. Are they consistent or fluctuating?\n" +
+					"2. Connect weight changes scientifically with their nutrition, energy balance, and exercise logs for this specific period.\n" +
+					"3. Provide deep, evidence-based insights into how this week's trends impact their " + objectiveStr + " goal.\n" +
+					"4. Give 3 'Level-Up' recommendations for the upcoming week based on this analysis. Ensure nutritional advice is 100% accurate, fact-checked, and scientifically sound (e.g. clearly distinguish cardio from muscle-building).\n" +
 					"Keep response CONCISE (max 350 words). Tone: Expert, motivating, and polished. No generic AI fluff.",
 			},
 			{
@@ -312,7 +317,8 @@ func callGroq(c echo.Context, groqReq GroqChatRequest) error {
 
 	if resp.StatusCode != http.StatusOK {
 		body, _ := io.ReadAll(resp.Body)
-		return c.JSON(resp.StatusCode, map[string]string{"error": string(body)})
+		slog.Error("AI service returned error", "status", resp.StatusCode, "body", string(body))
+		return c.JSON(resp.StatusCode, map[string]string{"error": fmt.Sprintf("AI service error (%d): %s", resp.StatusCode, string(body))})
 	}
 
 	var groqResp GroqChatResponse
@@ -344,8 +350,10 @@ func ChatAI(c echo.Context) error {
 	}
 
 	// Determine language instruction
-	langInstruction := "คุณคือ 'ที่ปรึกษาด้านสุขภาพระดับพรีเมียม' ที่มีความเชี่ยวชาญสูงสุด สื่อสารด้วยภาษาไทยที่สมบูรณ์แบบ (Perfect Thai) เป็นธรรมชาติ มีระดับ และน่าเชื่อถือ " +
-		"ห้ามใช้คำทับศัพท์ภาษาอังกฤษโดยไม่จำเป็นเด็ดขาด และห้ามมีภาษาอื่นหลุดรอดเข้ามาในคำตอบ ยกเว้นกรณีที่ผู้ใช้ถามในหัวข้อที่ไม่เกี่ยวข้องกับสุขภาพ "
+	langInstruction := "คุณคือ 'ที่ปรึกษาด้านสุขภาพและนักกำหนดอาหารระดับพรีเมียม' ที่มีความเชี่ยวชาญสูงสุด สื่อสารด้วยภาษาไทยที่สมบูรณ์แบบ (ห้ามใช้อักษรภาษาอื่นนอกจากไทยและอังกฤษ) เป็นธรรมชาติ รูปประโยคเหมือนคนไทยพูดจริงๆ มีระดับ และน่าเชื่อถือ " +
+		"ห้ามแปลตรงตัวจากภาษาอังกฤษ (เช่น ห้ามใช้คำว่า 'คุณอาจต้องการพิจารณาการเพิ่ม X ลงในอาหาร' ให้ใช้ 'แนะนำให้ทาน X เสริมดีกว่าครับ') " +
+		"ห้ามใช้คำทับศัพท์ภาษาอังกฤษโดยไม่จำเป็นเด็ดขาด CRITICAL: ห้ามพิมพ์ตัวอักษรภาษารัสเซีย จีน หรือภาษาอื่นที่ไม่ใช่ไทยและอังกฤษเด็ดขาด! ห้ามพิมพ์คำว่า 'Калอรี่' หรือ '营养' (Nutrition) โดยเด็ดขาด ให้ใช้คำว่า 'แคลอรี่' และ 'โภชนาการ' แทนเท่านั้น! โปรดตรวจสอบทุกตัวอักษรก่อนตอบ " +
+		"ในการเรียกชื่ออาหารเสริมให้ใช้คำที่คนไทยคุ้นเคย เช่น 'เวย์โปรตีน' แทน 'โปรตีนผง' "
 	foodNameLang := "Thai"
 	foodExampleName := "ข้าวผัดกะเพราอกไก่ไข่ดาว"
 	if data.Language == "en" {
@@ -416,7 +424,7 @@ func ChatAI(c echo.Context) error {
 		if err := cursor.All(ctx, &foods); err == nil {
 			for _, f := range foods {
 				historyStr += f.Date.Format("2006-01-02") + ": " + f.Name + " (" +
-					fmt.Sprintf("%.0f kcal, P:%.1fg, C:%.1fg, F:%.1fg, S:%.1fg, Na:%.0fmg, Fib:%.1fg", f.Calories, f.Protein, f.Carbs, f.Fat, f.Sugar, f.Sodium, f.Fiber) + ")\n"
+					fmt.Sprintf("%.0f kcal, P:%.1fg, F:%.1fg", f.Calories, f.Protein, f.Fat) + ")\n"
 			}
 		}
 	}
@@ -486,7 +494,7 @@ func ChatAI(c echo.Context) error {
 	goalsStr := "Not set"
 	objectiveStr := "Not set"
 	if err := db.GoalsCollection.FindOne(ctx, bson.M{"userId": userID}).Decode(&g); err == nil {
-		goalsStr = fmt.Sprintf("Cal:%.0f, Pro:%.1f, Carb:%.1f, Fat:%.1f, Sugar:%.1f, Sodium:%.0f, Fiber:%.1f", g.Calories, g.Protein, g.Carbs, g.Fat, g.Sugar, g.Sodium, g.Fiber)
+		goalsStr = fmt.Sprintf("Cal:%.0f, Pro:%.1f, Fat:%.1f", g.Calories, g.Protein, g.Fat)
 		if g.Objective != "" {
 			objectiveStr = g.Objective
 		}
@@ -499,8 +507,13 @@ func ChatAI(c echo.Context) error {
 		userStr = fmt.Sprintf("Name: %s, Age: %d, Current W: %.1fkg, H: %.1fcm, Sex: %s", u.Name, u.Age, u.Weight, u.Height, u.Sex)
 	}
 
-	contextPrompt := "Persona: Elite AI Health Consultant. " +
+	contextPrompt := "Persona: Elite Clinical Dietitian & Health Consultant. " +
 		langInstruction +
+		"CRITICAL NUTRITION ACCURACY RULES: \n" +
+		"- DO NOT hallucinate health benefits. If a food is unhealthy, fatty (e.g., pork neck / คอหมูย่าง, fried foods), or sugary, state facts firmly. DO NOT call high-fat foods 'balanced fat'.\n" +
+		"- Know sports science: Cardio (running/cycling) builds endurance and burns calories, but DOES NOT build muscle. Resistance training builds muscle.\n" +
+		"- Ensure all calorie and macronutrient calculations naturally align with physics (e.g., 1g protein=4kcal, 1g fat=9kcal).\n" +
+		"CRITICAL MATH RULE: Total calories MUST logically support the sum of macros: Calories should be at least (Protein * 4) + (Fat * 9). " +
 		"Use the provided user data deeply to personalize every response. " +
 		"While health is your expertise, you are intelligent enough to discuss any topic with a consistent, premium persona.\n\n" +
 		"--- USER DATA ---\n" +
@@ -508,12 +521,13 @@ func ChatAI(c echo.Context) error {
 		"Recent Food History: " + historyStr + "\n" +
 		"Weight Trend: " + weightStr + "\nExercise: " + exerciseStr + "\nSleep: " + sleepStr + "\nWater: " + waterStr + "\nMeasurements: " + measurementStr + "\n\n" +
 		"CRITICAL INSTRUCTIONS:\n" +
-		"1. Connect the dots across all metrics (e.g., how exercise affects their goals today).\n" +
-		"2. Provide nutritional breakdowns clearly when relevant.\n" +
-		fmt.Sprintf("3. If you recommend or they mention a food, append a JSON tag at the VERY END: `[FOOD_DATA: {\"name\": \"%s\", \"calories\": 100, \"protein\": 10, \"carbs\": 5, \"fat\": 2, \"sugar\": 0, \"sodium\": 200, \"fiber\": 1.5}]`\n", foodExampleName) +
-		fmt.Sprintf("4. Ensure JSON is valid and the name is in %s language.\n", foodNameLang) +
+		"1. Connect the dots logically (e.g., accurately assess if their meal matches their exercise).\n" +
+		"2. Provide precise and highly accurate nutritional breakdowns. Always verify that your macronutrient suggestions logically match the suggested calories based on the formula: Calories >= (P*4)+(F*9).\n" +
+		fmt.Sprintf("3. If you recommend or they mention a food, append a JSON tag at the VERY END: `[FOOD_DATA: {\"name\": \"%s\", \"calories\": 100, \"protein\": 10, \"fat\": 2}]`\n", foodExampleName) +
+		fmt.Sprintf("4. Ensure JSON is valid, macronutrients STRICTLY sum up realistically, and the name is in %s language.\n", foodNameLang) +
 		"5. Use Markdown, emojis, and clear spacing. " +
-		"6. Maintain a polite, highly expert, and encouraging tone. Strictly avoid non-Thai/non-English mixing depending on the selected language."
+		"6. Maintain a polite, highly expert, and encouraging tone. " +
+		"7. STRICT LANGUAGE LOCKDOWN: Use ONLY Thai and Latin (English) characters. ABSOLUTELY NO Chinese (e.g., 营养), Cyrillic (e.g., Калอรี่), Japanese, or other foreign scripts. If you output 'Nutrition', it must be 'โภชนาการ'. If you output 'Calories', it must be 'แคลอรี่' or 'kcal' in Latin characters. Failure to stick to Thai/English characters will result in failure of the task."
 
 	systemMsg := GroqMessage{
 		Role:    "system",
@@ -523,7 +537,7 @@ func ChatAI(c echo.Context) error {
 	messages := append([]GroqMessage{systemMsg}, chatHistory...)
 
 	groqReq := GroqChatRequest{
-		Model:    "llama-3.3-70b-versatile",
+		Model:    "openai/gpt-oss-120b",
 		Messages: messages,
 	}
 

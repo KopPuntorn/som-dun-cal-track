@@ -44,7 +44,6 @@ func GetDashboardSummary(c echo.Context) error {
 		summary.Goals = models.Goals{
 			Calories: 2000,
 			Protein:  150,
-			Carbs:    250,
 			Fat:      70,
 		}
 	}

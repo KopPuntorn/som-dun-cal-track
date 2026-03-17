@@ -527,19 +527,24 @@ export default function PlayerCardPage() {
               {(Object.keys(STAT_LABELS) as Array<keyof typeof STAT_LABELS>).map((key) => {
                 const val = card.stats[key as keyof CardData["stats"]];
                 return (
-                  <div key={key} style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-                    <span style={{ width: "28px", fontSize: "11px", fontWeight: 700, color: "var(--text-secondary)" }}>{STAT_LABELS[key]}</span>
-                    <div style={{ flex: 1, height: "8px", borderRadius: "4px", background: "rgba(255,255,255,0.05)", overflow: "hidden" }}>
-                      <div style={{
-                        width: `${(val / 99) * 100}%`,
-                        height: "100%",
-                        borderRadius: "4px",
-                        background: theme.gradient,
-                        transition: "width 1.2s cubic-bezier(0.16, 1, 0.3, 1)",
-                        boxShadow: `0 0 10px ${card.rarity === 'diamond' ? 'rgba(0, 255, 255, 0.3)' : 'rgba(255, 107, 0, 0.3)'}`
-                      }} />
+                  <div key={key} style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                      <span style={{ width: "28px", fontSize: "11px", fontWeight: 700, color: "var(--text-secondary)" }}>{STAT_LABELS[key]}</span>
+                      <div style={{ flex: 1, height: "8px", borderRadius: "4px", background: "rgba(255,255,255,0.05)", overflow: "hidden" }}>
+                        <div style={{
+                          width: `${(val / 99) * 100}%`,
+                          height: "100%",
+                          borderRadius: "4px",
+                          background: theme.gradient,
+                          transition: "width 1.2s cubic-bezier(0.16, 1, 0.3, 1)",
+                          boxShadow: `0 0 10px ${card.rarity === 'diamond' ? 'rgba(0, 255, 255, 0.3)' : 'rgba(255, 107, 0, 0.3)'}`
+                        }} />
+                      </div>
+                      <span style={{ width: "28px", textAlign: "right", fontSize: "14px", fontWeight: 800, color: "var(--text-primary)" }}>{val}</span>
                     </div>
-                    <span style={{ width: "28px", textAlign: "right", fontSize: "14px", fontWeight: 800, color: "var(--text-primary)" }}>{val}</span>
+                    <div style={{ fontSize: "11px", color: "var(--text-secondary)", marginLeft: "40px", opacity: 0.8 }}>
+                      {t(`${key}Desc` as any)}
+                    </div>
                   </div>
                 );
               })}

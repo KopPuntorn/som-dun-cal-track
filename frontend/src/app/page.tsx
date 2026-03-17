@@ -75,7 +75,7 @@ export default function Home() {
   const [goals, setGoals] = useState<Goals>({ calories: 2000, protein: 150, carbs: 250, fat: 70, sugar: 50, sodium: 2000, fiber: 30 });
   const [user, setUser] = useState<UserProfile>({ name: "User", age: 25, weight: 70, height: 170, sex: "other" });
 
-  const [foodInputs, setFoodInputs] = useState({ name: "", calories: "", protein: "", carbs: "", fat: "", sugar: "", sodium: "", fiber: "", mealCategory: "Breakfast" });
+  const [foodInputs, setFoodInputs] = useState({ name: "", calories: "", protein: "", carbs: "", fat: "", sugar: "", sodium: "", fiber: "", mealCategory: "Breakfast", date: format(new Date(), 'yyyy-MM-dd') });
   const [loading, setLoading] = useState(true);
   const [aiLoading, setAiLoading] = useState(false);
 
@@ -89,8 +89,8 @@ export default function Home() {
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const [waterGlasses, setWaterGlasses] = useState(0);
-  const [exerciseInput, setExerciseInput] = useState({ name: '', durationMinutes: 30, caloriesBurned: 0 });
-  const [sleepInput, setSleepInput] = useState({ durationHours: 8, durationMinutes: 0, quality: 'Good' });
+  const [exerciseInput, setExerciseInput] = useState({ name: '', durationMinutes: 30, caloriesBurned: 0, date: format(new Date(), 'yyyy-MM-dd') });
+  const [sleepInput, setSleepInput] = useState({ durationHours: 8, durationMinutes: 0, quality: 'Good', date: format(new Date(), 'yyyy-MM-dd') });
   const [exerciseToday, setExerciseToday] = useState(0);
   const [sleepToday, setSleepToday] = useState(0);
 
@@ -150,15 +150,16 @@ export default function Home() {
   // Scanner State
   const [isScanning, setIsScanning] = useState(false);
   const { ref: zxingRef } = useZxing({
+    constraints: { video: { facingMode: 'environment' } },
     onDecodeResult(result) {
       if (!isScanning) return;
 
       const text = result.getText();
       setIsScanning(false);
-      setAiLoading(true); // Re-use AI loading spinner for API call
+      setAiLoading(true);
       setError(null);
 
-      // Fetch actual data from Open Food Facts API
+      // Fetch from Open Food Facts
       fetch(`https://world.openfoodfacts.org/api/v0/product/${text}.json`)
         .then(res => res.json())
         .then(data => {
@@ -166,31 +167,27 @@ export default function Home() {
             const p = data.product;
             const nutris = p.nutriments || {};
 
-            // OFF provides per 100g, but sometimes per serving
-            // We'll try to use serving values if available, otherwise 100g
-            setFoodInputs({
-              name: p.product_name || `Scanned Item (${text.substring(0, 6)})`,
+            setFoodInputs(prev => ({
+              ...prev,
+              name: p.product_name || `Scanned (${text.substring(0, 6)})`,
               calories: String(Math.round(nutris['energy-kcal_serving'] || nutris['energy-kcal_100g'] || 0)),
               protein: String(Math.round(nutris['proteins_serving'] || nutris['proteins_100g'] || 0)),
               carbs: String(Math.round(nutris['carbohydrates_serving'] || nutris['carbohydrates_100g'] || 0)),
               fat: String(Math.round(nutris['fat_serving'] || nutris['fat_100g'] || 0)),
               sugar: String(Math.round(nutris['sugars_serving'] || nutris['sugars_100g'] || 0)),
-              sodium: String(Math.round((nutris['sodium_serving'] || nutris['sodium_100g'] || 0) * 1000)), // OFF is in g, we need mg
-              fiber: String(Math.round(nutris['fiber_serving'] || nutris['fiber_100g'] || 0)),
-              mealCategory: foodInputs.mealCategory
-            });
-            showToast(`Loaded: ${p.product_name || 'Unknown product'}`, "success");
-            setError(`Successfully loaded: ${p.product_name || 'Unknown product'}`);
-            setTimeout(() => setError(null), 3000);
+              sodium: String(Math.round((nutris['sodium_serving'] || nutris['sodium_100g'] || 0) * 1000)),
+              fiber: String(Math.round(nutris['fiber_serving'] || nutris['fiber_100g'] || 0))
+            }));
+            
+            showToast(`Loaded: ${p.product_name || 'Product'}`, "success");
           } else {
             showToast("Product not found", "error");
-            setError(`Product not found in Open Food Facts database (Barcode: ${text})`);
+            setError(`Not found: ${text}`);
           }
         })
         .catch(err => {
-          console.error("Barcode API Error:", err);
-          showToast("Failed to fetch data", "error");
-          setError("Failed to fetch product data. Please check your connection.");
+          console.error("Scanner Error:", err);
+          showToast("Failed to fetch product data", "error");
         })
         .finally(() => {
           setAiLoading(false);
@@ -365,7 +362,7 @@ export default function Home() {
         const record = await res.json();
         setExerciseRecords([record, ...exerciseRecords]);
         setExerciseToday(prev => prev + Number(exerciseInput.durationMinutes));
-        setExerciseInput({ name: '', durationMinutes: 30, caloriesBurned: 0 });
+        setExerciseInput({ name: '', durationMinutes: 30, caloriesBurned: 0, date: format(new Date(), 'yyyy-MM-dd') });
         showToast("Activity logged!", "success");
       }
     } catch (err) {
@@ -387,14 +384,14 @@ export default function Home() {
         body: JSON.stringify({ 
           durationHours: totalHours,
           quality: sleepInput.quality,
-          date: new Date().toISOString()
+          date: sleepInput.date ? new Date(sleepInput.date).toISOString() : new Date().toISOString()
         })
       });
       if (res.ok) {
         const record = await res.json();
         setSleepRecords([record, ...sleepRecords]);
         setSleepToday(prev => prev + totalHours);
-        setSleepInput({ durationHours: 8, durationMinutes: 0, quality: 'Good' });
+        setSleepInput({ durationHours: 8, durationMinutes: 0, quality: 'Good', date: format(new Date(), 'yyyy-MM-dd') });
         showToast("Sleep logged!", "success");
       }
     } catch (err) {
@@ -483,7 +480,8 @@ export default function Home() {
       sugar: String(item.sugar || 0),
       sodium: String(item.sodium || 0),
       fiber: String(item.fiber || 0),
-      mealCategory: foodInputs.mealCategory
+      mealCategory: foodInputs.mealCategory,
+      date: foodInputs.date
     });
     setSearchResults([]);
   };
@@ -514,14 +512,15 @@ export default function Home() {
           sugar: sgr,
           sodium: sdm,
           fiber: fbr,
-          mealCategory: foodInputs.mealCategory
+          mealCategory: foodInputs.mealCategory,
+          date: foodInputs.date ? new Date(foodInputs.date).toISOString() : new Date().toISOString()
         })
       });
 
       if (res.ok) {
         const newFood = await res.json();
         setFoods([newFood, ...foods]); // Add to top matching our DB sort
-        setFoodInputs({ name: "", calories: "", protein: "", carbs: "", fat: "", sugar: "", sodium: "", fiber: "", mealCategory: "Breakfast" });
+        setFoodInputs({ name: "", calories: "", protein: "", carbs: "", fat: "", sugar: "", sodium: "", fiber: "", mealCategory: "Breakfast", date: format(new Date(), 'yyyy-MM-dd') });
         showToast(`Added ${name}!`, "success");
       }
     } catch (err) {
@@ -687,6 +686,7 @@ export default function Home() {
     setError(null);
 
     const formData = new FormData();
+    formData.append("language", language);
     try {
       const compressedBlob = await compressImage(file);
       formData.append("image", compressedBlob, "image.jpg");
@@ -716,6 +716,7 @@ export default function Home() {
           sodium: String(data.sodium || ""),
           fiber: String(data.fiber || ""),
           mealCategory: foodInputs.mealCategory,
+          date: foodInputs.date,
         });
       } else {
         const errData = await res.json();
@@ -1274,15 +1275,25 @@ export default function Home() {
                 </select>
                 <div style={{ flex: 1 }}>
                   <input
-                    type="number"
+                    type="date"
                     required
-                    min="0"
-                    placeholder="Calories"
-                    value={foodInputs.calories}
-                    onChange={e => setFoodInputs({ ...foodInputs, calories: e.target.value })}
-                    style={{ height: '52px', padding: '0 16px', borderRadius: '16px' }}
+                    value={foodInputs.date}
+                    onChange={e => setFoodInputs({ ...foodInputs, date: e.target.value })}
+                    style={{ width: '100%', height: '52px', padding: '0 16px', borderRadius: '16px', color: 'var(--text-primary)' }}
                   />
                 </div>
+              </div>
+
+              <div className="input-row" style={{ marginTop: '16px' }}>
+                <input
+                  type="number"
+                  required
+                  min="0"
+                  placeholder="Calories"
+                  value={foodInputs.calories}
+                  onChange={e => setFoodInputs({ ...foodInputs, calories: e.target.value })}
+                  style={{ height: '52px', padding: '0 16px', borderRadius: '16px' }}
+                />
               </div>
 
               <div className="input-row" style={{ marginTop: '12px' }}>
@@ -1376,6 +1387,17 @@ export default function Home() {
                   </div>
                   <div style={{ flex: 1, position: 'relative' }}>
                     <input
+                      type="date"
+                      required
+                      value={exerciseInput.date}
+                      onChange={e => setExerciseInput({ ...exerciseInput, date: e.target.value })}
+                      style={{ height: '52px', padding: '0 16px', borderRadius: '16px', color: 'var(--text-primary)' }}
+                    />
+                  </div>
+                </div>
+                <div style={{ display: 'flex', gap: '16px' }}>
+                  <div style={{ flex: 1, position: 'relative' }}>
+                    <input
                       type="number"
                       placeholder="Kcal Burned"
                       value={exerciseInput.caloriesBurned || ''}
@@ -1415,15 +1437,26 @@ export default function Home() {
                     <span style={{ position: 'absolute', right: '16px', top: '50%', transform: 'translateY(-50%)', fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 700 }}>MIN</span>
                   </div>
                 </div>
-                <select
-                  value={sleepInput.quality}
-                  onChange={e => setSleepInput({ ...sleepInput, quality: e.target.value })}
-                  style={{ height: '52px', borderRadius: '16px', border: '1px solid var(--panel-border)', background: 'rgba(0,0,0,0.3)', color: 'var(--text-primary)', fontWeight: 600, padding: '0 16px' }}
-                >
-                  <option value="Good">Good Quality</option>
-                  <option value="Fair">Fair Quality</option>
-                  <option value="Poor">Poor Quality</option>
-                </select>
+                <div style={{ display: 'flex', gap: '16px' }}>
+                  <div style={{ flex: 1, position: 'relative' }}>
+                    <input
+                      type="date"
+                      required
+                      value={sleepInput.date}
+                      onChange={e => setSleepInput({ ...sleepInput, date: e.target.value })}
+                      style={{ width: '100%', height: '52px', padding: '0 16px', borderRadius: '16px', color: 'var(--text-primary)' }}
+                    />
+                  </div>
+                  <select
+                    value={sleepInput.quality}
+                    onChange={e => setSleepInput({ ...sleepInput, quality: e.target.value })}
+                    style={{ flex: 1, height: '52px', borderRadius: '16px', border: '1px solid var(--panel-border)', background: 'rgba(0,0,0,0.3)', color: 'var(--text-primary)', fontWeight: 600, padding: '0 16px' }}
+                  >
+                    <option value="Good">Good Quality</option>
+                    <option value="Fair">Fair Quality</option>
+                    <option value="Poor">Poor Quality</option>
+                  </select>
+                </div>
                 <button onClick={(e) => { handleLogSleep(); setIsActivityModalOpen(false); }} className="primary-btn active" style={{ height: '56px', borderRadius: '18px', marginTop: '8px' }}>
                   RECORD SLEEP
                 </button>
