@@ -124,6 +124,51 @@ func AnalyzeImage(c echo.Context) error {
 	return callGroq(c, groqReq)
 }
 
+// SuggestGoals suggests nutritional goals based on user biometrics
+func SuggestGoals(c echo.Context) error {
+	apiKey := os.Getenv("GROQ_API_KEY")
+	if apiKey == "" {
+		slog.Error("SuggestGoals failed: GROQ_API_KEY not configured")
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "GROQ_API_KEY not configured"})
+	}
+
+	var data struct {
+		Age       int     `json:"age"`
+		Weight    float64 `json:"weight"`
+		Height    float64 `json:"height"`
+		Sex       string  `json:"sex"`
+		Objective string  `json:"objective"`
+		Language  string  `json:"language"`
+	}
+	if err := c.Bind(&data); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid request body"})
+	}
+
+	langConstraint := "Respond in Thai (ภาษาไทย)"
+	if data.Language == "en" {
+		langConstraint = "Respond in English"
+	}
+
+	prompt := fmt.Sprintf("Act as an expert Clinical Dietitian. Suggest optimal daily nutritional goals for a %d-year-old %s weighing %.1f kg and %.1f cm tall with the health objective of '%s'. "+
+		"Calculate precise Calories, Protein (g), and Fat (g). "+
+		"CRITICAL: The response MUST be a pure raw JSON object with these exact keys: calories (number), protein (number), fat (number), explanation (string, max 50 words, in %s). "+
+		"Ensure macronutrients logically match the calories: Calories ~= (P*4) + (F*9) + (C*4). Assuming moderate carbs. "+
+		"Respond ONLY with the JSON object. NO markdown, NO text before or after.", data.Age, data.Sex, data.Weight, data.Height, data.Objective, langConstraint)
+
+	groqReq := GroqChatRequest{
+		Model: "openai/gpt-oss-120b",
+		Messages: []GroqMessage{
+			{
+				Role:    "system",
+				Content: prompt,
+			},
+		},
+	}
+
+	slog.Info("Suggesting goals with AI", "age", data.Age, "objective", data.Objective)
+	return callGroq(c, groqReq)
+}
+
 // ConsultAI provides nutritional advice based on data fetched from DB for a specific date range
 func ConsultAI(c echo.Context) error {
 	apiKey := os.Getenv("GROQ_API_KEY")
@@ -608,4 +653,74 @@ func ChatAI(c echo.Context) error {
 	}
 
 	return c.String(http.StatusOK, replyContent)
+}
+
+// GenerateDailyBriefing returns a short, motivating 2-sentence summary based on today's data.
+func GenerateDailyBriefing(ctx context.Context, userID primitive.ObjectID, summary DashboardSummary, lang string) string {
+	apiKey := os.Getenv("GROQ_API_KEY")
+	if apiKey == "" {
+		return ""
+	}
+
+	// Prepare stats summary
+	var consumedCal float64
+	for _, f := range summary.TodayFoods {
+		consumedCal += f.Calories
+	}
+
+	totalExMinutes := 0
+	for _, e := range summary.Exercise {
+		totalExMinutes += e.DurationMinutes
+	}
+
+	langConstraint := "Respond in Thai (ภาษาไทย), warm and motivating."
+	if lang == "th" {
+		langConstraint = "Respond in Thai (ภาษาไทย), warm and motivating."
+	} else if lang == "en" {
+		langConstraint = "Respond in English, professional and encouraging."
+	}
+
+	prompt := fmt.Sprintf("Act as a Premium Health Coach. Generate a 2-sentence 'Daily Briefing' for %s. "+
+		"Today's stats: %.0f/%.0f kcal consumed, %d glasses of water, %d minutes of exercise. "+
+		"Goal: %s. "+
+		"Tone: Motivating, high-performance, expert. "+
+		"CRITICAL: Exactly 2 sentences. No more. No markdown headers. "+
+		"Language: %s", summary.User.Name, consumedCal, summary.Goals.Calories, summary.WaterToday.Glasses, totalExMinutes, summary.Goals.Objective, langConstraint)
+
+	groqReq := GroqChatRequest{
+		Model: "openai/gpt-oss-120b", // Use a faster model for briefing
+		Messages: []GroqMessage{
+			{
+				Role:    "system",
+				Content: prompt,
+			},
+		},
+	}
+
+	jsonData, _ := json.Marshal(groqReq)
+	req, _ := http.NewRequest("POST", "https://api.groq.com/openai/v1/chat/completions", bytes.NewBuffer(jsonData))
+	req.Header.Set("Authorization", "Bearer "+apiKey)
+	req.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{Timeout: 10 * time.Second}
+	resp, err := client.Do(req)
+	if err != nil {
+		return ""
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return ""
+	}
+
+	var groqResp GroqChatResponse
+	if err := json.NewDecoder(resp.Body).Decode(&groqResp); err != nil {
+		return ""
+	}
+
+	if len(groqResp.Choices) == 0 {
+		return ""
+	}
+
+	return groqResp.Choices[0].Message.Content
 }

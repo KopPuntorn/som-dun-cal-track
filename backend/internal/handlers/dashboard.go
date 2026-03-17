@@ -24,6 +24,7 @@ type DashboardSummary struct {
 	Sleep        []models.SleepRecord      `json:"sleepRecent"`
 	Measurements []models.BodyMeasurement `json:"measurementsRecent"`
 	RecentFoods  []models.Food            `json:"recentFoods"`
+	Briefing     string                   `json:"briefing"`
 }
 
 func GetDashboardSummary(c echo.Context) error {
@@ -177,6 +178,15 @@ func GetDashboardSummary(c echo.Context) error {
 	}
 	if summary.RecentFoods == nil {
 		summary.RecentFoods = []models.Food{}
+	}
+
+	// 10. Generate AI Briefing (Optional: Only if no specific range is requested for history)
+	if !hasRange {
+		lang := c.QueryParam("lang")
+		if lang == "" {
+			lang = "en"
+		}
+		summary.Briefing = GenerateDailyBriefing(ctx, userID, summary, lang)
 	}
 
 	return c.JSON(http.StatusOK, summary)

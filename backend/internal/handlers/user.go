@@ -45,8 +45,16 @@ func UpdateUserProfile(c echo.Context) error {
 			"weight":    u.Weight,
 			"height":    u.Height,
 			"sex":       u.Sex,
-			"onboarded": u.Onboarded,
 		},
+	}
+	
+	// Only update flags if they are explicitly sent in the payload (optional safety)
+	// For now, these flags are rarely updated from settings, but if sent, we keep them.
+	if u.Onboarded {
+		update["$set"].(bson.M)["onboarded"] = u.Onboarded
+	}
+	if u.TourCompleted {
+		update["$set"].(bson.M)["tourCompleted"] = u.TourCompleted
 	}
 
 	userID := c.Get("userID").(primitive.ObjectID)

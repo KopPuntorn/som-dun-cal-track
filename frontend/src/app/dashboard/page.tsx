@@ -76,9 +76,11 @@ type BodyMeasurement = {
     progressPhotoUrl?: string;
 };
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080/api";
+const API_BASE = (process.env.NEXT_PUBLIC_API_URL && process.env.NEXT_PUBLIC_API_URL !== "undefined")
+    ? process.env.NEXT_PUBLIC_API_URL
+    : "http://localhost:8080/api";
 
-type RangeType = 'today' | 'week' | 'month' | 'all' | 'custom';
+type RangeType = 'today' | 'week' | 'month' | 'custom';
 
 export default function DashboardPage() {
     const { logout, isLoading: authLoading } = useAuth();
@@ -98,7 +100,6 @@ export default function DashboardPage() {
     const [uploadingPhoto, setUploadingPhoto] = useState(false);
     const [photoUrl, setPhotoUrl] = useState('');
 
-    const [water, setWater] = useState<number>(0);
 
     const [exercises, setExercises] = useState<ExerciseRecord[]>([]);
     const [exerciseInput, setExerciseInput] = useState({ name: '', durationMinutes: 30, caloriesBurned: 0 });
@@ -111,6 +112,8 @@ export default function DashboardPage() {
 
     const [aiLoading, setAiLoading] = useState(false);
     const [aiAdvice, setAiAdvice] = useState<string | null>(null);
+    const [macroView, setMacroView] = useState<'protein' | 'fat'>('protein');
+    const [measureView, setMeasureView] = useState<'weight' | 'waist' | 'bodyFat'>('weight');
 
     const handleGetAiAdvice = async () => {
         setAiLoading(true);
@@ -143,10 +146,10 @@ export default function DashboardPage() {
             const res = await fetch(`${API_BASE}/consult`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ 
-                    startDate: startStr, 
-                    endDate: endStr, 
-                    language 
+                body: JSON.stringify({
+                    startDate: startStr,
+                    endDate: endStr,
+                    language
                 }),
             });
 
@@ -244,7 +247,7 @@ export default function DashboardPage() {
             if (res.ok) {
                 setMeasurementInput({ weight: '', waist: '', bodyFat: '' });
                 setPhotoUrl('');
-                
+
                 const updatedRes = await fetch(`${API_BASE}/measurements`);
                 if (updatedRes.ok) {
                     const ms = await updatedRes.json();
@@ -256,20 +259,6 @@ export default function DashboardPage() {
         }
     };
 
-    const handleUpdateWater = async (amount: number) => {
-        const newTotal = Math.max(0, water + amount);
-        try {
-            const today = format(new Date(), 'yyyy-MM-dd');
-            const res = await fetch(`${API_BASE}/water`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ date: today, glasses: newTotal })
-            });
-            if (res.ok) setWater(newTotal);
-        } catch (err) {
-            console.error(err);
-        }
-    };
 
     const handleLogExercise = async () => {
         if (!exerciseInput.name) {
@@ -312,10 +301,10 @@ export default function DashboardPage() {
             const res = await fetch(`${API_BASE}/sleep`, {
                 method: 'POST',
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ 
+                body: JSON.stringify({
                     durationHours: totalHours,
                     quality: sleepInput.quality,
-                    date: yesterday 
+                    date: yesterday
                 })
             });
             if (res.ok) {
@@ -377,7 +366,6 @@ export default function DashboardPage() {
                             start = startOfDay(now);
                         }
                         break;
-                    case 'all': start = null; break;
                 }
 
                 let summaryUrl = `${API_BASE}/dashboard/summary`;
@@ -394,7 +382,6 @@ export default function DashboardPage() {
                 setFoods(data.todayFoods || []);
                 setWeights(data.weightRecent || []);
                 setMeasurements(data.measurementsRecent || []);
-                setWater(data.waterToday?.glasses || 0);
                 setExercises(data.exerciseRecent || []);
                 setSleeps(data.sleepRecent || []);
             } catch (err) {
@@ -466,7 +453,7 @@ export default function DashboardPage() {
 
             <section className="glass-panel" style={{ padding: '16px 24px' }}>
                 <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '4px', flexWrap: 'wrap' }}>
-                    {(['today', 'week', 'month', 'all', 'custom'] as RangeType[]).map(r => (
+                    {(['today', 'week', 'month', 'custom'] as RangeType[]).map(r => (
                         <button key={r} className={`glass-btn ${range === r ? 'active' : ''}`} onClick={() => setRange(r)}>{r.toUpperCase()}</button>
                     ))}
                 </div>
@@ -498,95 +485,179 @@ export default function DashboardPage() {
             {error && <div className="glass-panel" style={{ background: "rgba(239, 68, 68, 0.1)", border: "1px solid var(--danger)", padding: "12px", borderRadius: "12px", color: "white", textAlign: 'center' }}>{error}</div>}
 
             <div className="responsive-layout">
+                <svg style={{ height: 0, width: 0, position: 'absolute' }}>
+                    <defs>
+                        <linearGradient id="cal-gradient" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#ff6b00" stopOpacity={0.8} />
+                            <stop offset="95%" stopColor="#ff2a55" stopOpacity={0} />
+                        </linearGradient>
+                        <linearGradient id="pro-gradient" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#0ea5e9" stopOpacity={0.8} />
+                            <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
+                        </linearGradient>
+                        <linearGradient id="fat-gradient" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="#a855f7" stopOpacity={0.8} />
+                            <stop offset="95%" stopColor="#ec4899" stopOpacity={0} />
+                        </linearGradient>
+                    </defs>
+                </svg>
                 <div className="glass-panel" style={{ height: '380px', gridColumn: '1 / -1' }}>
                     <h3 style={{ marginBottom: '24px' }}>Calorie Intake vs Goal</h3>
                     <ResponsiveContainer width="100%" height="80%">
                         <BarChart data={chartData}>
                             <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
                             <XAxis dataKey="date" stroke="var(--text-secondary)" fontSize={11} tickLine={false} axisLine={false} />
-                            <YAxis stroke="var(--text-secondary)" fontSize={11} tickLine={false} axisLine={false} />
+                            <YAxis stroke="var(--text-secondary)" fontSize={11} tickLine={false} axisLine={false} domain={[0, (dataMax: number) => Math.max(dataMax, goals.calories) * 1.1]} />
                             <Tooltip wrapperClassName="chart-tooltip" />
-                            <ReferenceLine y={goals.calories} stroke="var(--danger)" strokeDasharray="4 4" />
+                            <ReferenceLine y={goals.calories} stroke="var(--danger)" strokeDasharray="4 4" label={{ position: 'right', value: 'Goal', fill: 'var(--danger)', fontSize: 10, fontWeight: 700 }} />
                             <Bar dataKey="calories" fill="url(#cal-gradient)" radius={[6, 6, 0, 0]} maxBarSize={40} />
                         </BarChart>
                     </ResponsiveContainer>
                 </div>
 
-                <div className="glass-panel" style={{ height: '360px' }}>
-                    <h3 style={{ marginBottom: '24px' }}>Protein Trends</h3>
-                    <ResponsiveContainer width="100%" height="80%">
-                        <LineChart data={chartData}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
-                            <XAxis dataKey="date" stroke="var(--text-secondary)" fontSize={11} tickLine={false} axisLine={false} />
-                            <YAxis stroke="var(--text-secondary)" fontSize={11} tickLine={false} axisLine={false} />
-                            <Tooltip wrapperClassName="chart-tooltip" />
-                            <Line type="monotone" dataKey="protein" stroke="url(#pro-gradient)" strokeWidth={3} dot={{ fill: 'var(--bg-color)', r: 4 }} />
-                        </LineChart>
-                    </ResponsiveContainer>
-                </div>
-
-                <div className="glass-panel" style={{ height: '360px' }}>
-                    <h3 style={{ marginBottom: '24px' }}>Fat Trends</h3>
-                    <ResponsiveContainer width="100%" height="80%">
-                        <LineChart data={chartData}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
-                            <XAxis dataKey="date" stroke="var(--text-secondary)" fontSize={11} tickLine={false} axisLine={false} />
-                            <YAxis stroke="var(--text-secondary)" fontSize={11} tickLine={false} axisLine={false} />
-                            <Tooltip wrapperClassName="chart-tooltip" />
-                            <Line type="monotone" dataKey="fat" stroke="url(#fat-gradient)" strokeWidth={3} dot={{ fill: 'var(--bg-color)', r: 4 }} />
-                        </LineChart>
-                    </ResponsiveContainer>
-                </div>
-
                 <div className="glass-panel" style={{ height: '380px', gridColumn: '1 / -1' }}>
-                    <h3 style={{ marginBottom: '24px' }}>Body Measurements Trend</h3>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+                        <h3 style={{ margin: 0 }}>{macroView === 'protein' ? 'Protein Trends' : 'Fat Trends'}</h3>
+                        <div className="glass-panel" style={{ padding: '4px', borderRadius: '12px', display: 'flex', gap: '4px', border: '1px solid rgba(255,255,255,0.1)' }}>
+                            <button
+                                onClick={() => setMacroView('protein')}
+                                className={`glass-btn ${macroView === 'protein' ? 'active' : ''}`}
+                                style={{ padding: '6px 12px', fontSize: '12px', height: 'auto', borderRadius: '8px' }}
+                            >
+                                PROTEIN
+                            </button>
+                            <button
+                                onClick={() => setMacroView('fat')}
+                                className={`glass-btn ${macroView === 'fat' ? 'active' : ''}`}
+                                style={{ padding: '6px 12px', fontSize: '12px', height: 'auto', borderRadius: '8px' }}
+                            >
+                                FAT
+                            </button>
+                        </div>
+                    </div>
                     <ResponsiveContainer width="100%" height="80%">
+                        <LineChart data={chartData}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
+                            <XAxis dataKey="date" stroke="var(--text-secondary)" fontSize={11} tickLine={false} axisLine={false} />
+                            <YAxis stroke="var(--text-secondary)" fontSize={11} tickLine={false} axisLine={false} domain={[0, (dataMax: number) => Math.max(dataMax, macroView === 'protein' ? goals.protein : goals.fat) * 1.2]} />
+                            <Tooltip wrapperClassName="chart-tooltip" />
+                            <ReferenceLine
+                                y={macroView === 'protein' ? goals.protein : goals.fat}
+                                stroke={macroView === 'protein' ? "var(--accent-pro)" : "var(--accent-fat)"}
+                                strokeDasharray="4 4"
+                                label={{ position: 'right', value: `${macroView.toUpperCase()} GOAL`, fill: macroView === 'protein' ? "var(--accent-pro)" : "var(--accent-fat)", fontSize: 10, fontWeight: 700 }}
+                            />
+                            <Line
+                                type="monotone"
+                                dataKey={macroView}
+                                stroke={macroView === 'protein' ? "url(#pro-gradient)" : "url(#fat-gradient)"}
+                                strokeWidth={3}
+                                dot={{ fill: 'var(--bg-color)', r: 4 }}
+                                animationDuration={1000}
+                            />
+                        </LineChart>
+                    </ResponsiveContainer>
+                </div>
+
+                <div className="glass-panel" style={{ height: '400px', gridColumn: '1 / -1' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '12px' }}>
+                        <h3 style={{ margin: 0 }}>{t('measurementsTrend')}</h3>
+                        <div className="glass-panel" style={{ padding: '4px', borderRadius: '12px', display: 'flex', gap: '4px', border: '1px solid rgba(255,255,255,0.1)' }}>
+                            <button
+                                onClick={() => setMeasureView('weight')}
+                                className={`glass-btn ${measureView === 'weight' ? 'active' : ''}`}
+                                style={{ padding: '6px 12px', fontSize: '12px', height: 'auto', borderRadius: '8px' }}
+                            >
+                                {t('weight')}
+                            </button>
+                            <button
+                                onClick={() => setMeasureView('waist')}
+                                className={`glass-btn ${measureView === 'waist' ? 'active' : ''}`}
+                                style={{ padding: '6px 12px', fontSize: '12px', height: 'auto', borderRadius: '8px' }}
+                            >
+                                {t('waist')}
+                            </button>
+                            <button
+                                onClick={() => setMeasureView('bodyFat')}
+                                className={`glass-btn ${measureView === 'bodyFat' ? 'active' : ''}`}
+                                style={{ padding: '6px 12px', fontSize: '12px', height: 'auto', borderRadius: '8px' }}
+                            >
+                                {t('bodyFat')}
+                            </button>
+                        </div>
+                    </div>
+                    <ResponsiveContainer width="100%" height="75%">
                         <LineChart data={chartDataMeasurements}>
                             <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
                             <XAxis dataKey="date" stroke="var(--text-secondary)" fontSize={11} tickLine={false} axisLine={false} />
-                            <YAxis yAxisId="left" stroke="var(--text-secondary)" fontSize={11} tickLine={false} axisLine={false} />
-                            <YAxis yAxisId="right" orientation="right" stroke="var(--text-secondary)" fontSize={11} tickLine={false} axisLine={false} />
-                            <Tooltip wrapperClassName="chart-tooltip" />
-                            <Legend />
-                            <Line yAxisId="left" type="monotone" dataKey="waist" name="Waist (cm)" stroke="#bf5af2" strokeWidth={3} />
-                            <Line yAxisId="right" type="monotone" dataKey="bodyFat" name="Body Fat (%)" stroke="#32d74b" strokeWidth={3} />
+                            <YAxis stroke="var(--text-secondary)" fontSize={11} tickLine={false} axisLine={false} domain={['auto', 'auto']} />
+                            <Tooltip
+                                contentStyle={{ background: 'var(--panel-bg)', borderColor: 'var(--panel-border)', borderRadius: '12px' }}
+                                itemStyle={{ color: 'var(--text-primary)' }}
+                            />
+                            <Line
+                                type="monotone"
+                                dataKey={measureView}
+                                name={measureView === 'weight' ? `${t('weight')} (kg)` : measureView === 'waist' ? `${t('waist')} (cm)` : `${t('bodyFat')} (%)`}
+                                stroke={measureView === 'weight' ? "#32d74b" : measureView === 'waist' ? "#bf5af2" : "#ff9f0a"}
+                                strokeWidth={3}
+                                dot={{ fill: 'var(--bg-color)', r: 4 }}
+                                animationDuration={1000}
+                            />
                         </LineChart>
                     </ResponsiveContainer>
                 </div>
 
-                <div className="glass-panel" style={{ padding: '32px' }}>
-                    <h3 style={{ marginBottom: '24px', fontSize: '17px', fontWeight: 700 }}>Log Measurements</h3>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                        <div style={{ display: 'flex', gap: '12px' }}>
-                            <div style={{ flex: 1, position: 'relative' }}>
-                                <input type="number" placeholder="Weight" value={measurementInput.weight} onChange={e => setMeasurementInput({ ...measurementInput, weight: e.target.value })} />
-                                <span style={{ position: 'absolute', right: '16px', top: '50%', transform: 'translateY(-50%)', fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 700 }}>KG</span>
-                            </div>
-                            <div style={{ flex: 1, position: 'relative' }}>
-                                <input type="number" placeholder="Waist" value={measurementInput.waist} onChange={e => setMeasurementInput({ ...measurementInput, waist: e.target.value })} />
-                                <span style={{ position: 'absolute', right: '16px', top: '50%', transform: 'translateY(-50%)', fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 700 }}>CM</span>
+                <div className="glass-panel" style={{ padding: '24px', gridColumn: '1 / -1' }}>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))', gap: '32px' }}>
+                        <div>
+                            <h3 style={{ marginBottom: '20px', fontSize: '16px', fontWeight: 700, opacity: 0.9 }}>{t('logMeasurements')}</h3>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                                    <div style={{ position: 'relative' }}>
+                                        <label style={{ display: 'block', fontSize: '11px', color: 'var(--text-secondary)', marginBottom: '4px', fontWeight: 600 }}>{t('weight')}</label>
+                                        <input type="number" placeholder="0.0" value={measurementInput.weight} onChange={e => setMeasurementInput({ ...measurementInput, weight: e.target.value })} style={{ paddingRight: '40px', height: '48px' }} />
+                                        <span style={{ position: 'absolute', right: '12px', top: '34px', fontSize: '10px', color: 'var(--text-secondary)', fontWeight: 700 }}>KG</span>
+                                    </div>
+                                    <div style={{ position: 'relative' }}>
+                                        <label style={{ display: 'block', fontSize: '11px', color: 'var(--text-secondary)', marginBottom: '4px', fontWeight: 600 }}>{t('waist')}</label>
+                                        <input type="number" placeholder="0.0" value={measurementInput.waist} onChange={e => setMeasurementInput({ ...measurementInput, waist: e.target.value })} style={{ paddingRight: '40px', height: '48px' }} />
+                                        <span style={{ position: 'absolute', right: '12px', top: '34px', fontSize: '10px', color: 'var(--text-secondary)', fontWeight: 700 }}>CM</span>
+                                    </div>
+                                </div>
+                                <div style={{ position: 'relative' }}>
+                                    <label style={{ display: 'block', fontSize: '11px', color: 'var(--text-secondary)', marginBottom: '4px', fontWeight: 600 }}>{t('bodyFat')}</label>
+                                    <input type="number" placeholder="0.0" value={measurementInput.bodyFat} onChange={e => setMeasurementInput({ ...measurementInput, bodyFat: e.target.value })} style={{ paddingRight: '40px', height: '48px' }} />
+                                    <span style={{ position: 'absolute', right: '12px', top: '34px', fontSize: '10px', color: 'var(--text-secondary)', fontWeight: 700 }}>%</span>
+                                </div>
+                                <button onClick={handleLogMeasurement} className="primary-btn active" style={{ height: '48px', borderRadius: '12px', fontWeight: 700, fontSize: '14px', width: '100%' }}>{t('saveMeasurements')}</button>
                             </div>
                         </div>
-                        <button onClick={handleLogMeasurement} className="primary-btn active">SAVE CHANGES</button>
+
+                        <div>
+                            <h3 style={{ marginBottom: '20px', fontSize: '16px', fontWeight: 700, opacity: 0.9 }}>{t('recentHistory')}</h3>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                                {measurements.slice(0, 3).map((m, idx) => (
+                                    <div key={idx} className="glass-panel" style={{ padding: '12px 16px', borderRadius: '12px', background: 'rgba(255,255,255,0.02)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', border: '1px solid rgba(255,255,255,0.05)' }}>
+                                        <div>
+                                            <p style={{ fontSize: '10px', color: 'var(--text-secondary)', marginBottom: '2px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>{format(new Date(m.date), 'MMM dd, yyyy')}</p>
+                                            <div style={{ display: 'flex', gap: '10px' }}>
+                                                <span style={{ fontSize: '13px', fontWeight: 700 }}>{m.weight} <small style={{ fontSize: '10px', fontWeight: 400, color: 'var(--text-secondary)' }}>kg</small></span>
+                                                {m.waistCircumference > 0 && <span style={{ fontSize: '13px', fontWeight: 700 }}>{m.waistCircumference} <small style={{ fontSize: '10px', fontWeight: 400, color: 'var(--text-secondary)' }}>cm</small></span>}
+                                                {m.bodyFatPercentage > 0 && <span style={{ fontSize: '13px', fontWeight: 700 }}>{m.bodyFatPercentage}%</span>}
+                                            </div>
+                                        </div>
+                                        <div style={{ width: '6px', height: '6px', borderRadius: '50%', background: idx === 0 ? 'var(--success)' : 'rgba(255,255,255,0.1)' }}></div>
+                                    </div>
+                                ))}
+                                {measurements.length === 0 && (
+                                    <p style={{ textAlign: 'center', color: 'var(--text-secondary)', fontSize: '13px', padding: '16px', background: 'rgba(255,255,255,0.01)', borderRadius: '12px' }}>No history yet.</p>
+                                )}
+                            </div>
+                        </div>
                     </div>
                 </div>
 
-                <div className="glass-panel" style={{ height: '360px', padding: '32px', display: 'flex', flexDirection: 'column' }}>
-                    <h3 style={{ marginBottom: '24px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                        <div className="icon-btn" style={{ background: 'var(--accent-pro-gradient)', border: 'none', width: '32px', height: '32px' }}>
-                            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"></path></svg>
-                        </div>
-                        Water Intake
-                    </h3>
-                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
-                        <div style={{ fontSize: '56px', fontWeight: '800', background: 'var(--accent-pro-gradient)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', lineHeight: 1 }}>{water}</div>
-                        <div style={{ fontSize: '14px', color: 'var(--text-secondary)', fontWeight: 600, letterSpacing: '2px', textTransform: 'uppercase', marginTop: '8px' }}>Glasses Today</div>
-                        <div style={{ display: 'flex', gap: '20px', marginTop: '32px' }}>
-                            <button onClick={() => handleUpdateWater(-1)} className="glass-btn" style={{ width: '52px', height: '52px', borderRadius: '16px', fontSize: '24px' }}>-</button>
-                            <button onClick={() => handleUpdateWater(1)} className="glass-btn active" style={{ width: '52px', height: '52px', borderRadius: '16px', fontSize: '24px' }}>+</button>
-                        </div>
-                    </div>
-                </div>
             </div>
 
             <section style={{ textAlign: 'center', marginTop: '32px', paddingBottom: '32px' }}>

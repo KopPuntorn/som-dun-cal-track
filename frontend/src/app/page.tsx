@@ -42,6 +42,8 @@ type UserProfile = {
   weight: number;
   height: number;
   sex: string;
+  onboarded?: boolean;
+  tourCompleted?: boolean;
 };
 
 type ChatSession = {
@@ -65,7 +67,9 @@ type SleepRecord = {
   date: string;
 };
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080/api";
+const API_BASE = (process.env.NEXT_PUBLIC_API_URL && process.env.NEXT_PUBLIC_API_URL !== "undefined")
+  ? process.env.NEXT_PUBLIC_API_URL
+  : "http://localhost:8080/api";
 
 export default function Home() {
   const { logout, isLoading: authLoading } = useAuth();
@@ -98,6 +102,7 @@ export default function Home() {
   const [exerciseRecords, setExerciseRecords] = useState<ExerciseRecord[]>([]);
   const [sleepRecords, setSleepRecords] = useState<SleepRecord[]>([]);
   const [weightRecords, setWeightRecords] = useState<any[]>([]);
+  const [briefing, setBriefing] = useState<string>("");
   const [editingFood, setEditingFood] = useState<Food | null>(null);
   const [editingExercise, setEditingExercise] = useState<ExerciseRecord | null>(null);
   const [editingSleep, setEditingSleep] = useState<SleepRecord | null>(null);
@@ -107,6 +112,9 @@ export default function Home() {
   const [logModalTab, setLogModalTab] = useState<'exercise' | 'sleep'>('exercise');
   const [detailView, setDetailView] = useState<'training' | 'recovery' | null>(null);
   const [aiAdvice, setAiAdvice] = useState<string | null>(null);
+  const [tourStep, setTourStep] = useState(0);
+  const [showTour, setShowTour] = useState(false);
+  const [highlightRect, setHighlightRect] = useState<DOMRect | null>(null);
   const dataFetchedRef = useRef(false);
 
   // Helper for image compression
@@ -178,7 +186,7 @@ export default function Home() {
               sodium: String(Math.round((nutris['sodium_serving'] || nutris['sodium_100g'] || 0) * 1000)),
               fiber: String(Math.round(nutris['fiber_serving'] || nutris['fiber_100g'] || 0))
             }));
-            
+
             showToast(`Loaded: ${p.product_name || 'Product'}`, "success");
           } else {
             showToast("Product not found", "error");
@@ -216,11 +224,11 @@ export default function Home() {
       dataFetchedRef.current = true;
 
       try {
-        const response = await fetch(`${API_BASE}/dashboard/summary`);
+        const response = await fetch(`${API_BASE}/dashboard/summary?lang=${language}`);
         if (!response.ok) {
           throw new Error("Failed to fetch dashboard summary");
         }
-        
+
         const data = await response.json();
 
         if (data.goals) {
@@ -245,6 +253,11 @@ export default function Home() {
             sex: data.user.sex || "other"
           };
           setUser(newUser);
+
+          // Show tour if onboarded but tour not completed
+          if (data.user.onboarded && !data.user.tourCompleted) {
+            setShowTour(true);
+          }
         }
 
         setFoods(data.todayFoods || []);
@@ -253,10 +266,10 @@ export default function Home() {
 
         // Today's summary for Exercise & Sleep
         const today = format(new Date(), 'yyyy-MM-dd');
-        
+
         const filteredExercise = (data.exerciseRecent || [])
           .filter((e: ExerciseRecord) => format(new Date(e.date), 'yyyy-MM-dd') === today);
-        
+
         const exToday = filteredExercise.reduce((sum: number, e: ExerciseRecord) => sum + e.durationMinutes, 0);
         setExerciseToday(exToday);
         setExerciseRecords(filteredExercise);
@@ -268,6 +281,7 @@ export default function Home() {
         setSleepToday(slToday);
         setSleepRecords(filteredSleep);
         setWeightRecords(data.weightRecent || []);
+        setBriefing(data.briefing || "");
       } catch (err) {
         console.error("Failed to fetch data", err);
         setError("Failed to reach the server. Make sure the Go backend is running and MongoDB is connected.");
@@ -324,9 +338,80 @@ export default function Home() {
         setChatMessages([]);
       }
     } catch (err) {
-      console.error("Failed to create session", err);
+      console.error("Delete session error:", err);
     }
   };
+
+  const handleCompleteTour = async () => {
+    setShowTour(false);
+    try {
+      await fetch(`${API_BASE}/user`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tourCompleted: true })
+      });
+    } catch (err) {
+      console.error("Failed to update tour status", err);
+    }
+  };
+
+  const tourSteps = [
+    { title: t('tourWelcomeTitle'), desc: t('tourWelcomeDesc'), target: null },
+    { title: t('tourFoodTitle'), desc: t('tourFoodDesc'), target: 'add-food-btn' },
+    { title: t('tourAiTitle'), desc: t('tourAiDesc'), target: 'chat-toggle-btn' },
+    { title: t('tourAnalyticsTitle'), desc: t('tourAnalyticsDesc'), target: 'analytics-section' },
+    { title: t('tourPlayerCardTitle'), desc: t('tourPlayerCardDesc'), target: 'player-card-section' },
+  ];
+
+  useEffect(() => {
+    if (showTour) {
+      const updateRect = () => {
+        const currentTarget = tourSteps[tourStep].target;
+        if (!currentTarget) {
+          setHighlightRect(null);
+          return;
+        }
+
+        let targetId = currentTarget;
+        // Switch to mobile targets if needed
+        if (typeof window !== 'undefined' && window.innerWidth < 768) {
+          if (targetId === 'add-food-btn') targetId = 'add-food-btn-mobile';
+          if (targetId === 'profile-btn') targetId = 'profile-btn-mobile';
+        }
+
+        const el = document.getElementById(targetId);
+        if (el) {
+          const rect = el.getBoundingClientRect();
+          // Use a robust representation of the rect
+          setHighlightRect({
+            left: rect.left,
+            top: rect.top,
+            width: rect.width,
+            height: rect.height,
+            bottom: rect.bottom,
+            right: rect.right,
+            x: rect.left,
+            y: rect.top
+          } as any);
+        } else {
+          setHighlightRect(null);
+        }
+      };
+
+      // Initial measure with a slight delay to ensure layout is ready
+      const timer = setTimeout(updateRect, 150);
+      window.addEventListener('resize', updateRect);
+      window.addEventListener('scroll', updateRect, true);
+
+      return () => {
+        clearTimeout(timer);
+        window.removeEventListener('resize', updateRect);
+        window.removeEventListener('scroll', updateRect, true);
+      };
+    } else {
+      setHighlightRect(null);
+    }
+  }, [showTour, tourStep]);
 
   // Handlers
   const handleUpdateWater = async (increment: number) => {
@@ -381,7 +466,7 @@ export default function Home() {
       const res = await fetch(`${API_BASE}/sleep`, {
         method: 'POST',
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           durationHours: totalHours,
           quality: sleepInput.quality,
           date: sleepInput.date ? new Date(sleepInput.date).toISOString() : new Date().toISOString()
@@ -396,7 +481,7 @@ export default function Home() {
       }
     } catch (err) {
       console.error(err);
-      showToast("Failed to log sleep", "error");
+      showToast("Failed to log activity", "error");
     }
   };
 
@@ -448,7 +533,7 @@ export default function Home() {
       console.error(err);
     }
   };
-  
+
   const handleSearch = async (query: string) => {
     if (!query.trim()) {
       setSearchResults([]);
@@ -469,7 +554,7 @@ export default function Home() {
       }
     }, 300);
   };
-  
+
   const selectSearchResult = (item: Food) => {
     setFoodInputs({
       name: item.name,
@@ -741,7 +826,7 @@ export default function Home() {
     // If no active session, create one first or use a scratch session (stateless)
     // For this implementation, we allow stateless chat if no session is selected,
     // but the backend will only persist if sessionId is provided.
-    
+
     const userMsg = { role: 'user' as const, content: chatInput };
     setChatMessages(prev => [...prev, userMsg]);
     setChatInput("");
@@ -751,10 +836,10 @@ export default function Home() {
       const res = await fetch(`${API_BASE}/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           sessionId: sessionId,
-          messages: sessionId ? [userMsg] : [...chatMessages, userMsg], 
-          language 
+          messages: sessionId ? [userMsg] : [...chatMessages, userMsg],
+          language
         }),
       });
 
@@ -781,9 +866,9 @@ export default function Home() {
       const res = await fetch(`${API_BASE}/consult`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ 
-          date: format(new Date(), 'yyyy-MM-dd'), 
-          language 
+        body: JSON.stringify({
+          date: format(new Date(), 'yyyy-MM-dd'),
+          language
         }),
       });
 
@@ -838,6 +923,118 @@ export default function Home() {
 
   return (
     <div className="app-container">
+      {/* Search Header */}
+
+      {showTour && (
+        <div className="tour-overlay" style={{
+          position: 'fixed',
+          top: 0, left: 0, right: 0, bottom: 0,
+          zIndex: 9999,
+          pointerEvents: 'auto'
+        }}>
+          {/* SVG Spotlight Mask Background */}
+          <svg style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none' }}>
+            <defs>
+              <mask id="spotlight-mask">
+                <rect width="100%" height="100%" fill="white" />
+                {highlightRect && (
+                  <rect
+                    x={highlightRect.x - 12}
+                    y={highlightRect.y - 12}
+                    width={highlightRect.width + 24}
+                    height={highlightRect.height + 24}
+                    rx="16"
+                    fill="black"
+                  />
+                )}
+              </mask>
+            </defs>
+            <rect width="100%" height="100%" fill="rgba(0,0,0,0.85)" mask="url(#spotlight-mask)" style={{ backdropFilter: 'blur(4px)' }} />
+            {highlightRect && (
+              <rect
+                x={highlightRect.x - 12}
+                y={highlightRect.y - 12}
+                width={highlightRect.width + 24}
+                height={highlightRect.height + 24}
+                rx="16"
+                fill="none"
+                stroke="var(--accent-cal)"
+                strokeWidth="3"
+                strokeDasharray="8 8"
+                style={{ animation: 'pulse 2s infinite' }}
+              />
+            )}
+          </svg>
+
+          {/* Tooltip Content */}
+          <div className="glass-panel" style={{
+            maxWidth: '380px',
+            width: 'calc(100% - 40px)',
+            padding: '32px',
+            borderRadius: '24px',
+            textAlign: 'center',
+            position: 'absolute',
+            zIndex: 10000,
+            ...(highlightRect && typeof window !== 'undefined' ? {
+              top: highlightRect.bottom + 24 + 250 > window.innerHeight ? undefined : highlightRect.bottom + 24,
+              bottom: highlightRect.bottom + 24 + 250 > window.innerHeight ? (window.innerHeight - highlightRect.top + 24) : undefined,
+              left: window.innerWidth < 450 ? '20px' : Math.max(20, Math.min(window.innerWidth - 400, highlightRect.left + highlightRect.width / 2 - 190)),
+              margin: '0',
+            } : {
+              top: '50%',
+              left: '50%',
+              transform: 'translate(-50%, -50%)',
+              margin: 0,
+              maxWidth: '350px'
+            }),
+            animation: tourSteps[tourStep].target ? 'tourFadeIn 0.4s ease-out' : 'tourFadeInCenter 0.6s cubic-bezier(0.16, 1, 0.3, 1)',
+            border: '1px solid rgba(255,255,255,0.15)',
+            boxShadow: '0 20px 40px rgba(0,0,0,0.5)'
+          }}>
+            <h2 style={{ fontSize: '22px', fontWeight: 800, marginBottom: '16px', background: 'var(--accent-cal-gradient)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+              {tourSteps[tourStep].title}
+            </h2>
+            <p style={{ color: 'var(--text-secondary)', lineHeight: 1.6, marginBottom: '32px' }}>
+              {tourSteps[tourStep].desc}
+            </p>
+
+            <div style={{ display: 'flex', gap: '12px' }}>
+              <button
+                onClick={handleCompleteTour}
+                className="glass-btn"
+                style={{ flex: 1, height: '48px', borderRadius: '14px', fontSize: '14px' }}
+              >
+                {t('tourSkip')}
+              </button>
+              <button
+                onClick={() => {
+                  if (tourStep < tourSteps.length - 1) {
+                    setTourStep(tourStep + 1);
+                  } else {
+                    handleCompleteTour();
+                  }
+                }}
+                className="primary-btn active"
+                style={{ flex: 1, height: '48px', borderRadius: '14px', fontSize: '14px', boxShadow: '0 0 15px var(--accent-cal)' }}
+              >
+                {tourStep === tourSteps.length - 1 ? t('tourFinish') : t('tourNext')}
+              </button>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'center', gap: '8px', marginTop: '24px' }}>
+              {tourSteps.map((_, i) => (
+                <div key={i} style={{
+                  width: '8px',
+                  height: '8px',
+                  borderRadius: '50%',
+                  background: i === tourStep ? 'var(--accent-cal)' : 'rgba(255,255,255,0.1)',
+                  transition: 'all 0.3s'
+                }}></div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
       {error && (
         <div style={{ background: "var(--danger)", padding: "12px", borderRadius: "12px", fontSize: "14px", color: "white" }}>
           {error}
@@ -861,6 +1058,7 @@ export default function Home() {
         </div>
         <div className="header-actions" style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
           <button
+            id="add-food-btn"
             onClick={() => setIsFoodModalOpen(true)}
             className="icon-btn active mobile-hidden"
             style={{ background: 'var(--accent-pro-gradient)', border: 'none', width: '40px', height: '40px', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
@@ -868,7 +1066,7 @@ export default function Home() {
           >
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
           </button>
-          
+
           <button
             onClick={() => setIsActivityModalOpen(true)}
             className="icon-btn mobile-hidden"
@@ -885,7 +1083,7 @@ export default function Home() {
           >
             {language === 'en' ? 'TH' : 'EN'}
           </button>
-          <Link href="/player-card" className="icon-btn" title="Player Card">
+          <Link id="player-card-section" href="/player-card" className="icon-btn" title="Player Card">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>
           </Link>
           <Link href="/dashboard" className="icon-btn" title={t('analyticsTitle')}>
@@ -899,10 +1097,103 @@ export default function Home() {
 
       <div className="responsive-layout">
         <div className="layout-column">
+          {/* AI Daily Briefing */}
+          {briefing && (
+            <div className="glass-panel" style={{
+              padding: '20px 24px',
+              borderRadius: '24px',
+              border: '1px solid rgba(255,255,255,0.1)',
+              background: 'linear-gradient(135deg, rgba(20,20,20,0.8), rgba(40,40,40,0.4))',
+              position: 'relative',
+              overflow: 'hidden'
+            }}>
+              <div style={{ position: 'absolute', top: 0, right: 0, width: '100px', height: '100px', background: 'radial-gradient(circle, var(--accent-cal) 0%, transparent 70%)', opacity: 0.1, filter: 'blur(20px)' }}></div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
+                <div style={{ background: 'var(--accent-cal-gradient)', width: '24px', height: '24px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"></path></svg>
+                </div>
+                <span style={{ fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '1px', color: 'var(--accent-cal)' }}>{t('aiBriefing')}</span>
+              </div>
+              <p style={{ fontSize: '15px', color: 'var(--text-primary)', lineHeight: '1.6', fontWeight: 500 }}>
+                {briefing}
+              </p>
+            </div>
+          )}
+
+          {/* Performance Rings */}
+          <div className="glass-panel" style={{ padding: '24px', borderRadius: '28px', display: 'flex', flexWrap: 'wrap', gap: '32px', alignItems: 'center', justifyContent: 'center' }}>
+            <div style={{ position: 'relative', width: '140px', height: '140px' }}>
+              {/* Concentric Rings - SVG */}
+              <svg width="140" height="140" viewBox="0 0 140 140">
+                {/* Backgrounds */}
+                <circle cx="70" cy="70" r="62" fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="12" />
+                <circle cx="70" cy="70" r="48" fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="12" />
+                <circle cx="70" cy="70" r="34" fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="12" />
+                <circle cx="70" cy="70" r="20" fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="12" />
+
+                {/* Progress Rings */}
+                {/* Nutrition (Outer) */}
+                <circle cx="70" cy="70" r="62" fill="none" stroke="var(--accent-cal)" strokeWidth="12" strokeLinecap="round"
+                  strokeDasharray={`${Math.min(100, (foods.reduce((sum, f) => sum + f.calories, 0) / goals.calories) * 100) * 3.89} 389`}
+                  transform="rotate(-90 70 70)"
+                  style={{ transition: 'stroke-dasharray 1s ease-out' }}
+                />
+                {/* Hydration */}
+                <circle cx="70" cy="70" r="48" fill="none" stroke="#38bdf8" strokeWidth="12" strokeLinecap="round"
+                  strokeDasharray={`${Math.min(100, (waterGlasses / 8) * 100) * 3.01} 301`}
+                  transform="rotate(-90 70 70)"
+                  style={{ transition: 'stroke-dasharray 1s ease-out', transitionDelay: '0.2s' }}
+                />
+                {/* Fitness */}
+                <circle cx="70" cy="70" r="34" fill="none" stroke="var(--accent-pro)" strokeWidth="12" strokeLinecap="round"
+                  strokeDasharray={`${Math.min(100, (exerciseToday / 30) * 100) * 2.13} 213`}
+                  transform="rotate(-90 70 70)"
+                  style={{ transition: 'stroke-dasharray 1s ease-out', transitionDelay: '0.4s' }}
+                />
+                {/* Recovery (Inner) */}
+                <circle cx="70" cy="70" r="20" fill="none" stroke="var(--accent-fat)" strokeWidth="12" strokeLinecap="round"
+                  strokeDasharray={`${Math.min(100, (sleepToday / 8) * 100) * 1.25} 125`}
+                  transform="rotate(-90 70 70)"
+                  style={{ transition: 'stroke-dasharray 1s ease-out', transitionDelay: '0.6s' }}
+                />
+              </svg>
+              <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <div style={{ background: 'rgba(255,255,255,0.05)', padding: '6px', borderRadius: '50%' }}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-secondary)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"></path></svg>
+                </div>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'var(--accent-cal)' }}></div>
+                <span style={{ fontSize: '13px', fontWeight: 600 }}>{t('nut')}</span>
+                <span style={{ fontSize: '11px', color: 'var(--text-secondary)', marginLeft: 'auto' }}>
+                  {Math.round((foods.reduce((sum, f) => sum + f.calories, 0) / goals.calories) * 100)}%
+                </span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#38bdf8' }}></div>
+                <span style={{ fontSize: '13px', fontWeight: 600 }}>{t('hyd')}</span>
+                <span style={{ fontSize: '11px', color: 'var(--text-secondary)', marginLeft: 'auto' }}>{Math.round((waterGlasses / 8) * 100)}%</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'var(--accent-pro)' }}></div>
+                <span style={{ fontSize: '13px', fontWeight: 600 }}>{t('fit')}</span>
+                <span style={{ fontSize: '11px', color: 'var(--text-secondary)', marginLeft: 'auto' }}>{Math.round((exerciseToday / 30) * 100)}%</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'var(--accent-fat)' }}></div>
+                <span style={{ fontSize: '13px', fontWeight: 600 }}>{t('rec')}</span>
+                <span style={{ fontSize: '11px', color: 'var(--text-secondary)', marginLeft: 'auto' }}>{Math.round((sleepToday / 8) * 100)}%</span>
+              </div>
+            </div>
+          </div>
+
           {/* Goals Dashboard */}
           <section className="dashboard">
             {/* Calories Card */}
-            <div className="glass-panel cal-card" style={{ padding: '32px' }}>
+            <div id="analytics-section" className="glass-panel cal-card" style={{ padding: '32px' }}>
               <h2 style={{ fontSize: '18px', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '2px', marginBottom: '16px' }}>Calories</h2>
               <div className="ring-container">
                 <svg className="progress-ring" viewBox="0 0 160 160" style={{ width: '100%', height: '100%' }}>
@@ -1057,7 +1348,7 @@ export default function Home() {
           {/* Quick Stats Summary */}
           <section className="glass-panel" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
             <h3 style={{ fontSize: '13px', fontWeight: 700, margin: 0, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '1px' }}>{t('dailyProgress')}</h3>
-            
+
             <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
               {/* Water Summary */}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -1078,7 +1369,7 @@ export default function Home() {
 
               {/* Activity Summary */}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div 
+                <div
                   onClick={() => setDetailView('training')}
                   className="interactive-card"
                   style={{ display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer', flex: 1, padding: '8px', borderRadius: '12px', transition: 'all 0.2s ease', margin: '-8px' }}
@@ -1098,7 +1389,7 @@ export default function Home() {
 
               {/* Sleep Summary */}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div 
+                <div
                   onClick={() => setDetailView('recovery')}
                   className="interactive-card"
                   style={{ display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer', flex: 1, padding: '8px', borderRadius: '12px', transition: 'all 0.2s ease', margin: '-8px' }}
@@ -1127,10 +1418,10 @@ export default function Home() {
                 </div>
                 <h3 style={{ margin: 0, fontSize: '17px', color: 'var(--text-primary)' }}>{t('aiAdvice')}</h3>
               </div>
-              <button 
-                onClick={handleGetAiAdvice} 
-                className="primary-btn active" 
-                disabled={aiLoading || loading} 
+              <button
+                onClick={handleGetAiAdvice}
+                className="primary-btn active"
+                disabled={aiLoading || loading}
                 style={{ margin: 0, padding: '10px 20px', fontSize: '14px' }}
               >
                 {aiLoading ? t('analyzing') : t('getInsights')}
@@ -1261,7 +1552,7 @@ export default function Home() {
                   </div>
                 )}
               </div>
-              
+
               <div className="input-row" style={{ marginTop: '16px' }}>
                 <select
                   value={foodInputs.mealCategory}
@@ -1341,7 +1632,7 @@ export default function Home() {
                 <h3 style={{ fontSize: '20px', fontWeight: 800 }}>Log Activity</h3>
                 <button onClick={() => setIsActivityModalOpen(false)} className="icon-btn" style={{ borderRadius: '50%', width: '32px', height: '32px' }}>&times;</button>
               </div>
-              
+
               {/* Tab Switcher */}
               <div style={{ display: "flex", background: "rgba(0,0,0,0.4)", borderRadius: '14px', padding: "4px", border: '1px solid var(--panel-border)', width: '100%' }}>
                 <button
@@ -1616,13 +1907,13 @@ export default function Home() {
               )}
             </div>
 
-            <button 
+            <button
               onClick={() => {
                 setLogModalTab(detailView === 'training' ? 'exercise' : 'sleep');
                 setIsActivityModalOpen(true);
                 setDetailView(null);
               }}
-              className="primary-btn active" 
+              className="primary-btn active"
               style={{ marginTop: '24px', width: '100%', height: '48px', borderRadius: '14px', fontSize: '14px' }}
             >
               {detailView === 'training' ? t('logNewActivity') : t('logNewSleep')}
@@ -1642,7 +1933,7 @@ export default function Home() {
                 <h3>AI Assistant</h3>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <button 
+                <button
                   onClick={handleDeleteSession}
                   className="icon-btn"
                   title="Clear Chat"
@@ -1652,8 +1943,8 @@ export default function Home() {
                 >
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
                 </button>
-                <button 
-                  onClick={() => setIsChatOpen(false)} 
+                <button
+                  onClick={() => setIsChatOpen(false)}
                   className="close-btn"
                 >
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
@@ -1721,7 +2012,7 @@ export default function Home() {
             </form>
           </div>
         )}
-        <button className="chat-toggle-btn shadow-lg" onClick={() => setIsChatOpen(!isChatOpen)}>
+        <button id="chat-toggle-btn" className="chat-toggle-btn shadow-lg" onClick={() => setIsChatOpen(!isChatOpen)}>
           {isChatOpen ? (
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
           ) : (
