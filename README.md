@@ -15,6 +15,8 @@
 - **AI Food Scan**: Take a photo of your meal (with lightning-fast client-side compression), and let our AI estimate nutritional values automatically.
 - **AI Coach & Analyst**: Get personalized advice tailored to your **Health Objective** (Lose Fat, Build Muscle, etc.). Now featuring **Strict Language Lockdown** to ensure 100% natural Thai/English responses without character leakage.
 - **Improved Barcode Scanner**: Enforced rear-camera usage and state-persistent data fetching from Open Food Facts.
+- **AI Goal Suggestion**: Receive personalized nutritional targets (Calories, Protein, Fat) during onboarding based on your biometrics and health objective.
+- **Premium Spotlight Tour**: A glassmorphic, animated tutorial that manually spotlights key UI components using SVG masking technology.
 - **Date-Persistent Logging**: Log meals, exercise, and sleep for any specific date using the intuitive date picker.
 
 ### 🏆 Dynamic Athlete Player Card
@@ -37,8 +39,7 @@
 - **Persistent Sessions**: Stay logged in securely with JWT, featuring automatic logout upon token expiration.
 
 ### 📊 Holistic Health Monitoring
-- **Personalized Goals**: Set specific objectives during onboarding (e.g., Maintain, Lose Weight, Gain Weight, Build Muscle) to receive context-aware coaching.
-- **Weight Trends**: Log your daily weight and visualize progress with intuitive charts.
+- **Holistic Onboarding**: Choose between Thai and English as the very first step. Complete your profile with age, weight, height, and goal-specific biometric analysis.
 - **Water Tracker**: Stay hydrated with a visual glass-based goal tracker.
 - **Exercise & Sleep Log**: Track activities, calories burned, and sleep (granular hours and minutes tracking).
 - **Data Export**: Easily download all your health tracking data as a `.csv` file.
@@ -61,7 +62,7 @@
 - **Structure**: Clean Layered Architecture
 - **Database**: MongoDB
 - **Authentication**: JWT & Google OAuth 2.0 (24h token expiry)
-- **AI Integration**: Groq Cloud API (**OpenAI GPT-OSS 120B** for deep insights, Llama 3.2 Vision for image analysis)
+- **AI Integration**: Groq Cloud API (**OpenAI GPT-OSS 120B** for goal suggestions and coaching, Llama 3.2 Vision for image analysis)
 
 ---
 

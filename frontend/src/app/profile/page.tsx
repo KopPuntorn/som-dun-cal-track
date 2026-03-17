@@ -20,9 +20,13 @@ type UserProfile = {
     weight: number;
     height: number;
     sex: string;
+    onboarded: boolean;
+    tourCompleted: boolean;
 };
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080/api";
+const API_BASE = (process.env.NEXT_PUBLIC_API_URL && process.env.NEXT_PUBLIC_API_URL !== "undefined") 
+    ? process.env.NEXT_PUBLIC_API_URL 
+    : "http://localhost:8080/api";
 
 export default function ProfilePage() {
     const { user: authUser, logout, isLoading: authLoading } = useAuth();
@@ -35,7 +39,15 @@ export default function ProfilePage() {
     const [error, setError] = useState<string | null>(null);
 
     const [goalInputs, setGoalInputs] = useState<Goals>({ calories: 2000, protein: 150, fat: 70, objective: "" });
-    const [userInputs, setUserInputs] = useState<UserProfile>({ name: "User", age: 25, weight: 70, height: 170, sex: "other" });
+    const [userInputs, setUserInputs] = useState<UserProfile>({ 
+        name: "User", 
+        age: 25, 
+        weight: 70, 
+        height: 170, 
+        sex: "other",
+        onboarded: true,
+        tourCompleted: false 
+    });
 
     useEffect(() => {
         if (authLoading) return;
@@ -68,7 +80,9 @@ export default function ProfilePage() {
                         age: u.age || 25,
                         weight: u.weight || 70,
                         height: u.height || 170,
-                        sex: u.sex || "other"
+                        sex: u.sex || "other",
+                        onboarded: u.onboarded ?? true,
+                        tourCompleted: u.tourCompleted ?? false
                     });
                 }
             } catch (err) {
@@ -231,6 +245,44 @@ export default function ProfilePage() {
                     </div>
 
                     <div style={{ marginBottom: '40px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px' }}>
+                            <div className="icon-btn" style={{ background: 'rgba(255,255,255,0.05)', border: 'none', width: '32px', height: '32px', cursor: 'default' }}>
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent-fat)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+                            </div>
+                            <h4 style={{ margin: 0, fontSize: '14px', textTransform: 'uppercase', letterSpacing: '2px', color: 'var(--text-secondary)', fontWeight: 700 }}>{t('healthObjective')}</h4>
+                        </div>
+                        
+                        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "12px" }}>
+                            {[
+                                { value: '', label: t('noObjective'), emoji: '➖' },
+                                { value: 'lose_fat', label: t('loseFat'), emoji: '🔥' },
+                                { value: 'lose_weight', label: t('loseWeight'), emoji: '⬇️' },
+                                { value: 'gain_weight', label: t('gainWeight'), emoji: '⬆️' },
+                                { value: 'build_muscle', label: t('buildMuscle'), emoji: '💪' },
+                                { value: 'maintain', label: t('maintain'), emoji: '⚖️' },
+                            ].map(opt => (
+                                <button
+                                    key={opt.value}
+                                    type="button"
+                                    onClick={() => setGoalInputs({ ...goalInputs, objective: opt.value })}
+                                    className="glass-btn"
+                                    style={{
+                                        padding: '16px 8px',
+                                        flexDirection: 'column',
+                                        gap: '8px',
+                                        height: 'auto',
+                                        border: goalInputs.objective === opt.value ? '2px solid var(--accent-pro)' : '1px solid var(--panel-border)',
+                                        background: goalInputs.objective === opt.value ? 'rgba(14, 165, 233, 0.1)' : 'rgba(0,0,0,0.2)'
+                                    }}
+                                >
+                                    <span style={{ fontSize: '24px' }}>{opt.emoji}</span>
+                                    <span style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase' }}>{opt.label}</span>
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    <div style={{ marginBottom: '40px' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px' }}>
                             <div className="icon-btn" style={{ background: 'rgba(255,255,255,0.05)', border: 'none', width: '32px', height: '32px', cursor: 'default' }}>
                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent-cal)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
@@ -276,44 +328,6 @@ export default function ProfilePage() {
                                 />
                                 <span style={{ position: 'absolute', right: '16px', top: '42px', fontSize: '11px', fontWeight: 800, color: 'var(--accent-fat)' }}>G</span>
                             </div>
-                        </div>
-                    </div>
-
-                    <div style={{ marginBottom: '40px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px' }}>
-                            <div className="icon-btn" style={{ background: 'rgba(255,255,255,0.05)', border: 'none', width: '32px', height: '32px', cursor: 'default' }}>
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent-fat)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
-                            </div>
-                            <h4 style={{ margin: 0, fontSize: '14px', textTransform: 'uppercase', letterSpacing: '2px', color: 'var(--text-secondary)', fontWeight: 700 }}>{t('healthObjective')}</h4>
-                        </div>
-                        
-                        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "12px" }}>
-                            {[
-                                { value: '', label: t('noObjective'), emoji: '➖' },
-                                { value: 'lose_fat', label: t('loseFat'), emoji: '🔥' },
-                                { value: 'lose_weight', label: t('loseWeight'), emoji: '⬇️' },
-                                { value: 'gain_weight', label: t('gainWeight'), emoji: '⬆️' },
-                                { value: 'build_muscle', label: t('buildMuscle'), emoji: '💪' },
-                                { value: 'maintain', label: t('maintain'), emoji: '⚖️' },
-                            ].map(opt => (
-                                <button
-                                    key={opt.value}
-                                    type="button"
-                                    onClick={() => setGoalInputs({ ...goalInputs, objective: opt.value })}
-                                    className="glass-btn"
-                                    style={{
-                                        padding: '16px 8px',
-                                        flexDirection: 'column',
-                                        gap: '8px',
-                                        height: 'auto',
-                                        border: goalInputs.objective === opt.value ? '2px solid var(--accent-pro)' : '1px solid var(--panel-border)',
-                                        background: goalInputs.objective === opt.value ? 'rgba(14, 165, 233, 0.1)' : 'rgba(0,0,0,0.2)'
-                                    }}
-                                >
-                                    <span style={{ fontSize: '24px' }}>{opt.emoji}</span>
-                                    <span style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase' }}>{opt.label}</span>
-                                </button>
-                            ))}
                         </div>
                     </div>
 

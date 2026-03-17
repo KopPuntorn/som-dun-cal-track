@@ -6,7 +6,9 @@ import { GoogleLogin } from "@react-oauth/google";
 import { useAuth } from "@/context/AuthContext";
 import { useLanguage } from "@/context/LanguageContext";
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080/api";
+const API_BASE = (process.env.NEXT_PUBLIC_API_URL && process.env.NEXT_PUBLIC_API_URL !== "undefined") 
+    ? process.env.NEXT_PUBLIC_API_URL 
+    : "http://localhost:8080/api";
 
 export default function LoginPage() {
     const [isLogin, setIsLogin] = useState(true);
@@ -189,15 +191,15 @@ export default function LoginPage() {
                     </span>
                 </div>
 
-                <div style={{ display: "flex", justifyContent: "center", minHeight: "44px" }}>
+                <div style={{ display: "flex", justifyContent: "center", minHeight: "44px", width: "100%" }}>
                     {/* Real Google Login Button - restored for compatibility with ID Token validation */}
                     <GoogleLogin
                         onSuccess={handleGoogleSuccess}
                         onError={() => setError("Google Login Failed")}
-                        useOneTap
                         theme="filled_black"
                         shape="pill"
                         text={isLogin ? "signin_with" : "signup_with"}
+                        width="340"
                     />
                 </div>
 

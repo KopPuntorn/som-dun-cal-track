@@ -58,6 +58,7 @@ func SetupRoutes(e *echo.Echo) {
 	// Export & AI
 	api.GET("/export", handlers.ExportData)
 	api.POST("/analyze-image", handlers.AnalyzeImage)
+	api.POST("/suggest-goals", handlers.SuggestGoals)
 	api.POST("/consult", handlers.ConsultAI)
 	api.POST("/chat", handlers.ChatAI)
 
