@@ -109,7 +109,7 @@ export default function OnboardingPage() {
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
                             <div className="input-group">
                                 <label style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '8px', display: 'block' }}>Age</label>
-                                <input type="number" value={profile.age} onChange={e => setProfile({ ...profile, age: parseInt(e.target.value) })} style={{ height: '52px', borderRadius: '14px', background: 'rgba(0,0,0,0.2)', border: '1px solid var(--panel-border)', padding: '0 16px' }} />
+                                <input type="number" value={profile.age || ''} onChange={e => setProfile({ ...profile, age: e.target.value === '' ? 0 : parseInt(e.target.value) })} style={{ height: '52px', borderRadius: '14px', background: 'rgba(0,0,0,0.2)', border: '1px solid var(--panel-border)', padding: '0 16px' }} />
                             </div>
                             <div className="input-group">
                                 <label style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '8px', display: 'block' }}>Sex</label>
@@ -124,12 +124,12 @@ export default function OnboardingPage() {
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
                             <div className="input-group" style={{ position: 'relative' }}>
                                 <label style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '8px', display: 'block' }}>Weight</label>
-                                <input type="number" value={profile.weight} onChange={e => setProfile({ ...profile, weight: parseFloat(e.target.value) })} style={{ height: '52px', borderRadius: '14px', background: 'rgba(0,0,0,0.2)', border: '1px solid var(--panel-border)', padding: '0 16px', width: '100%' }} />
+                                <input type="number" value={profile.weight || ''} onChange={e => setProfile({ ...profile, weight: e.target.value === '' ? 0 : parseFloat(e.target.value) })} style={{ height: '52px', borderRadius: '14px', background: 'rgba(0,0,0,0.2)', border: '1px solid var(--panel-border)', padding: '0 16px', width: '100%' }} />
                                 <span style={{ position: 'absolute', right: '16px', top: '42px', fontSize: '11px', fontWeight: 800, color: 'var(--text-secondary)' }}>KG</span>
                             </div>
                             <div className="input-group" style={{ position: 'relative' }}>
                                 <label style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '8px', display: 'block' }}>Height</label>
-                                <input type="number" value={profile.height} onChange={e => setProfile({ ...profile, height: parseFloat(e.target.value) })} style={{ height: '52px', borderRadius: '14px', background: 'rgba(0,0,0,0.2)', border: '1px solid var(--panel-border)', padding: '0 16px', width: '100%' }} />
+                                <input type="number" value={profile.height || ''} onChange={e => setProfile({ ...profile, height: e.target.value === '' ? 0 : parseFloat(e.target.value) })} style={{ height: '52px', borderRadius: '14px', background: 'rgba(0,0,0,0.2)', border: '1px solid var(--panel-border)', padding: '0 16px', width: '100%' }} />
                                 <span style={{ position: 'absolute', right: '16px', top: '42px', fontSize: '11px', fontWeight: 800, color: 'var(--text-secondary)' }}>CM</span>
                             </div>
                         </div>
@@ -149,19 +149,19 @@ export default function OnboardingPage() {
 
                         <div className="input-group" style={{ position: 'relative' }}>
                             <label style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '8px', display: 'block' }}>Calorie Goal</label>
-                            <input type="number" value={goals.calories} onChange={e => setGoals({ ...goals, calories: parseInt(e.target.value) })} style={{ height: '52px', borderRadius: '14px', background: 'rgba(0,0,0,0.2)', border: '1px solid var(--panel-border)', padding: '0 16px', width: '100%' }} />
+                            <input type="number" value={goals.calories || ''} onChange={e => setGoals({ ...goals, calories: e.target.value === '' ? 0 : parseInt(e.target.value) })} style={{ height: '52px', borderRadius: '14px', background: 'rgba(0,0,0,0.2)', border: '1px solid var(--panel-border)', padding: '0 16px', width: '100%' }} />
                             <span style={{ position: 'absolute', right: '16px', top: '42px', fontSize: '11px', fontWeight: 800, color: 'var(--accent-cal)' }}>KCAL</span>
                         </div>
 
                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
                             <div className="input-group" style={{ position: 'relative' }}>
                                 <label style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '8px', display: 'block' }}>Protein</label>
-                                <input type="number" value={goals.protein} onChange={e => setGoals({ ...goals, protein: parseInt(e.target.value) })} style={{ height: '52px', borderRadius: '14px', background: 'rgba(0,0,0,0.2)', border: '1px solid var(--panel-border)', padding: '0 16px', width: '100%' }} />
+                                <input type="number" value={goals.protein || ''} onChange={e => setGoals({ ...goals, protein: e.target.value === '' ? 0 : parseInt(e.target.value) })} style={{ height: '52px', borderRadius: '14px', background: 'rgba(0,0,0,0.2)', border: '1px solid var(--panel-border)', padding: '0 16px', width: '100%' }} />
                                 <span style={{ position: 'absolute', right: '16px', top: '42px', fontSize: '11px', fontWeight: 800, color: 'var(--accent-pro)' }}>G</span>
                             </div>
                             <div className="input-group" style={{ position: 'relative' }}>
                                 <label style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '8px', display: 'block' }}>Fat</label>
-                                <input type="number" value={goals.fat} onChange={e => setGoals({ ...goals, fat: parseInt(e.target.value) })} style={{ height: '52px', borderRadius: '14px', background: 'rgba(0,0,0,0.2)', border: '1px solid var(--panel-border)', padding: '0 16px', width: '100%' }} />
+                                <input type="number" value={goals.fat || ''} onChange={e => setGoals({ ...goals, fat: e.target.value === '' ? 0 : parseInt(e.target.value) })} style={{ height: '52px', borderRadius: '14px', background: 'rgba(0,0,0,0.2)', border: '1px solid var(--panel-border)', padding: '0 16px', width: '100%' }} />
                                 <span style={{ position: 'absolute', right: '16px', top: '42px', fontSize: '11px', fontWeight: 800, color: 'var(--accent-fat)' }}>G</span>
                             </div>
                         </div>
