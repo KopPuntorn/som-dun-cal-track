@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from 'react';
+import useSWR, { mutate } from 'swr';
 import Link from 'next/link';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -80,6 +81,15 @@ const API_BASE = (process.env.NEXT_PUBLIC_API_URL && process.env.NEXT_PUBLIC_API
     ? process.env.NEXT_PUBLIC_API_URL
     : "http://localhost:8080/api";
 
+const fetcher = (url: string) => fetch(url, {
+    headers: {
+        "Authorization": `Bearer ${localStorage.getItem('auth_token')}`
+    }
+}).then(res => {
+    if (!res.ok) throw new Error("Failed to fetch data");
+    return res.json();
+});
+
 type RangeType = 'today' | 'week' | 'month' | 'custom';
 
 export default function DashboardPage() {
@@ -114,6 +124,34 @@ export default function DashboardPage() {
     const [aiAdvice, setAiAdvice] = useState<string | null>(null);
     const [macroView, setMacroView] = useState<'protein' | 'fat'>('protein');
     const [measureView, setMeasureView] = useState<'weight' | 'waist' | 'bodyFat'>('weight');
+
+    const dashboardKey = useMemo(() => {
+        if (authLoading) return null;
+        const now = new Date();
+        let start: Date | null = null;
+        let end: Date = endOfDay(now);
+
+        switch (range) {
+            case 'today': start = startOfDay(now); break;
+            case 'week': start = startOfDay(subDays(now, 6)); break;
+            case 'month': start = startOfDay(subDays(now, 29)); break;
+            case 'custom':
+                if (customStart && customEnd) {
+                    start = startOfDay(new Date(customStart));
+                    end = endOfDay(new Date(customEnd));
+                } else {
+                    start = startOfDay(now);
+                }
+                break;
+        }
+        let url = `${API_BASE}/dashboard/summary`;
+        if (start) {
+            url += `?start=${start.toISOString()}&end=${end.toISOString()}`;
+        }
+        return url;
+    }, [range, customStart, customEnd, authLoading]);
+
+    const { data: dashboardData, error: dashboardError, isLoading: dashboardLoading } = useSWR(dashboardKey, fetcher, { revalidateOnFocus: true });
 
     const handleGetAiAdvice = async () => {
         setAiLoading(true);
@@ -183,11 +221,9 @@ export default function DashboardPage() {
 
             if (res.ok) {
                 setWeightInput('');
-                const updatedRes = await fetch(`${API_BASE}/weight`);
-                if (updatedRes.ok) {
-                    const ws = await updatedRes.json();
-                    setWeights(ws || []);
-                }
+                mutate(dashboardKey);
+                // Also trigger main summary mutate (where no query params used for simple today summary)
+                mutate(`${API_BASE}/dashboard/summary?lang=${language}`);
             }
         } catch (err) {
             console.error(err);
@@ -247,12 +283,8 @@ export default function DashboardPage() {
             if (res.ok) {
                 setMeasurementInput({ weight: '', waist: '', bodyFat: '' });
                 setPhotoUrl('');
-
-                const updatedRes = await fetch(`${API_BASE}/measurements`);
-                if (updatedRes.ok) {
-                    const ms = await updatedRes.json();
-                    setMeasurements(ms || []);
-                }
+                mutate(dashboardKey);
+                mutate(`${API_BASE}/dashboard/summary?lang=${language}`);
             }
         } catch (err) {
             console.error(err);
@@ -280,6 +312,8 @@ export default function DashboardPage() {
                 const newEx = await res.json();
                 setExercises([newEx, ...exercises]);
                 setExerciseInput({ name: '', durationMinutes: 30, caloriesBurned: 0 });
+                mutate(dashboardKey);
+                mutate(`${API_BASE}/dashboard/summary?lang=${language}`);
             } else {
                 setError("Failed to save activity.");
             }
@@ -311,6 +345,8 @@ export default function DashboardPage() {
                 const newSl = await res.json();
                 setSleeps([newSl, ...sleeps]);
                 setSleepInput({ durationHours: 8, durationMinutes: 0, quality: 'Good' });
+                mutate(dashboardKey);
+                mutate(`${API_BASE}/dashboard/summary?lang=${language}`);
             } else {
                 setError("Failed to save sleep data.");
             }
@@ -344,55 +380,21 @@ export default function DashboardPage() {
     };
 
     useEffect(() => {
-        if (authLoading) return;
-
-        async function fetchData() {
-            setLoading(true);
-            setError(null);
-            try {
-                const now = new Date();
-                let start: Date | null = null;
-                let end: Date = endOfDay(now);
-
-                switch (range) {
-                    case 'today': start = startOfDay(now); break;
-                    case 'week': start = startOfDay(subDays(now, 6)); break;
-                    case 'month': start = startOfDay(subDays(now, 29)); break;
-                    case 'custom':
-                        if (customStart && customEnd) {
-                            start = startOfDay(new Date(customStart));
-                            end = endOfDay(new Date(customEnd));
-                        } else {
-                            start = startOfDay(now);
-                        }
-                        break;
-                }
-
-                let summaryUrl = `${API_BASE}/dashboard/summary`;
-                if (start) {
-                    summaryUrl += `?start=${start.toISOString()}&end=${end.toISOString()}`;
-                }
-
-                const response = await fetch(summaryUrl);
-                if (!response.ok) throw new Error(`Failed to fetch dashboard summary`);
-
-                const data = await response.json();
-                if (data.goals) setGoals({ calories: data.goals.calories || 2000, protein: data.goals.protein || 150, fat: data.goals.fat || 70 });
-                if (data.user) setUser(data.user);
-                setFoods(data.todayFoods || []);
-                setWeights(data.weightRecent || []);
-                setMeasurements(data.measurementsRecent || []);
-                setExercises(data.exerciseRecent || []);
-                setSleeps(data.sleepRecent || []);
-            } catch (err) {
-                console.error("Failed to fetch data", err);
-                setError("Failed to reach the server.");
-            } finally {
-                setLoading(false);
-            }
+        if (dashboardData) {
+            if (dashboardData.goals) setGoals({ calories: dashboardData.goals.calories || 2000, protein: dashboardData.goals.protein || 150, fat: dashboardData.goals.fat || 70 });
+            if (dashboardData.user) setUser(dashboardData.user);
+            setFoods(dashboardData.todayFoods || []);
+            setWeights(dashboardData.weightRecent || []);
+            setMeasurements(dashboardData.measurementsRecent || []);
+            setExercises(dashboardData.exerciseRecent || []);
+            setSleeps(dashboardData.sleepRecent || []);
+            setLoading(false);
         }
-        fetchData();
-    }, [range, authLoading]);
+        if (dashboardError) {
+            setError("Failed to reach the server.");
+            setLoading(false);
+        }
+    }, [dashboardData, dashboardError]);
 
     const chartData = useMemo(() => {
         if (!foods.length) return [];

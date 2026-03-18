@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import useSWR, { mutate } from "swr";
 import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/context/ToastContext";
 import { useRouter } from "next/navigation";
@@ -28,6 +29,15 @@ const API_BASE = (process.env.NEXT_PUBLIC_API_URL && process.env.NEXT_PUBLIC_API
     ? process.env.NEXT_PUBLIC_API_URL 
     : "http://localhost:8080/api";
 
+const fetcher = (url: string) => fetch(url, {
+    headers: {
+        "Authorization": `Bearer ${localStorage.getItem('auth_token')}`
+    }
+}).then(res => {
+    if (!res.ok) throw new Error("Failed to fetch data");
+    return res.json();
+});
+
 export default function ProfilePage() {
     const { user: authUser, logout, isLoading: authLoading } = useAuth();
     const { showToast } = useToast();
@@ -49,51 +59,48 @@ export default function ProfilePage() {
         tourCompleted: false 
     });
 
+    const { data: goalsData, error: goalsError } = useSWR(authLoading ? null : `${API_BASE}/goals`, fetcher);
+    const { data: userData, error: userError } = useSWR(authLoading ? null : `${API_BASE}/user`, fetcher);
+
+    useEffect(() => {
+        if (goalsData) {
+            setGoalInputs({
+                calories: goalsData.calories || 2000,
+                protein: goalsData.protein || 150,
+                fat: goalsData.fat || 70,
+                objective: goalsData.objective || ""
+            });
+        }
+    }, [goalsData]);
+
+    useEffect(() => {
+        if (userData) {
+            setUserInputs({
+                name: userData.name || authUser?.name || "User",
+                age: userData.age || 25,
+                weight: userData.weight || 70,
+                height: userData.height || 170,
+                sex: userData.sex || "other",
+                onboarded: userData.onboarded ?? true,
+                tourCompleted: userData.tourCompleted ?? false
+            });
+            setLoading(false);
+        }
+    }, [userData, authUser]);
+
+    useEffect(() => {
+        if (goalsError || userError) {
+            setError("Failed to load profile data.");
+            setLoading(false);
+        }
+    }, [goalsError, userError]);
+
     useEffect(() => {
         if (authLoading) return;
         if (!authUser) {
             router.push("/login");
             return;
         }
-
-        async function fetchData() {
-            try {
-                const [goalsRes, userRes] = await Promise.all([
-                    fetch(`${API_BASE}/goals`),
-                    fetch(`${API_BASE}/user`)
-                ]);
-
-                if (goalsRes.ok) {
-                    const g = await goalsRes.json();
-                    setGoalInputs({
-                        calories: g.calories || 2000,
-                        protein: g.protein || 150,
-                        fat: g.fat || 70,
-                        objective: g.objective || ""
-                    });
-                }
-
-                if (userRes.ok) {
-                    const u = await userRes.json();
-                    setUserInputs({
-                        name: u.name || authUser?.name || "User",
-                        age: u.age || 25,
-                        weight: u.weight || 70,
-                        height: u.height || 170,
-                        sex: u.sex || "other",
-                        onboarded: u.onboarded ?? true,
-                        tourCompleted: u.tourCompleted ?? false
-                    });
-                }
-            } catch (err) {
-                console.error("Failed to fetch profile data", err);
-                setError("Failed to load profile data.");
-            } finally {
-                setLoading(false);
-            }
-        }
-
-        fetchData();
     }, [authLoading, authUser, router]);
 
     const handleUpdateSettings = async (e: React.FormEvent) => {
@@ -117,6 +124,10 @@ export default function ProfilePage() {
             if (!goalsRes.ok || !userRes.ok) throw new Error("Failed to save settings");
 
             showToast("Profile & Goals Updated!", "success");
+            mutate(`${API_BASE}/goals`);
+            mutate(`${API_BASE}/user`);
+            // Also invalidate any dashboard summary caches since goals changed
+            mutate((key: any) => typeof key === 'string' && key.includes('/dashboard/summary'), undefined, { revalidate: true });
         } catch (err) {
             console.error(err);
             setError("Failed to update settings");
