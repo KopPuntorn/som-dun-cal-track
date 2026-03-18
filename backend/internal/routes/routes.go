@@ -63,7 +63,11 @@ func SetupRoutes(e *echo.Echo) {
 	api.POST("/chat", handlers.ChatAI)
 
 	// Dashboard
-	api.GET("/dashboard/summary", handlers.GetDashboardSummary)
+	dashboard := api.Group("/dashboard")
+	{
+		dashboard.GET("/summary", handlers.GetDashboardSummary)
+		dashboard.GET("/briefing", handlers.GetDashboardBriefing)
+	}
 
 	// Player Card
 	api.GET("/player-card", handlers.GetPlayerCard)

@@ -6,8 +6,8 @@ import { GoogleLogin } from "@react-oauth/google";
 import { useAuth } from "@/context/AuthContext";
 import { useLanguage } from "@/context/LanguageContext";
 
-const API_BASE = (process.env.NEXT_PUBLIC_API_URL && process.env.NEXT_PUBLIC_API_URL !== "undefined") 
-    ? process.env.NEXT_PUBLIC_API_URL 
+const API_BASE = (process.env.NEXT_PUBLIC_API_URL && process.env.NEXT_PUBLIC_API_URL !== "undefined")
+    ? process.env.NEXT_PUBLIC_API_URL
     : "http://localhost:8080/api";
 
 export default function LoginPage() {
@@ -92,39 +92,52 @@ export default function LoginPage() {
     };
 
     return (
-        <div className="app-container" style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "100vh", position: "relative" }}>
+        <div className="login-screen" style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "100vh", width: '100vw', position: "relative", background: '#050505', overflowX: 'hidden', overflowY: 'auto', padding: '20px 16px' }}>
             {/* Decorative background glows */}
-            <div style={{ position: "absolute", top: "10%", left: "10%", width: "40vw", height: "40vw", background: "var(--accent-cal)", opacity: 0.15, filter: "blur(150px)", borderRadius: "50%" }}></div>
-            <div style={{ position: "absolute", bottom: "10%", right: "10%", width: "40vw", height: "40vw", background: "#0ea5e9", opacity: 0.15, filter: "blur(150px)", borderRadius: "50%" }}></div>
+            <div style={{ position: "absolute", top: "5%", left: "5%", width: "50vw", height: "50vw", background: "var(--accent-cal)", opacity: 0.1, filter: "blur(160px)", borderRadius: "50%" }}></div>
+            <div style={{ position: "absolute", bottom: "5%", right: "5%", width: "50vw", height: "50vw", background: "var(--accent-pro)", opacity: 0.12, filter: "blur(160px)", borderRadius: "50%" }}></div>
+            <div style={{ position: "absolute", top: "30%", left: "40%", width: "30vw", height: "30vw", background: "var(--accent-fat)", opacity: 0.05, filter: "blur(140px)", borderRadius: "50%" }}></div>
 
-            <div className="glass-panel login-panel" style={{ width: "100%", maxWidth: "420px", zIndex: 1, display: "flex", flexDirection: "column", gap: "28px", padding: '40px' }}>
+            <div className="glass-panel login-panel" style={{ width: "100%", maxWidth: "400px", zIndex: 1, display: "flex", flexDirection: "column", gap: "16px", padding: '20px 16px', borderRadius: '32px', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)', margin: 'auto' }}>
 
-                <div style={{ textAlign: "center", marginBottom: "8px", display: "flex", flexDirection: "column", alignItems: "center", gap: "20px" }}>
-                    <div style={{ position: 'relative', width: '88px', height: '88px', borderRadius: '24px', overflow: 'hidden', background: '#fff', boxShadow: '0 12px 30px rgba(255,255,255,0.1)' }}>
-                        <Image
-                            src="/logo.png"
-                            alt="SomDun Logo"
-                            fill
-                            style={{ objectFit: 'contain', padding: '10px' }}
-                        />
+                <div style={{ textAlign: "center", marginBottom: "0px", display: "flex", flexDirection: "column", alignItems: "center", gap: "10px" }}>
+                    <div style={{ position: 'relative', width: '60px', height: '60px', borderRadius: '18px', overflow: 'hidden', background: '#fff', boxShadow: '0 8px 20px rgba(255,107,0,0.1)', padding: '2px' }}>
+                        <div style={{ width: '100%', height: '100%', borderRadius: '16px', overflow: 'hidden', background: '#fff', position: 'relative' }}>
+                            <Image
+                                src="/logo.png"
+                                alt="SomDun Logo"
+                                fill
+                                style={{ objectFit: 'contain', padding: '8px' }}
+                            />
+                        </div>
                     </div>
                     <div>
-                        <h1 style={{ fontSize: "36px", fontWeight: 800, marginBottom: "4px", background: 'var(--accent-cal-gradient)', WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", letterSpacing: '-1px' }}>
+                        <h1 style={{ fontSize: "28px", fontWeight: 900, marginBottom: "0px", background: 'var(--accent-cal-gradient)', WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", letterSpacing: '-1px' }}>
                             SomDun
                         </h1>
-                        <p style={{ color: "var(--text-secondary)", fontSize: "15px", fontWeight: 500 }}>
-                            Elevate your performance.
+                        <p style={{ color: "var(--text-secondary)", fontSize: "10px", fontWeight: 700, textTransform: 'uppercase', letterSpacing: '1.5px', opacity: 0.7 }}>
+                            Performance Hub
                         </p>
                     </div>
                 </div>
 
                 {/* Custom Tab Switcher */}
-                <div style={{ display: "flex", background: "rgba(0,0,0,0.4)", borderRadius: '16px', padding: "6px", border: '1px solid var(--panel-border)' }}>
+                <div style={{ display: "flex", background: "rgba(255,255,255,0.03)", borderRadius: '20px', padding: "6px", border: '1px solid var(--panel-border)', boxShadow: 'inset 0 2px 10px rgba(0,0,0,0.2)' }}>
                     <button
                         type="button"
                         onClick={() => { setIsLogin(true); setError(null); }}
                         className={`glass-btn ${isLogin ? 'active' : ''}`}
-                        style={{ flex: 1, border: 'none', borderRadius: '12px' }}
+                        style={{
+                            flex: 1,
+                            border: 'none',
+                            borderRadius: '16px',
+                            height: '40px',
+                            background: isLogin ? 'var(--accent-cal-gradient)' : 'transparent',
+                            color: isLogin ? '#fff' : 'var(--text-secondary)',
+                            fontWeight: 700,
+                            letterSpacing: '1px',
+                            transition: 'all 0.3s ease'
+                        }}
                     >
                         {t('login')}
                     </button>
@@ -132,7 +145,17 @@ export default function LoginPage() {
                         type="button"
                         onClick={() => { setIsLogin(false); setError(null); }}
                         className={`glass-btn ${!isLogin ? 'active' : ''}`}
-                        style={{ flex: 1, border: 'none', borderRadius: '12px' }}
+                        style={{
+                            flex: 1,
+                            border: 'none',
+                            borderRadius: '16px',
+                            height: '40px',
+                            background: !isLogin ? 'var(--accent-cal-gradient)' : 'transparent',
+                            color: !isLogin ? '#fff' : 'var(--text-secondary)',
+                            fontWeight: 700,
+                            letterSpacing: '1px',
+                            transition: 'all 0.3s ease'
+                        }}
                     >
                         {t('signup')}
                     </button>
@@ -144,22 +167,37 @@ export default function LoginPage() {
                     </div>
                 )}
 
-                <form onSubmit={handleEmailAuth} style={{ display: "flex", flexDirection: "column", gap: "18px" }}>
+                <form onSubmit={handleEmailAuth} style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
                     {!isLogin && (
                         <div className="input-group">
-                            <label style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '8px', display: 'block' }}>{t('fullName')}</label>
-                            <input type="text" placeholder="John Doe" value={name} onChange={e => setName(e.target.value)} disabled={loading} style={{ background: "rgba(0,0,0,0.25)", border: "1px solid var(--panel-border)", height: "52px", borderRadius: '14px', padding: '0 20px' }} />
+                            <label style={{ fontSize: '10px', fontWeight: 800, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '1.5px', marginBottom: '6px', display: 'block' }}>{t('fullName')}</label>
+                            <div style={{ position: 'relative' }}>
+                                <span style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', opacity: 0.5 }}>
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                                </span>
+                                <input type="text" placeholder="John Doe" value={name} onChange={e => setName(e.target.value)} disabled={loading} style={{ background: "rgba(255,255,255,0.03)", border: "1px solid var(--panel-border)", height: "48px", borderRadius: '12px', padding: '0 16px 0 46px', width: '100%', fontSize: '14px' }} />
+                            </div>
                         </div>
                     )}
 
                     <div className="input-group">
-                        <label style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '8px', display: 'block' }}>{t('email')}</label>
-                        <input type="email" placeholder="you@example.com" value={email} onChange={e => setEmail(e.target.value)} disabled={loading} style={{ background: "rgba(0,0,0,0.25)", border: "1px solid var(--panel-border)", height: "52px", borderRadius: '14px', padding: '0 20px' }} />
+                        <label style={{ fontSize: '10px', fontWeight: 800, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '1.5px', marginBottom: '6px', display: 'block' }}>{t('email')}</label>
+                        <div style={{ position: 'relative' }}>
+                            <span style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', opacity: 0.5 }}>
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"></path><polyline points="22,6 12,13 2,6"></polyline></svg>
+                            </span>
+                            <input type="email" placeholder="you@example.com" value={email} onChange={e => setEmail(e.target.value)} disabled={loading} style={{ background: "rgba(255,255,255,0.03)", border: "1px solid var(--panel-border)", height: "48px", borderRadius: '12px', padding: '0 16px 0 46px', width: '100%', fontSize: '14px' }} />
+                        </div>
                     </div>
 
                     <div className="input-group">
-                        <label style={{ fontSize: '13px', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '8px', display: 'block' }}>{t('password')}</label>
-                        <input type="password" placeholder="••••••••" value={password} onChange={e => setPassword(e.target.value)} disabled={loading} style={{ background: "rgba(0,0,0,0.25)", border: "1px solid var(--panel-border)", height: "52px", borderRadius: '14px', padding: '0 20px' }} />
+                        <label style={{ fontSize: '10px', fontWeight: 800, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '1.5px', marginBottom: '6px', display: 'block' }}>{t('password')}</label>
+                        <div style={{ position: 'relative' }}>
+                            <span style={{ position: 'absolute', left: '14px', top: '50%', transform: 'translateY(-50%)', opacity: 0.5 }}>
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+                            </span>
+                            <input type="password" placeholder="••••••••" value={password} onChange={e => setPassword(e.target.value)} disabled={loading} style={{ background: "rgba(255,255,255,0.03)", border: "1px solid var(--panel-border)", height: "48px", borderRadius: '12px', padding: '0 16px 0 46px', width: '100%', fontSize: '14px' }} />
+                        </div>
                     </div>
 
                     {!isLogin && (
@@ -177,36 +215,36 @@ export default function LoginPage() {
                         </div>
                     )}
 
-                    <button type="submit" className="primary-btn active" disabled={loading} style={{ height: "56px", marginTop: "12px", fontSize: "16px", fontWeight: 700, letterSpacing: "1px", borderRadius: '16px' }}>
+                    <button type="submit" className="primary-btn active" disabled={loading} style={{ height: "48px", marginTop: "8px", fontSize: "15px", fontWeight: 800, letterSpacing: "1.5px", borderRadius: '14px', boxShadow: '0 8px 20px rgba(255, 107, 0, 0.2)' }}>
                         {loading ? (
-                            <div className="loading-dots">Authenticating...</div>
+                            <div className="loading-dots">Wait...</div>
                         ) : (isLogin ? t('login').toUpperCase() : t('signup').toUpperCase())}
                     </button>
                 </form>
 
-                <div style={{ position: "relative", textAlign: "center", margin: "12px 0" }}>
-                    <div style={{ position: "absolute", top: "50%", left: 0, right: 0, height: "1px", background: "rgba(255,255,255,0.08)", zIndex: 0 }}></div>
-                    <span style={{ position: "relative", zIndex: 1, background: "#080808", padding: "0 20px", fontSize: "11px", fontWeight: 700, color: "var(--text-secondary)", textTransform: "uppercase", letterSpacing: "2px" }}>
+                <div style={{ position: "relative", textAlign: "center", margin: "4px 0" }}>
+                    <div style={{ position: "absolute", top: "50%", left: 0, right: 0, height: "1px", background: "linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent)", zIndex: 0 }}></div>
+                    <span style={{ position: "relative", zIndex: 1, background: "#0c0c0c", padding: "0 24px", fontSize: '8px', fontWeight: 800, color: "var(--text-secondary)", textTransform: "uppercase", letterSpacing: "3px" }}>
                         {t('continueWith')}
                     </span>
                 </div>
 
-                <div style={{ display: "flex", justifyContent: "center", minHeight: "44px", width: "100%" }}>
-                    {/* Real Google Login Button - restored for compatibility with ID Token validation */}
+                <div style={{ display: "flex", justifyContent: "center", width: "100%", overflow: 'hidden' }}>
+                    {/* Centered and slightly narrower Google Button for mobile compatibility */}
                     <GoogleLogin
                         onSuccess={handleGoogleSuccess}
                         onError={() => setError("Google Login Failed")}
                         theme="filled_black"
                         shape="pill"
                         text={isLogin ? "signin_with" : "signup_with"}
-                        width="340"
+                        width="280"
                     />
                 </div>
 
                 {/* Helper for testing environment without Google Client ID */}
-                <div style={{ textAlign: 'center', marginTop: '16px' }}>
-                    <button type="button" onClick={handleMockGoogleLogin} style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', textDecoration: 'underline', fontSize: '11px', cursor: 'pointer', opacity: 0.6 }}>
-                        (Developer Mock Google Login)
+                <div style={{ textAlign: 'center', marginTop: '8px' }}>
+                    <button type="button" onClick={handleMockGoogleLogin} style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', textDecoration: 'underline', fontSize: '10px', cursor: 'pointer', opacity: 0.5 }}>
+                        (Dev Mock Login)
                     </button>
                 </div>
 

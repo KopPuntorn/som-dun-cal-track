@@ -1114,6 +1114,30 @@ input::placeholder {
   background: rgba(255, 255, 255, 0.03);
 }
 
+/* Specific Chat Overrides for Markdown */
+.chat-window .markdown-content h1 { font-size: 18px; margin: 8px 0; }
+.chat-window .markdown-content h2 { font-size: 16px; margin: 6px 0; }
+.chat-window .markdown-content h3 { font-size: 14px; margin: 4px 0; }
+.chat-window .markdown-content table { 
+  display: block; 
+  overflow-x: auto; 
+  -webkit-overflow-scrolling: touch; 
+}
+.chat-window .markdown-content th, 
+.chat-window .markdown-content td { 
+  padding: 8px 12px; 
+  font-size: 13px; 
+}
+
+/* Compact Detected Foods Buttons */
+.detected-foods .primary-btn.outline {
+  height: 32px !important;
+  padding: 0 12px !important;
+  font-size: 11px !important;
+  border-radius: 8px !important;
+  margin-top: 4px !important;
+}
+
 /* 📱 Mobile Responsiveness (iPhone 11 & similar sizes <= 768px) */
 @media (max-width: 768px) {
 
@@ -1253,10 +1277,28 @@ input::placeholder {
   }
 
   .chat-window {
-    width: calc(100vw - 32px);
-    height: 75vh;
-    max-height: 550px;
-    border-radius: 20px;
+    width: calc(100vw - 24px);
+    height: 65vh;
+    max-height: 500px;
+    border-radius: 24px;
+    bottom: 80px; /* Above the bottom nav */
+    right: 12px;
+    position: fixed;
+  }
+
+  .chat-widget {
+    bottom: 88px; /* Slightly above bottom nav area */
+    right: 16px;
+  }
+
+  .chat-messages {
+    padding: 16px;
+    gap: 12px;
+  }
+
+  .msg-bubble {
+    padding: 10px 14px;
+    font-size: 13px;
   }
 
   /* Override any harmful inline paddings */

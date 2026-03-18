@@ -38,15 +38,17 @@ func UpdateUserProfile(c echo.Context) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	update := bson.M{
-		"$set": bson.M{
-			"name":      u.Name,
-			"age":       u.Age,
-			"weight":    u.Weight,
-			"height":    u.Height,
-			"sex":       u.Sex,
-		},
-	}
+	update := bson.M{"$set": bson.M{}}
+	
+	// Dynamically build the set map based on what's provided
+	// Handle strings
+	if u.Name != "" { update["$set"].(bson.M)["name"] = u.Name }
+	if u.Sex != "" { update["$set"].(bson.M)["sex"] = u.Sex }
+	
+	// Handle numeric values (only update if > 0 to avoid zeroing out during partial updates)
+	if u.Age > 0 { update["$set"].(bson.M)["age"] = u.Age }
+	if u.Weight > 0 { update["$set"].(bson.M)["weight"] = u.Weight }
+	if u.Height > 0 { update["$set"].(bson.M)["height"] = u.Height }
 	
 	// Only update flags if they are explicitly sent in the payload (optional safety)
 	// For now, these flags are rarely updated from settings, but if sent, we keep them.

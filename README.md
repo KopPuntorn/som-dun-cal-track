@@ -13,7 +13,8 @@
 
 ### 🤖 AI-Powered Health Insights
 - **AI Food Scan**: Take a photo of your meal (with lightning-fast client-side compression), and let our AI estimate nutritional values automatically.
-- **AI Coach & Analyst**: Get personalized advice tailored to your **Health Objective** (Lose Fat, Build Muscle, etc.). Now featuring **Strict Language Lockdown** to ensure 100% natural Thai/English responses without character leakage.
+- **SomDun Insight (AI Briefing)**: A specialized daily report rendered with **ReactMarkdown** for rich formatting. Now features **Automatic Word-Wrapping** to prevent math formulas and long strings from overflowing on mobile devices.
+- **AI Assistant & Coach**: Personalized advice tailored to your **Health Objective**. Features a mobile-optimized chat window with compact "Quick Add" buttons and a non-intrusive floating layout.
 - **Improved Barcode Scanner**: Enforced rear-camera usage and state-persistent data fetching from Open Food Facts.
 - **AI Goal Suggestion**: Receive personalized nutritional targets (Calories, Protein, Fat) during onboarding based on your biometrics and health objective.
 - **Premium Spotlight Tour**: A glassmorphic, animated tutorial that manually spotlights key UI components using SVG masking technology.
@@ -35,7 +36,8 @@
 - **Clean AI Output**: AI responses are strictly filtered to remove non-target symbols (no Chinese or Russian "leaks").
 
 ### 🛡️ Secure Authentication
-- **Google OAuth**: Fast and secure login with your Google account. (Supports per-account goal tracking).
+- **Compact Login UI**: A highly optimized login screen designed for 100% visibility on mobile without scrolling.
+- **Google OAuth**: Fast and secure login with your Google account (Supports per-account goal tracking).
 - **Persistent Sessions**: Stay logged in securely with JWT, featuring automatic logout upon token expiration.
 
 ### 📊 Holistic Health Monitoring
