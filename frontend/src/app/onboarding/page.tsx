@@ -40,24 +40,42 @@ export default function OnboardingPage() {
         if (!isLoading && !user) {
             router.push("/login");
         } else if (!isLoading && user?.onboarded) {
-            router.push("/");
+            // Only redirect if they actually HAVE been onboarded
+            // Sometimes context is stale, so we double check
+            if (user.onboarded) {
+                router.push("/");
+            }
         }
     }, [user, isLoading, router]);
+
+    // Sync profile name with user name once loaded
+    useEffect(() => {
+        if (user?.name && !profile.name) {
+            setProfile(p => ({ ...p, name: user.name }));
+        }
+    }, [user?.name]);
 
     const handleComplete = async () => {
         setLoading(true);
         try {
+            const token = localStorage.getItem("auth_token");
             // 1. Update Profile & Mark as Onboarded
             const profileRes = await fetch(`${API_BASE}/user`, {
                 method: "PUT",
-                headers: { "Content-Type": "application/json" },
+                headers: { 
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${token}`
+                },
                 body: JSON.stringify({ ...profile, onboarded: true })
             });
 
             // 2. Update Goals
             const goalsRes = await fetch(`${API_BASE}/goals`, {
                 method: "PUT",
-                headers: { "Content-Type": "application/json" },
+                headers: { 
+                    "Content-Type": "application/json",
+                    "Authorization": `Bearer ${token}`
+                },
                 body: JSON.stringify(goals)
             });
 

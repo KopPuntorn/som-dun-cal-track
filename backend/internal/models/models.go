@@ -39,8 +39,10 @@ type User struct {
 	Weight       float64            `json:"weight" bson:"weight"`
 	Height       float64            `json:"height" bson:"height"`
 	Sex          string             `json:"sex" bson:"sex"`
-	Onboarded    bool               `json:"onboarded" bson:"onboarded"`
+	Onboarded     bool               `json:"onboarded" bson:"onboarded"`
 	TourCompleted bool               `json:"tourCompleted" bson:"tourCompleted"`
+	LastBriefing     string          `json:"lastBriefing" bson:"lastBriefing"`
+	LastBriefingHash string          `json:"lastBriefingHash" bson:"lastBriefingHash"`
 }
 
 // WaterIntake represents amount of water consumed on a specific date

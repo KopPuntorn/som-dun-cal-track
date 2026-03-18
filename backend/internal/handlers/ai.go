@@ -572,7 +572,8 @@ func ChatAI(c echo.Context) error {
 		fmt.Sprintf("4. Ensure JSON is valid, macronutrients STRICTLY sum up realistically, and the name is in %s language.\n", foodNameLang) +
 		"5. Use Markdown, emojis, and clear spacing. " +
 		"6. Maintain a polite, highly expert, and encouraging tone. " +
-		"7. STRICT LANGUAGE LOCKDOWN: Use ONLY Thai and Latin (English) characters. ABSOLUTELY NO Chinese (e.g., 营养), Cyrillic (e.g., Калอรี่), Japanese, or other foreign scripts. If you output 'Nutrition', it must be 'โภชนาการ'. If you output 'Calories', it must be 'แคลอรี่' or 'kcal' in Latin characters. Failure to stick to Thai/English characters will result in failure of the task."
+		"7. Keep responses CONCISE and high-impact. Avoid extremely long tables or repetitive summaries unless specifically asked for a deep dive. Focus on quality over quantity. " +
+		"8. STRICT LANGUAGE LOCKDOWN: Use ONLY Thai and Latin (English) characters. ABSOLUTELY NO Chinese (e.g., 营养), Cyrillic (e.g., Калอรี่), Japanese, or other foreign scripts. If you output 'Nutrition', it must be 'โภชนาการ'. If you output 'Calories', it must be 'แคลอรี่' or 'kcal' in Latin characters. Failure to stick to Thai/English characters will result in failure of the task."
 
 	systemMsg := GroqMessage{
 		Role:    "system",
@@ -669,8 +670,14 @@ func GenerateDailyBriefing(ctx context.Context, userID primitive.ObjectID, summa
 	}
 
 	totalExMinutes := 0
+	now := time.Now()
+	todayStart := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+	todayEnd := todayStart.AddDate(0, 0, 1).Add(-time.Nanosecond)
+
 	for _, e := range summary.Exercise {
-		totalExMinutes += e.DurationMinutes
+		if e.Date.After(todayStart) && e.Date.Before(todayEnd) {
+			totalExMinutes += e.DurationMinutes
+		}
 	}
 
 	langConstraint := "Respond in Thai (ภาษาไทย), warm and motivating."

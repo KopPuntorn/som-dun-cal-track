@@ -185,6 +185,7 @@ func GoogleLogin(c echo.Context) error {
 		update := bson.M{"$set": bson.M{"googleId": payload.Subject, "name": name}}
 		db.UserCollection.UpdateOne(ctx, bson.M{"_id": user.ID}, update)
 		user.GoogleID = payload.Subject
+		user.Name = name // Update in memory so GenerateJWT and response are correct
 	}
 
 	token, _ := GenerateJWT(user)

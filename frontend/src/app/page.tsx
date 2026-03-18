@@ -103,6 +103,7 @@ export default function Home() {
   const [sleepRecords, setSleepRecords] = useState<SleepRecord[]>([]);
   const [weightRecords, setWeightRecords] = useState<any[]>([]);
   const [briefing, setBriefing] = useState<string>("");
+  const [isBriefingLoading, setIsBriefingLoading] = useState(false);
   const [editingFood, setEditingFood] = useState<Food | null>(null);
   const [editingExercise, setEditingExercise] = useState<ExerciseRecord | null>(null);
   const [editingSleep, setEditingSleep] = useState<SleepRecord | null>(null);
@@ -111,7 +112,6 @@ export default function Home() {
   const [isActivityModalOpen, setIsActivityModalOpen] = useState(false);
   const [logModalTab, setLogModalTab] = useState<'exercise' | 'sleep'>('exercise');
   const [detailView, setDetailView] = useState<'training' | 'recovery' | null>(null);
-  const [aiAdvice, setAiAdvice] = useState<string | null>(null);
   const [tourStep, setTourStep] = useState(0);
   const [showTour, setShowTour] = useState(false);
   const [highlightRect, setHighlightRect] = useState<DOMRect | null>(null);
@@ -263,30 +263,62 @@ export default function Home() {
         setFoods(data.todayFoods || []);
         setWaterGlasses(data.waterToday?.glasses || 0);
         setRecentFoods(data.recentFoods || []);
-
-        // Today's summary for Exercise & Sleep
-        const today = format(new Date(), 'yyyy-MM-dd');
-
-        const filteredExercise = (data.exerciseRecent || [])
-          .filter((e: ExerciseRecord) => format(new Date(e.date), 'yyyy-MM-dd') === today);
-
-        const exToday = filteredExercise.reduce((sum: number, e: ExerciseRecord) => sum + e.durationMinutes, 0);
-        setExerciseToday(exToday);
-        setExerciseRecords(filteredExercise);
-
-        const filteredSleep = (data.sleepRecent || [])
-          .filter((s: SleepRecord) => format(new Date(s.date), 'yyyy-MM-dd') === today);
-
-        const slToday = filteredSleep.reduce((sum: number, s: SleepRecord) => sum + s.durationHours, 0);
-        setSleepToday(slToday);
-        setSleepRecords(filteredSleep);
         setWeightRecords(data.weightRecent || []);
-        setBriefing(data.briefing || "");
+
+        // Today's summary for Exercise & Sleep (Rings logic)
+        const today = format(new Date(), 'yyyy-MM-dd');
+        
+        // Exercise: Sum today's minutes, but show all recent in list
+        const exerciseRecent = data.exerciseRecent || [];
+        const exToday = exerciseRecent
+          .filter((e: ExerciseRecord) => format(new Date(e.date), 'yyyy-MM-dd') === today)
+          .reduce((sum: number, e: ExerciseRecord) => sum + e.durationMinutes, 0);
+        
+        setExerciseToday(exToday);
+        setExerciseRecords(exerciseRecent);
+
+        // Sleep: Recovery ring shows the most recent sleep (within 24h) or today's
+        const sleepRecent = data.sleepRecent || [];
+        let slToday = 0;
+        const latestSleep = sleepRecent[0];
+        if (latestSleep) {
+          const latestDate = new Date(latestSleep.date);
+          const hoursSinceLatest = (new Date().getTime() - latestDate.getTime()) / (1000 * 60 * 60);
+          // If latest sleep was today OR it's been less than 24h since that sleep record
+          if (format(latestDate, 'yyyy-MM-dd') === today || hoursSinceLatest < 24) {
+            slToday = latestSleep.durationHours;
+          }
+        }
+        
+        setSleepToday(slToday);
+        setSleepRecords(sleepRecent);
+        
+        // After fetching summary, fetch briefing asynchronously
+        fetchBriefing();
       } catch (err) {
         console.error("Failed to fetch data", err);
         setError("Failed to reach the server. Make sure the Go backend is running and MongoDB is connected.");
       } finally {
         setLoading(false);
+      }
+    }
+
+    async function fetchBriefing() {
+      setIsBriefingLoading(true);
+      try {
+        const response = await fetch(`${API_BASE}/dashboard/briefing?lang=${language}`, {
+          headers: {
+            "Authorization": `Bearer ${localStorage.getItem('auth_token')}`
+          }
+        });
+        if (response.ok) {
+          const data = await response.json();
+          setBriefing(data.briefing || "");
+        }
+      } catch (err) {
+        console.error("Failed to fetch briefing", err);
+      } finally {
+        setIsBriefingLoading(false);
       }
     }
 
@@ -441,7 +473,10 @@ export default function Home() {
       const res = await fetch(`${API_BASE}/exercise`, {
         method: 'POST',
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(exerciseInput)
+        body: JSON.stringify({
+          ...exerciseInput,
+          date: exerciseInput.date ? new Date(exerciseInput.date).toISOString() : new Date().toISOString()
+        })
       });
       if (res.ok) {
         const record = await res.json();
@@ -857,34 +892,6 @@ export default function Home() {
     }
   };
 
-  const handleGetAiAdvice = async () => {
-    setAiLoading(true);
-    setAiAdvice(null);
-    setError(null);
-
-    try {
-      const res = await fetch(`${API_BASE}/consult`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          date: format(new Date(), 'yyyy-MM-dd'),
-          language
-        }),
-      });
-
-      if (res.ok) {
-        const advice = await res.text();
-        setAiAdvice(advice);
-      } else {
-        showToast("Failed to get AI advice", "error");
-      }
-    } catch (err) {
-      console.error(err);
-      showToast("AI Consultant unavailable", "error");
-    } finally {
-      setAiLoading(false);
-    }
-  };
 
   // Calculations
   const totals = foods.reduce(
@@ -1098,25 +1105,37 @@ export default function Home() {
       <div className="responsive-layout">
         <div className="layout-column">
           {/* AI Daily Briefing */}
-          {briefing && (
-            <div className="glass-panel" style={{
+          {(briefing || isBriefingLoading) && (
+            <div className={`glass-panel ${isBriefingLoading ? 'skeleton-pulse' : ''}`} style={{
               padding: '20px 24px',
               borderRadius: '24px',
               border: '1px solid rgba(255,255,255,0.1)',
               background: 'linear-gradient(135deg, rgba(20,20,20,0.8), rgba(40,40,40,0.4))',
               position: 'relative',
-              overflow: 'hidden'
+              overflow: 'hidden',
+              minHeight: isBriefingLoading && !briefing ? '100px' : 'auto'
             }}>
               <div style={{ position: 'absolute', top: 0, right: 0, width: '100px', height: '100px', background: 'radial-gradient(circle, var(--accent-cal) 0%, transparent 70%)', opacity: 0.1, filter: 'blur(20px)' }}></div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
                 <div style={{ background: 'var(--accent-cal-gradient)', width: '24px', height: '24px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                   <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"></path></svg>
                 </div>
-                <span style={{ fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '1px', color: 'var(--accent-cal)' }}>{t('aiBriefing')}</span>
+                <span style={{ fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '1px', color: 'var(--accent-cal)' }}>
+                  {t('aiBriefing')} {isBriefingLoading && <span style={{ opacity: 0.5, marginLeft: '8px' }}>({t('analyzing')}...)</span>}
+                </span>
               </div>
-              <p style={{ fontSize: '15px', color: 'var(--text-primary)', lineHeight: '1.6', fontWeight: 500 }}>
-                {briefing}
-              </p>
+              {isBriefingLoading && !briefing ? (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '8px' }}>
+                  <div className="skeleton" style={{ height: '14px', width: '90%', background: 'rgba(255,255,255,0.05)' }}></div>
+                  <div className="skeleton" style={{ height: '14px', width: '75%', background: 'rgba(255,255,255,0.05)' }}></div>
+                </div>
+              ) : (
+                <div className="markdown-content">
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                    {briefing}
+                  </ReactMarkdown>
+                </div>
+              )}
             </div>
           )}
 
@@ -1409,30 +1428,6 @@ export default function Home() {
             </div>
           </section>
 
-          {/* AI Advice Summary */}
-          <section className="glass-panel" style={{ padding: '24px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <div className="icon-btn" style={{ background: 'var(--accent-cal-gradient)', border: 'none', width: '40px', height: '40px' }}>
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5"><path d="M12 2a10 10 0 1 0 10 10H12V2z"></path><path d="M12 2a10 10 0 0 1 10 10"></path><path d="M12 12L2.7 16.5"></path></svg>
-                </div>
-                <h3 style={{ margin: 0, fontSize: '17px', color: 'var(--text-primary)' }}>{t('aiAdvice')}</h3>
-              </div>
-              <button
-                onClick={handleGetAiAdvice}
-                className="primary-btn active"
-                disabled={aiLoading || loading}
-                style={{ margin: 0, padding: '10px 20px', fontSize: '14px' }}
-              >
-                {aiLoading ? t('analyzing') : t('getInsights')}
-              </button>
-            </div>
-            {aiAdvice && (
-              <div className="markdown-content" style={{ fontSize: '14px', background: 'rgba(255,255,255,0.02)', padding: '20px', borderRadius: '20px', borderLeft: '4px solid var(--accent-cal)', marginTop: '16px' }}>
-                <ReactMarkdown remarkPlugins={[remarkGfm]}>{aiAdvice}</ReactMarkdown>
-              </div>
-            )}
-          </section>
 
           {/* Recent Foods */}
           {recentFoods.length > 0 && (
@@ -1447,6 +1442,9 @@ export default function Home() {
               </div>
             </section>
           )}
+
+          {/* Spacer for bottom nav */}
+          <div className="bottom-nav-spacer" style={{ height: '80px' }} />
         </div>
       </div>
 
@@ -1857,7 +1855,7 @@ export default function Home() {
           <div className="glass-panel modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '450px', padding: '24px', borderRadius: '24px' }}>
             <div className="modal-header" style={{ marginBottom: '20px' }}>
               <h3 style={{ fontSize: '18px', fontWeight: 800 }}>
-                {detailView === 'training' ? t('todayTraining') : t('todayRecovery')}
+                {detailView === 'training' ? t('recentHistory') : t('recentHistory')}
               </h3>
               <button onClick={() => setDetailView(null)} className="icon-btn" style={{ borderRadius: '50%', width: '32px', height: '32px' }}>
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
@@ -1870,7 +1868,12 @@ export default function Home() {
                   exerciseRecords.map(ex => (
                     <div key={ex.id} className="food-item" style={{ padding: '12px 16px', borderLeft: '3px solid #f43f5e' }}>
                       <div className="food-info">
-                        <h4 style={{ fontSize: '14px', fontWeight: 600 }}>{ex.name}</h4>
+                        <h4 style={{ fontSize: '14px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          {ex.name}
+                          <span style={{ fontSize: '10px', opacity: 0.5, fontWeight: 400 }}>
+                            {format(new Date(ex.date), 'MMM d')}
+                          </span>
+                        </h4>
                         <div className="food-stats" style={{ marginTop: '2px', fontSize: '12px' }}>
                           <span><strong>{ex.durationMinutes}</strong> {t('mins').toLowerCase()}</span>
                           <span style={{ color: 'var(--accent-cal)' }}><strong>{ex.caloriesBurned}</strong> kcal</span>
@@ -1890,7 +1893,12 @@ export default function Home() {
                   sleepRecords.map(sl => (
                     <div key={sl.id} className="food-item" style={{ padding: '12px 16px', borderLeft: '3px solid var(--accent-fat)' }}>
                       <div className="food-info">
-                        <h4 style={{ fontSize: '14px', fontWeight: 600 }}>{Math.round(sl.durationHours * 10) / 10} {t('hours').toLowerCase()}</h4>
+                        <h4 style={{ fontSize: '14px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          {Math.round(sl.durationHours * 10) / 10} {t('hours').toLowerCase()}
+                          <span style={{ fontSize: '10px', opacity: 0.5, fontWeight: 400 }}>
+                            {format(new Date(sl.date), 'MMM d')}
+                          </span>
+                        </h4>
                         <div className="food-stats" style={{ marginTop: '2px', fontSize: '12px' }}>
                           <span style={{ color: 'var(--accent-fat)' }}>Quality: <strong>{sl.quality}</strong></span>
                         </div>
@@ -1957,7 +1965,7 @@ export default function Home() {
               {chatMessages.length === 0 && (
                 <div className="msg-placeholder" style={{ display: 'flex', flexDirection: 'column', gap: '12px', opacity: 0.7, padding: '40px 20px' }}>
                   <div style={{ fontSize: '32px' }}>👋</div>
-                  <p>สวัสดีครับ! ผมเป็นผู้ช่วยดูแลสุขภาพของคุณ มีอะไรพิมคุยกันได้เลยครับ</p>
+                  <p>{language === 'th' ? 'สวัสดีครับ! ผมเป็นผู้ช่วยดูแลสุขภาพของคุณ ต้องการวิเคราะห์สุขภาพเชิงลึก หรือบันทึกอะไรเพิ่มเติม แจ้งได้เลยครับ' : 'Hello! I\'m your health assistant. Ask me for a deep health analysis or log your meals anytime!'}</p>
                 </div>
               )}
               {chatMessages.map((m, i) => {
@@ -1977,7 +1985,7 @@ export default function Home() {
                               key={fi}
                               onClick={() => handleQuickAdd(f)}
                               className="primary-btn outline"
-                              style={{ padding: '8px 16px', fontSize: '12px', margin: 0, justifyContent: 'center', background: 'rgba(255,255,255,0.05)', borderStyle: 'solid' }}
+                              style={{ margin: 0, justifyContent: 'center', background: 'rgba(255,255,255,0.05)', borderStyle: 'solid', width: 'auto' }}
                             >
                               + เพิ่ม {f.name} ({f.calories} kcal)
                             </button>
