@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import useSWR from "swr";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { useLanguage } from "@/context/LanguageContext";
@@ -8,6 +9,15 @@ import { useLanguage } from "@/context/LanguageContext";
 const API_BASE = (process.env.NEXT_PUBLIC_API_URL && process.env.NEXT_PUBLIC_API_URL !== "undefined") 
     ? process.env.NEXT_PUBLIC_API_URL 
     : "http://localhost:8080/api";
+
+const fetcher = (url: string) => fetch(url, {
+    headers: {
+        "Authorization": `Bearer ${localStorage.getItem('auth_token')}`
+    }
+}).then(res => {
+    if (!res.ok) throw new Error("Failed to fetch data");
+    return res.json();
+});
 
 type CardData = {
   name: string;
@@ -122,25 +132,20 @@ export default function PlayerCardPage() {
   });
   const [isSharing, setIsSharing] = useState(false);
 
-  useEffect(() => {
-    if (authLoading) return;
-    fetchCard();
-  }, [authLoading, selectedMonth]);
+  const { data: cardData, error: cardError, isLoading: cardLoading } = useSWR(
+    authLoading ? null : `${API_BASE}/player-card?month=${selectedMonth}`,
+    fetcher
+  );
 
-  const fetchCard = async () => {
-    setLoading(true);
-    try {
-      const res = await fetch(`${API_BASE}/player-card?month=${selectedMonth}`);
-      if (res.ok) {
-        const data = await res.json();
-        setCard(data);
-      }
-    } catch (err) {
-      console.error("Failed to fetch player card", err);
-    } finally {
+  useEffect(() => {
+    if (cardData) {
+      setCard(cardData);
       setLoading(false);
     }
-  };
+    if (cardError) {
+      setLoading(false);
+    }
+  }, [cardData, cardError]);
 
   const handleShare = async () => {
     if (!cardRef.current) return;

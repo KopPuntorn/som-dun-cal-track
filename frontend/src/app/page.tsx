@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import useSWR, { mutate } from "swr";
 import Link from "next/link";
 import Image from "next/image";
 import { startOfDay, endOfDay, format, subDays } from 'date-fns';
@@ -71,6 +72,15 @@ const API_BASE = (process.env.NEXT_PUBLIC_API_URL && process.env.NEXT_PUBLIC_API
   ? process.env.NEXT_PUBLIC_API_URL
   : "http://localhost:8080/api";
 
+const fetcher = (url: string) => fetch(url, {
+  headers: {
+    "Authorization": `Bearer ${localStorage.getItem('auth_token')}`
+  }
+}).then(res => {
+  if (!res.ok) throw new Error("Failed to fetch data");
+  return res.json();
+});
+
 export default function Home() {
   const { logout, isLoading: authLoading } = useAuth();
   const { showToast } = useToast();
@@ -115,6 +125,21 @@ export default function Home() {
   const [tourStep, setTourStep] = useState(0);
   const [showTour, setShowTour] = useState(false);
   const [highlightRect, setHighlightRect] = useState<DOMRect | null>(null);
+
+  // SWR for Dashboard Summary
+  const { data: dashboardData, error: dashboardError, isLoading: dashboardLoading } = useSWR(
+    authLoading ? null : `${API_BASE}/dashboard/summary?lang=${language}`, 
+    fetcher,
+    { revalidateOnFocus: true }
+  );
+
+  // SWR for Briefing
+  const { data: briefingData, isLoading: briefingLoading } = useSWR(
+    authLoading ? null : `${API_BASE}/dashboard/briefing?lang=${language}`,
+    fetcher,
+    { revalidateOnFocus: false } // Briefing is calculated on backend, frequent refetching might be overkill
+  );
+
   const dataFetchedRef = useRef(false);
 
   // Helper for image compression
@@ -206,11 +231,77 @@ export default function Home() {
 
   const currentDate = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
 
-  // Fetch initial data
+  // Sync SWR data to state for UI consistency (or use data directly in render)
+  useEffect(() => {
+    if (dashboardData) {
+      if (dashboardData.goals) {
+        setGoals({
+          calories: dashboardData.goals.calories || 2000,
+          protein: dashboardData.goals.protein || 150,
+          carbs: dashboardData.goals.carbs || 250,
+          fat: dashboardData.goals.fat || 70,
+          sugar: dashboardData.goals.sugar || 50,
+          sodium: dashboardData.goals.sodium || 2000,
+          fiber: dashboardData.goals.fiber || 30
+        });
+      }
+      if (dashboardData.user) {
+        const newUser = {
+          name: dashboardData.user.name || "User",
+          age: dashboardData.user.age || 25,
+          weight: dashboardData.user.weight || 70,
+          height: dashboardData.user.height || 170,
+          sex: dashboardData.user.sex || "other"
+        };
+        setUser(newUser);
+        if (dashboardData.user.onboarded && !dashboardData.user.tourCompleted) {
+          setShowTour(true);
+        }
+      }
+      setFoods(dashboardData.todayFoods || []);
+      setWaterGlasses(dashboardData.waterToday?.glasses || 0);
+      setRecentFoods(dashboardData.recentFoods || []);
+      setWeightRecords(dashboardData.weightRecent || []);
+      
+      const today = format(new Date(), 'yyyy-MM-dd');
+      const exerciseRecent = dashboardData.exerciseRecent || [];
+      const exToday = exerciseRecent
+        .filter((e: ExerciseRecord) => format(new Date(e.date), 'yyyy-MM-dd') === today)
+        .reduce((sum: number, e: ExerciseRecord) => sum + e.durationMinutes, 0);
+      setExerciseToday(exToday);
+      setExerciseRecords(exerciseRecent);
+
+      const sleepRecent = dashboardData.sleepRecent || [];
+      let slToday = 0;
+      const latestSleep = sleepRecent[0];
+      if (latestSleep) {
+        const latestDate = new Date(latestSleep.date);
+        const hoursSinceLatest = (new Date().getTime() - latestDate.getTime()) / (1000 * 60 * 60);
+        if (format(latestDate, 'yyyy-MM-dd') === today || hoursSinceLatest < 24) {
+          slToday = latestSleep.durationHours;
+        }
+      }
+      setSleepToday(slToday);
+      setSleepRecords(sleepRecent);
+      setLoading(false);
+    }
+    if (dashboardError) {
+      setError("Failed to reach the server. Make sure the Go backend is running and MongoDB is connected.");
+      setLoading(false);
+    }
+  }, [dashboardData, dashboardError]);
+
+  useEffect(() => {
+    if (briefingData) {
+      setBriefing(briefingData.briefing || "");
+    }
+    setIsBriefingLoading(briefingLoading);
+  }, [briefingData, briefingLoading]);
+
+  // Handle URL params and events
   useEffect(() => {
     if (authLoading) return;
 
-    // Check if URL has ?add=true and open modal
     if (window.location.search.includes('add=true')) {
       setIsFoodModalOpen(true);
       window.history.replaceState({}, '', '/');
@@ -218,111 +309,7 @@ export default function Home() {
 
     const handleOpenModal = () => setIsFoodModalOpen(true);
     window.addEventListener('openAddFoodModal', handleOpenModal);
-
-    async function fetchData() {
-      if (dataFetchedRef.current) return;
-      dataFetchedRef.current = true;
-
-      try {
-        const response = await fetch(`${API_BASE}/dashboard/summary?lang=${language}`);
-        if (!response.ok) {
-          throw new Error("Failed to fetch dashboard summary");
-        }
-
-        const data = await response.json();
-
-        if (data.goals) {
-          const newGoals = {
-            calories: data.goals.calories || 2000,
-            protein: data.goals.protein || 150,
-            carbs: data.goals.carbs || 250,
-            fat: data.goals.fat || 70,
-            sugar: data.goals.sugar || 50,
-            sodium: data.goals.sodium || 2000,
-            fiber: data.goals.fiber || 30
-          };
-          setGoals(newGoals);
-        }
-
-        if (data.user) {
-          const newUser = {
-            name: data.user.name || "User",
-            age: data.user.age || 25,
-            weight: data.user.weight || 70,
-            height: data.user.height || 170,
-            sex: data.user.sex || "other"
-          };
-          setUser(newUser);
-
-          // Show tour if onboarded but tour not completed
-          if (data.user.onboarded && !data.user.tourCompleted) {
-            setShowTour(true);
-          }
-        }
-
-        setFoods(data.todayFoods || []);
-        setWaterGlasses(data.waterToday?.glasses || 0);
-        setRecentFoods(data.recentFoods || []);
-        setWeightRecords(data.weightRecent || []);
-
-        // Today's summary for Exercise & Sleep (Rings logic)
-        const today = format(new Date(), 'yyyy-MM-dd');
-        
-        // Exercise: Sum today's minutes, but show all recent in list
-        const exerciseRecent = data.exerciseRecent || [];
-        const exToday = exerciseRecent
-          .filter((e: ExerciseRecord) => format(new Date(e.date), 'yyyy-MM-dd') === today)
-          .reduce((sum: number, e: ExerciseRecord) => sum + e.durationMinutes, 0);
-        
-        setExerciseToday(exToday);
-        setExerciseRecords(exerciseRecent);
-
-        // Sleep: Recovery ring shows the most recent sleep (within 24h) or today's
-        const sleepRecent = data.sleepRecent || [];
-        let slToday = 0;
-        const latestSleep = sleepRecent[0];
-        if (latestSleep) {
-          const latestDate = new Date(latestSleep.date);
-          const hoursSinceLatest = (new Date().getTime() - latestDate.getTime()) / (1000 * 60 * 60);
-          // If latest sleep was today OR it's been less than 24h since that sleep record
-          if (format(latestDate, 'yyyy-MM-dd') === today || hoursSinceLatest < 24) {
-            slToday = latestSleep.durationHours;
-          }
-        }
-        
-        setSleepToday(slToday);
-        setSleepRecords(sleepRecent);
-        
-        // After fetching summary, fetch briefing asynchronously
-        fetchBriefing();
-      } catch (err) {
-        console.error("Failed to fetch data", err);
-        setError("Failed to reach the server. Make sure the Go backend is running and MongoDB is connected.");
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    async function fetchBriefing() {
-      setIsBriefingLoading(true);
-      try {
-        const response = await fetch(`${API_BASE}/dashboard/briefing?lang=${language}`, {
-          headers: {
-            "Authorization": `Bearer ${localStorage.getItem('auth_token')}`
-          }
-        });
-        if (response.ok) {
-          const data = await response.json();
-          setBriefing(data.briefing || "");
-        }
-      } catch (err) {
-        console.error("Failed to fetch briefing", err);
-      } finally {
-        setIsBriefingLoading(false);
-      }
-    }
-
-    fetchData();
+    
     fetchChatSessions();
 
     return () => {
@@ -459,6 +446,7 @@ export default function Home() {
           glasses: newGlasses
         })
       });
+      mutate(`${API_BASE}/dashboard/summary?lang=${language}`);
     } catch (err) {
       console.error(err);
     }
@@ -484,6 +472,8 @@ export default function Home() {
         setExerciseToday(prev => prev + Number(exerciseInput.durationMinutes));
         setExerciseInput({ name: '', durationMinutes: 30, caloriesBurned: 0, date: format(new Date(), 'yyyy-MM-dd') });
         showToast("Activity logged!", "success");
+        mutate(`${API_BASE}/dashboard/summary?lang=${language}`);
+        mutate(`${API_BASE}/dashboard/briefing?lang=${language}`);
       }
     } catch (err) {
       console.error(err);
@@ -513,6 +503,8 @@ export default function Home() {
         setSleepToday(prev => prev + totalHours);
         setSleepInput({ durationHours: 8, durationMinutes: 0, quality: 'Good', date: format(new Date(), 'yyyy-MM-dd') });
         showToast("Sleep logged!", "success");
+        mutate(`${API_BASE}/dashboard/summary?lang=${language}`);
+        mutate(`${API_BASE}/dashboard/briefing?lang=${language}`);
       }
     } catch (err) {
       console.error(err);
@@ -563,6 +555,8 @@ export default function Home() {
         setRecentFoods(prev => prev.map(f => f.name === editingFood.name ? { ...f, name: updatedFood.name, calories: updatedFood.calories, protein: updatedFood.protein } : f));
         setEditingFood(null);
         showToast("Entry updated!", "success");
+        mutate(`${API_BASE}/dashboard/summary?lang=${language}`);
+        mutate(`${API_BASE}/dashboard/briefing?lang=${language}`);
       }
     } catch (err) {
       console.error(err);
@@ -642,6 +636,8 @@ export default function Home() {
         setFoods([newFood, ...foods]); // Add to top matching our DB sort
         setFoodInputs({ name: "", calories: "", protein: "", carbs: "", fat: "", sugar: "", sodium: "", fiber: "", mealCategory: "Breakfast", date: format(new Date(), 'yyyy-MM-dd') });
         showToast(`Added ${name}!`, "success");
+        mutate(`${API_BASE}/dashboard/summary?lang=${language}`);
+        mutate(`${API_BASE}/dashboard/briefing?lang=${language}`);
       }
     } catch (err) {
       console.error(err);
@@ -657,6 +653,8 @@ export default function Home() {
       if (res.ok) {
         setFoods(foods.filter(f => f.id !== id));
         showToast("Entry deleted", "info");
+        mutate(`${API_BASE}/dashboard/summary?lang=${language}`);
+        mutate(`${API_BASE}/dashboard/briefing?lang=${language}`);
       }
     } catch (err) {
       console.error(err);
@@ -673,6 +671,8 @@ export default function Home() {
         }
         setExerciseRecords(exerciseRecords.filter(r => r.id !== id));
         showToast("Exercise deleted", "info");
+        mutate(`${API_BASE}/dashboard/summary?lang=${language}`);
+        mutate(`${API_BASE}/dashboard/briefing?lang=${language}`);
       }
     } catch (err) { console.error(err); }
   };
@@ -687,6 +687,8 @@ export default function Home() {
         }
         setSleepRecords(sleepRecords.filter(r => r.id !== id));
         showToast("Sleep record deleted", "info");
+        mutate(`${API_BASE}/dashboard/summary?lang=${language}`);
+        mutate(`${API_BASE}/dashboard/briefing?lang=${language}`);
       }
     } catch (err) { console.error(err); }
   };
@@ -737,6 +739,8 @@ export default function Home() {
         setExerciseRecords(exerciseRecords.map(r => r.id === updated.id ? updated : r));
         setEditingExercise(null);
         showToast("Exercise updated!", "success");
+        mutate(`${API_BASE}/dashboard/summary?lang=${language}`);
+        mutate(`${API_BASE}/dashboard/briefing?lang=${language}`);
       }
     } catch (err) { console.error(err); }
   };
@@ -755,6 +759,8 @@ export default function Home() {
         setSleepRecords(sleepRecords.map(r => r.id === updated.id ? updated : r));
         setEditingSleep(null);
         showToast("Sleep record updated!", "success");
+        mutate(`${API_BASE}/dashboard/summary?lang=${language}`);
+        mutate(`${API_BASE}/dashboard/briefing?lang=${language}`);
       }
     } catch (err) { console.error(err); }
   };
@@ -780,6 +786,8 @@ export default function Home() {
         const newFood = await res.json();
         setFoods(prev => [newFood, ...prev]);
         showToast(`Quick added ${food.name}!`, "success");
+        mutate(`${API_BASE}/dashboard/summary?lang=${language}`);
+        mutate(`${API_BASE}/dashboard/briefing?lang=${language}`);
       }
     } catch (err) {
       console.error(err);
