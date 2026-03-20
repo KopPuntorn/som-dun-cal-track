@@ -198,6 +198,17 @@ export default function Home() {
     });
   };
 
+  const getCompositeDate = (dateStr: string) => {
+    const now = new Date();
+    if (!dateStr || dateStr === format(now, 'yyyy-MM-dd')) return now.toISOString();
+    
+    // For other dates, use the selected date but with current local time
+    // to avoid defaulting to 00:00 UTC (which is 07:00 local in Thailand)
+    const [y, m, d] = dateStr.split('-').map(Number);
+    const composite = new Date(y, m - 1, d, now.getHours(), now.getMinutes(), now.getSeconds());
+    return composite.toISOString();
+  };
+
   // Scanner State
   const [isScanning, setIsScanning] = useState(false);
   const { ref: zxingRef } = useZxing({
@@ -521,7 +532,7 @@ export default function Home() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...exerciseInput,
-          date: exerciseInput.date ? new Date(exerciseInput.date).toISOString() : new Date().toISOString()
+          date: getCompositeDate(exerciseInput.date)
         })
       });
       if (res.ok) {
@@ -553,7 +564,7 @@ export default function Home() {
         body: JSON.stringify({
           durationHours: totalHours,
           quality: sleepInput.quality,
-          date: sleepInput.date ? new Date(sleepInput.date).toISOString() : new Date().toISOString()
+          date: getCompositeDate(sleepInput.date)
         })
       });
       if (res.ok) {
@@ -686,7 +697,7 @@ export default function Home() {
           sodium: sdm,
           fiber: fbr,
           mealCategory: foodInputs.mealCategory,
-          date: foodInputs.date ? new Date(foodInputs.date).toISOString() : new Date().toISOString()
+          date: getCompositeDate(foodInputs.date)
         })
       });
 
@@ -874,7 +885,7 @@ export default function Home() {
         foods.push(JSON.parse(json));
       } catch { }
       return "";
-    }).trim();
+    }).replace(/<br\s*\/?>/gi, '\n').trim();
     return { cleanContent, foods };
   };
 
