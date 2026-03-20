@@ -14,6 +14,7 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
+	"strconv"
 )
 
 // --- Water Handlers ---
@@ -47,6 +48,9 @@ func UpdateWater(c echo.Context) error {
 	}
 	if err := c.Bind(&req); err != nil {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid request body"})
+	}
+	if req.Glasses < 0 {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "glasses cannot be negative"})
 	}
 	if req.Date == "" {
 		req.Date = time.Now().Format("2006-01-02")
@@ -126,6 +130,9 @@ func AddWeight(c echo.Context) error {
 	}
 	if err := c.Bind(&req); err != nil {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid request body"})
+	}
+	if req.Weight <= 0 {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "weight must be positive"})
 	}
 
 	recordDate := time.Now()
@@ -220,7 +227,20 @@ func GetExerciseHistory(c echo.Context) error {
 	}
 	filter["userId"] = c.Get("userID").(primitive.ObjectID)
 
-	opts := options.Find().SetSort(bson.D{{Key: "date", Value: -1}})
+	// Pagination
+	pageStr := c.QueryParam("page")
+	limitStr := c.QueryParam("limit")
+	page := 1
+	limit := 100 // Default to more for history
+	if p, err := strconv.Atoi(pageStr); err == nil && p > 0 {
+		page = p
+	}
+	if l, err := strconv.Atoi(limitStr); err == nil && l > 0 {
+		limit = l
+	}
+	skip := (page - 1) * limit
+
+	opts := options.Find().SetSort(bson.D{{Key: "date", Value: -1}}).SetLimit(int64(limit)).SetSkip(int64(skip))
 	cursor, err := db.ExerciseCollection.Find(ctx, filter, opts)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
@@ -244,14 +264,34 @@ func AddExercise(c echo.Context) error {
 	if err := c.Bind(&record); err != nil {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid request body"})
 	}
+	if record.DurationMinutes <= 0 {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "duration must be positive"})
+	}
+	if record.Name == "" {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "exercise name is required"})
+	}
 
 	if record.Date.IsZero() {
 		record.Date = time.Now()
 	}
 	record.UserID = c.Get("userID").(primitive.ObjectID)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
+
+	// AI Estimation if calories not provided
+	if record.CaloriesBurned == nil || *record.CaloriesBurned == 0 {
+		var u models.User
+		if err := db.UserCollection.FindOne(ctx, bson.M{"_id": record.UserID}).Decode(&u); err == nil {
+			est, err := EstimateExerciseCalories(record.Name, record.DurationMinutes, u)
+			if err == nil {
+				record.CaloriesBurned = &est
+				slog.Info("AI Estimated calories", "exercise", record.Name, "duration", record.DurationMinutes, "estimate", est)
+			} else {
+				slog.Error("AI Estimation failed", "error", err)
+			}
+		}
+	}
 
 	result, err := db.ExerciseCollection.InsertOne(ctx, record)
 	if err != nil {
@@ -296,6 +336,12 @@ func UpdateExercise(c echo.Context) error {
 	var req models.ExerciseRecord
 	if err := c.Bind(&req); err != nil {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid request body"})
+	}
+	if req.DurationMinutes <= 0 {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "duration must be positive"})
+	}
+	if req.Name == "" {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "exercise name is required"})
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -374,6 +420,9 @@ func AddSleep(c echo.Context) error {
 	if err := c.Bind(&record); err != nil {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid request body"})
 	}
+	if record.DurationHours <= 0 {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "duration must be positive"})
+	}
 
 	if record.Date.IsZero() {
 		record.Date = time.Now()
@@ -424,6 +473,9 @@ func UpdateSleep(c echo.Context) error {
 	var req models.SleepRecord
 	if err := c.Bind(&req); err != nil {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid request body"})
+	}
+	if req.DurationHours <= 0 {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "duration must be positive"})
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -500,6 +552,9 @@ func AddBodyMeasurement(c echo.Context) error {
 	var record models.BodyMeasurement
 	if err := c.Bind(&record); err != nil {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid request body"})
+	}
+	if record.Weight <= 0 || record.WaistCircumference <= 0 || record.BodyFatPercentage <= 0 {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "measurements must be positive"})
 	}
 
 	if record.Date.IsZero() {

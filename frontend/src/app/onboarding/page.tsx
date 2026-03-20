@@ -22,7 +22,8 @@ export default function OnboardingPage() {
         age: 25,
         weight: 70,
         height: 170,
-        sex: "other"
+        sex: "other",
+        longTermContext: ""
     });
 
     const [goals, setGoals] = useState({
@@ -261,6 +262,30 @@ export default function OnboardingPage() {
                 ) : (
                     <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
                         <div style={{ marginTop: "8px" }}>
+                            <label style={{ fontSize: "12px", fontWeight: 700, color: "var(--text-secondary)", marginBottom: "12px", display: "block", textTransform: 'uppercase', letterSpacing: '1px' }}>
+                                🧠 {t('aiContextTitle')}
+                            </label>
+                            <p style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '12px', lineHeight: 1.4 }}>
+                                {t('aiContextDesc')}
+                            </p>
+                            <textarea
+                                value={profile.longTermContext}
+                                onChange={e => setProfile({ ...profile, longTermContext: e.target.value })}
+                                placeholder={t('aiContextPlaceholder')}
+                                style={{
+                                    width: '100%',
+                                    minHeight: '80px',
+                                    borderRadius: '14px',
+                                    background: 'rgba(0,0,0,0.2)',
+                                    border: '1px solid var(--panel-border)',
+                                    padding: '12px 16px',
+                                    color: '#fff',
+                                    fontSize: '14px',
+                                    resize: 'vertical',
+                                    marginBottom: '20px'
+                                }}
+                            />
+
                             <label style={{ fontSize: "12px", fontWeight: 700, color: "var(--text-secondary)", marginBottom: "12px", display: "block", textTransform: 'uppercase', letterSpacing: '1px' }}>
                                 🎯 {t('healthObjective')}
                             </label>

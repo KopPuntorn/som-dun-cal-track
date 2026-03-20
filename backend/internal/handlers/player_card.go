@@ -210,8 +210,8 @@ func calcNutritionScore(foods []models.Food, goals models.Goals, days int) int {
 	for _, f := range foods {
 		day := f.Date.Format("2006-01-02")
 		dailyCals[day] += f.Calories
-		dailyPro[day] += f.Protein
-		dailyFat[day] += f.Fat
+		dailyPro[day] += models.SafeFloat(f.Protein)
+		dailyFat[day] += models.SafeFloat(f.Fat)
 	}
 
 	hitDays := 0
@@ -298,7 +298,7 @@ func calcFitnessScore(exercises []models.ExerciseRecord, days int) int {
 	totalCalsBurned := 0.0
 	for _, e := range exercises {
 		totalMinutes += e.DurationMinutes
-		totalCalsBurned += e.CaloriesBurned
+		totalCalsBurned += models.SafeFloat(e.CaloriesBurned)
 	}
 
 	// Target: ~150 min/week → ~600 min/month for a perfect score
@@ -321,9 +321,9 @@ func calcRecoveryScore(sleepRecords []models.SleepRecord) int {
 		totalHours += s.DurationHours
 		// 7-9 hours is optimal + "Good" quality bonus
 		isGoodDuration := s.DurationHours >= 7 && s.DurationHours <= 9
-		if isGoodDuration && s.Quality == "Good" {
+		if isGoodDuration && models.SafeString(s.Quality) == "Good" {
 			goodNights += 2 // double points for perfect sleep
-		} else if isGoodDuration || s.Quality == "Good" {
+		} else if isGoodDuration || models.SafeString(s.Quality) == "Good" {
 			goodNights += 1 // partial points
 		}
 	}

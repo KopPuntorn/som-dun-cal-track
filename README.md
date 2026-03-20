@@ -13,23 +13,21 @@
 
 ### 🤖 AI-Powered Health Insights
 - **AI Food Scan**: Take a photo of your meal (with lightning-fast client-side compression), and let our AI estimate nutritional values automatically.
-- **SomDun Insight (AI Briefing)**: A specialized daily report rendered with **ReactMarkdown** for rich formatting. Now features **Automatic Word-Wrapping** to prevent math formulas and long strings from overflowing on mobile devices.
-- **AI Assistant & Coach**: Personalized advice tailored to your **Health Objective**. Features a mobile-optimized chat window with compact "Quick Add" buttons and a non-intrusive floating layout.
-- **Improved Barcode Scanner**: Enforced rear-camera usage and state-persistent data fetching from Open Food Facts.
-- **AI Goal Suggestion**: Receive personalized nutritional targets (Calories, Protein, Fat) during onboarding based on your biometrics and health objective.
+- **AI Assistant & Coach**: Personalized advice tailored to your **Health Objective**. 
+    - **Mobile Bottom Nav**: Integrated directly into the mobile bottom navigation bar for instant access.
+    - **Smart Interaction**: Features a mobile-optimized chat window with compact "Quick Add" buttons.
+- **Backend-Proxied Barcode Scanner**: Optimized barcode engine (`react-zxing`) that fetches data via a backend proxy to bypass browser `403 Forbidden` errors and ensure 100% reliability.
+- **AI Goal Suggestion**: Receive personalized nutritional targets during onboarding based on your biometrics and health objective.
 - **Premium Spotlight Tour**: A glassmorphic, animated tutorial that manually spotlights key UI components using SVG masking technology.
-- **Date-Persistent Logging**: Log meals, exercise, and sleep for any specific date using the intuitive date picker.
 
 ### 🏆 Dynamic Athlete Player Card
 - **Monthly Performance Rating (OVR)**: Your health data is transformed into a sport-style "Player Card".
-- **Advanced Scoring**: Monthly ratings are calculated based on:
-    - **Nutrition (NUT)**: Calorie and protein adherence consistency.
-    - **Hydration (HYD)**: Daily water intake habits.
-    - **Fitness (FIT)**: Total activity minutes and calories burned.
-    - **Recovery (REC)**: Average sleep duration and quality.
-    - **Discipline (DIS)**: Logging consistency.
-    - **Endurance (END)**: Exercise frequency and durability.
+- **Advanced Scoring**: Monthly ratings are calculated based on Nutrition, Hydration, Fitness, and Recovery.
 - **Rarity System**: Earn Bronze, Silver, Emerald, Gold, or Diamond status based on your performance.
+
+### 📱 Optimized Mobile Experience
+- **5-Item Bottom Navigation**: A balanced mobile layout providing quick access to Dashboard, Activity, Add Food, AI Assistant, and Profile.
+- **Centered Add Food**: The primary "Add Food" action stays prominently in the center for ergonomic mobile usage.
 
 ### 🌍 Multi-Language Support
 - **Dual Language UI**: Toggle between Thai and English instantly.

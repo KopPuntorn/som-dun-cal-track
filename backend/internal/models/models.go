@@ -6,14 +6,28 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
+func SafeFloat(p *float64) float64 {
+	if p == nil {
+		return 0
+	}
+	return *p
+}
+
+func SafeString(p *string) string {
+	if p == nil {
+		return ""
+	}
+	return *p
+}
+
 // Food represents a single food entry
 type Food struct {
 	ID           primitive.ObjectID `json:"id" bson:"_id,omitempty"`
 	UserID       primitive.ObjectID `json:"userId" bson:"userId"`
 	Name         string             `json:"name" bson:"name"`
 	Calories     float64            `json:"calories" bson:"calories"`
-	Protein      float64            `json:"protein" bson:"protein"`
-	Fat          float64            `json:"fat" bson:"fat"`
+	Protein      *float64           `json:"protein,omitempty" bson:"protein,omitempty"`
+	Fat          *float64           `json:"fat,omitempty" bson:"fat,omitempty"`
 	Date         time.Time          `json:"date" bson:"date"`
 	MealCategory string             `json:"mealCategory" bson:"mealCategory"` // Breakfast, Lunch, Dinner, Snack
 }
@@ -43,6 +57,7 @@ type User struct {
 	TourCompleted bool               `json:"tourCompleted" bson:"tourCompleted"`
 	LastBriefing     string          `json:"lastBriefing" bson:"lastBriefing"`
 	LastBriefingHash string          `json:"lastBriefingHash" bson:"lastBriefingHash"`
+	LongTermContext  string          `json:"longTermContext" bson:"longTermContext"`
 }
 
 // WaterIntake represents amount of water consumed on a specific date
@@ -68,7 +83,7 @@ type ExerciseRecord struct {
 	Date            time.Time          `json:"date" bson:"date"`
 	Name            string             `json:"name" bson:"name"`
 	DurationMinutes int                `json:"durationMinutes" bson:"durationMinutes"`
-	CaloriesBurned  float64            `json:"caloriesBurned" bson:"caloriesBurned"`
+	CaloriesBurned  *float64           `json:"caloriesBurned,omitempty" bson:"caloriesBurned,omitempty"`
 }
 
 // SleepRecord represents a user's sleep duration
@@ -77,7 +92,7 @@ type SleepRecord struct {
 	UserID        primitive.ObjectID `json:"userId" bson:"userId"`
 	Date          time.Time          `json:"date" bson:"date"`
 	DurationHours float64            `json:"durationHours" bson:"durationHours"`
-	Quality       string             `json:"quality" bson:"quality"` // Optional: Good, Fair, Poor
+	Quality       *string            `json:"quality,omitempty" bson:"quality,omitempty"` // Optional: Good, Fair, Poor
 }
 
 // BodyMeasurement represents a user's body metrics and progress photos

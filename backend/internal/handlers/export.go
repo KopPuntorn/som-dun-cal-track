@@ -52,8 +52,8 @@ func ExportData(c echo.Context) error {
 			f.Name,
 			cat,
 			fmt.Sprintf("%.1f", f.Calories),
-			fmt.Sprintf("%.1f", f.Protein),
-			fmt.Sprintf("%.1f", f.Fat),
+			fmt.Sprintf("%.1f", models.SafeFloat(f.Protein)),
+			fmt.Sprintf("%.1f", models.SafeFloat(f.Fat)),
 		})
 	}
 

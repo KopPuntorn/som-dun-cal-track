@@ -2,9 +2,10 @@ package handlers
 
 import (
 	"context"
-	"crypto/sha256"
-	"fmt"
+	// "crypto/sha256"
+	// "fmt"
 	"net/http"
+	"sort"
 	"sync"
 	"time"
 
@@ -17,17 +18,30 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
+type UnifiedActivity struct {
+	ID       primitive.ObjectID `json:"id"`
+	Type     string             `json:"type"` // food, exercise, sleep, weight
+	Name     string             `json:"name"`
+	Date     time.Time          `json:"date"`
+	Calories float64            `json:"calories,omitempty"`
+	Protein  *float64           `json:"protein,omitempty"`
+	Fat      *float64           `json:"fat,omitempty"`
+	Duration float64            `json:"duration,omitempty"` // minutes or hours
+	Weight   float64            `json:"weight,omitempty"`
+	Category string             `json:"category,omitempty"` // mealCategory or quality
+}
+
 type DashboardSummary struct {
-	User         models.User              `json:"user"`
-	Goals        models.Goals             `json:"goals"`
-	TodayFoods   []models.Food            `json:"todayFoods"`
-	WaterToday   models.WaterIntake       `json:"waterToday"`
-	WeightRecent []models.WeightRecord     `json:"weightRecent"`
-	Exercise     []models.ExerciseRecord   `json:"exerciseRecent"`
-	Sleep        []models.SleepRecord      `json:"sleepRecent"`
-	Measurements []models.BodyMeasurement `json:"measurementsRecent"`
-	RecentFoods  []models.Food            `json:"recentFoods"`
-	Briefing     string                   `json:"briefing"`
+	User           models.User              `json:"user"`
+	Goals          models.Goals             `json:"goals"`
+	TodayFoods     []models.Food            `json:"todayFoods"`
+	WaterToday     models.WaterIntake       `json:"waterToday"`
+	WeightRecent   []models.WeightRecord     `json:"weightRecent"`
+	Exercise       []models.ExerciseRecord   `json:"exerciseRecent"`
+	Sleep          []models.SleepRecord      `json:"sleepRecent"`
+	Measurements   []models.BodyMeasurement `json:"measurementsRecent"`
+	RecentFoods    []models.Food            `json:"recentFoods"`
+	UnifiedHistory []UnifiedActivity        `json:"unifiedHistory"`
 }
 
 func GetDashboardSummary(c echo.Context) error {
@@ -264,6 +278,64 @@ func GetDashboardSummary(c echo.Context) error {
 
 	wg.Wait()
 
+	// --- Create Unified History (Feed) ---
+	// Define date window for filtering feed items (if not already defined by hasRange)
+	feedStart := start
+	feedEnd := end
+	if !hasRange {
+		now := time.Now()
+		feedStart = time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+		feedEnd = feedStart.AddDate(0, 0, 1).Add(-time.Nanosecond)
+	}
+
+	var unified []UnifiedActivity
+	for _, f := range summary.TodayFoods {
+		unified = append(unified, UnifiedActivity{
+			ID:       f.ID,
+			Type:     "food",
+			Name:     f.Name,
+			Date:     f.Date,
+			Calories: f.Calories,
+			Protein:  f.Protein,
+			Fat:      f.Fat,
+			Category: f.MealCategory,
+		})
+	}
+	for _, e := range summary.Exercise {
+		// Only include in feed if it matches today/the requested range
+		if e.Date.Before(feedStart) || e.Date.After(feedEnd) {
+			continue
+		}
+		unified = append(unified, UnifiedActivity{
+			ID:       e.ID,
+			Type:     "exercise",
+			Name:     e.Name,
+			Date:     e.Date,
+			Calories: models.SafeFloat(e.CaloriesBurned),
+			Duration: float64(e.DurationMinutes),
+		})
+	}
+	for _, s := range summary.Sleep {
+		// Only include in feed if it matches today/the requested range
+		if s.Date.Before(feedStart) || s.Date.After(feedEnd) {
+			continue
+		}
+		unified = append(unified, UnifiedActivity{
+			ID:       s.ID,
+			Type:     "sleep",
+			Name:     "Sleep Session",
+			Date:     s.Date,
+			Duration: s.DurationHours,
+			Category: models.SafeString(s.Quality),
+		})
+	}
+
+	// Sort by date descending
+	sort.Slice(unified, func(i, j int) bool {
+		return unified[i].Date.After(unified[j].Date)
+	})
+	summary.UnifiedHistory = unified
+
 	// Show tour logic should be after summary.User is fetched
 	if summary.User.Onboarded && !summary.User.TourCompleted {
 		summary.User.TourCompleted = false // Just to be explicit for summary struct
@@ -272,119 +344,3 @@ func GetDashboardSummary(c echo.Context) error {
 	return c.JSON(http.StatusOK, summary)
 }
 
-func GetDashboardBriefing(c echo.Context) error {
-	userID := c.Get("userID").(primitive.ObjectID)
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-	defer cancel()
-
-	lang := c.QueryParam("lang")
-	if lang == "" {
-		lang = "en"
-	}
-
-	// We need summary data to generate briefing
-	// Instead of refetching everything in parallel again (which we could, but let's keep it simple for now),
-	// we fetch just what's needed for the hash and briefing.
-	var summary DashboardSummary
-
-	var wg sync.WaitGroup
-	var mu sync.Mutex
-
-	// User
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		var u models.User
-		db.UserCollection.FindOne(ctx, bson.M{"_id": userID}).Decode(&u)
-		mu.Lock()
-		summary.User = u
-		mu.Unlock()
-	}()
-
-	// Goals
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		var g models.Goals
-		db.GoalsCollection.FindOne(ctx, bson.M{"userId": userID}).Decode(&g)
-		mu.Lock()
-		summary.Goals = g
-		mu.Unlock()
-	}()
-
-	// Today's Foods
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		now := time.Now()
-		startOfDay := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
-		endOfDay := startOfDay.AddDate(0, 0, 1).Add(-time.Nanosecond)
-		cursor, _ := db.FoodsCollection.Find(ctx, bson.M{"userId": userID, "date": bson.M{"$gte": startOfDay, "$lte": endOfDay}})
-		var foods []models.Food
-		if cursor != nil {
-			cursor.All(ctx, &foods)
-		}
-		mu.Lock()
-		summary.TodayFoods = foods
-		mu.Unlock()
-	}()
-
-	// Today's Water
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		dateStr := time.Now().Format("2006-01-02")
-		var w models.WaterIntake
-		db.WaterCollection.FindOne(ctx, bson.M{"date": dateStr, "userId": userID}).Decode(&w)
-		mu.Lock()
-		summary.WaterToday = w
-		mu.Unlock()
-	}()
-
-	// Today's Exercise
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		now := time.Now()
-		startOfDay := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
-		endOfDay := startOfDay.AddDate(0, 0, 1).Add(-time.Nanosecond)
-		cursor, _ := db.ExerciseCollection.Find(ctx, bson.M{"userId": userID, "date": bson.M{"$gte": startOfDay, "$lte": endOfDay}})
-		var exercise []models.ExerciseRecord
-		if cursor != nil {
-			cursor.All(ctx, &exercise)
-		}
-		mu.Lock()
-		summary.Exercise = exercise
-		mu.Unlock()
-	}()
-
-	wg.Wait()
-
-	// Calculate Hash & Generate Briefing (same logic as before)
-	totalCal := 0.0
-	for _, f := range summary.TodayFoods {
-		totalCal += f.Calories
-	}
-	totalExMinutes := 0
-	now := time.Now()
-	todayStart := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
-	todayEnd := todayStart.AddDate(0, 0, 1).Add(-time.Nanosecond)
-	for _, e := range summary.Exercise {
-		if e.Date.After(todayStart) && e.Date.Before(todayEnd) {
-			totalExMinutes += e.DurationMinutes
-		}
-	}
-
-	stateStr := fmt.Sprintf("%s|%.0f|%d|%d|%s", todayStart.Format("2006-01-02"), totalCal, summary.WaterToday.Glasses, totalExMinutes, lang)
-	hash := fmt.Sprintf("%x", sha256.Sum256([]byte(stateStr)))
-
-	var briefing string
-	if summary.User.LastBriefingHash == hash && summary.User.LastBriefing != "" {
-		briefing = summary.User.LastBriefing
-	} else {
-		briefing = GenerateDailyBriefing(ctx, userID, summary, lang)
-		db.UserCollection.UpdateOne(ctx, bson.M{"_id": userID}, bson.M{"$set": bson.M{"lastBriefing": briefing, "lastBriefingHash": hash}})
-	}
-
-	return c.JSON(http.StatusOK, map[string]string{"briefing": briefing})
-}

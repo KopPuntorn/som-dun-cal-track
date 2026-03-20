@@ -12,6 +12,7 @@ import (
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo/options"
+	"strconv"
 )
 
 // CreateChatSession initializes a new chat session
@@ -56,7 +57,20 @@ func ListChatSessions(c echo.Context) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	opts := options.Find().SetSort(bson.D{{Key: "updatedAt", Value: -1}})
+	// Pagination
+	pageStr := c.QueryParam("page")
+	limitStr := c.QueryParam("limit")
+	page := 1
+	limit := 20
+	if p, err := strconv.Atoi(pageStr); err == nil && p > 0 {
+		page = p
+	}
+	if l, err := strconv.Atoi(limitStr); err == nil && l > 0 {
+		limit = l
+	}
+	skip := (page - 1) * limit
+
+	opts := options.Find().SetSort(bson.D{{Key: "updatedAt", Value: -1}}).SetLimit(int64(limit)).SetSkip(int64(skip))
 	cursor, err := db.ChatSessionsCollection.Find(ctx, bson.M{"userId": userID}, opts)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "failed to fetch chat sessions"})

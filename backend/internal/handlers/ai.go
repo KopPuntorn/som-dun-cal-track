@@ -14,6 +14,7 @@ import (
 
 	"backend/internal/db"
 	"backend/internal/models"
+	"backend/internal/trends"
 
 	"github.com/labstack/echo/v4"
 	"go.mongodb.org/mongo-driver/bson"
@@ -48,6 +49,49 @@ type GroqChatResponse struct {
 			Content string `json:"content"`
 		} `json:"message"`
 	} `json:"choices"`
+}
+
+func makeGroqCall(ctx context.Context, groqReq GroqChatRequest) (string, error) {
+	apiKey := os.Getenv("GROQ_API_KEY")
+	if apiKey == "" {
+		return "", fmt.Errorf("GROQ_API_KEY not configured")
+	}
+
+	jsonData, err := json.Marshal(groqReq)
+	if err != nil {
+		return "", err
+	}
+
+	req, err := http.NewRequestWithContext(ctx, "POST", "https://api.groq.com/openai/v1/chat/completions", bytes.NewBuffer(jsonData))
+	if err != nil {
+		return "", err
+	}
+
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+apiKey)
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return "", err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return "", fmt.Errorf("groq api error: %d - %s", resp.StatusCode, string(body))
+	}
+
+	var groqResp GroqChatResponse
+	if err := json.NewDecoder(resp.Body).Decode(&groqResp); err != nil {
+		return "", err
+	}
+
+	if len(groqResp.Choices) == 0 {
+		return "", fmt.Errorf("no response from groq")
+	}
+
+	return groqResp.Choices[0].Message.Content, nil
 }
 
 // AnalyzeImage analyzes food from an uploaded image
@@ -232,6 +276,11 @@ func ConsultAI(c echo.Context) error {
 
 	userID := c.Get("userID").(primitive.ObjectID)
 
+	// --- FETCH USER & TRENDS ---
+	var u models.User
+	db.UserCollection.FindOne(ctx, bson.M{"_id": userID}).Decode(&u)
+	trendSummary, _ := trends.CalculateUserTrends(userID, 30)
+
 	// --- FETCH ALL RELEVANT DATA FOR THE RANGE ---
 
 	// 1. Fetch Food Logs & Aggregates
@@ -245,8 +294,8 @@ func ConsultAI(c echo.Context) error {
 			foodItemsCount = len(foods)
 			for _, f := range foods {
 				totalCal += f.Calories
-				totalPro += f.Protein
-				totalFat += f.Fat
+				totalPro += models.SafeFloat(f.Protein)
+				totalFat += models.SafeFloat(f.Fat)
 			}
 		}
 	}
@@ -279,8 +328,8 @@ func ConsultAI(c echo.Context) error {
 		var exercises []models.ExerciseRecord
 		if err := eCursor.All(ctx, &exercises); err == nil {
 			for _, ex := range exercises {
-				exerciseStr += fmt.Sprintf("- %s: %d min (%.0f kcal)\n", ex.Name, ex.DurationMinutes, ex.CaloriesBurned)
-				totalExCal += ex.CaloriesBurned
+				exerciseStr += fmt.Sprintf("- %s: %d min (%.0f kcal)\n", ex.Name, ex.DurationMinutes, models.SafeFloat(ex.CaloriesBurned))
+				totalExCal += models.SafeFloat(ex.CaloriesBurned)
 			}
 		}
 	}
@@ -293,22 +342,20 @@ func ConsultAI(c echo.Context) error {
 		var sleeps []models.SleepRecord
 		if err := sCursor.All(ctx, &sleeps); err == nil {
 			for _, sl := range sleeps {
-				sleepStr += fmt.Sprintf("%s: %.1f hrs (%s)\n", sl.Date.Format("2006-01-02"), sl.DurationHours, sl.Quality)
+				sleepStr += fmt.Sprintf("- %s: %.1fh (%s)\n", sl.Date.Format("2006-01-02"), sl.DurationHours, models.SafeString(sl.Quality))
 				totalSleep += sl.DurationHours
 			}
 		}
 	}
 
-	// 5. Fetch Goals & Profile
+	// 5. Fetch Goals
 	var g models.Goals
-	var u models.User
 	goalsStr := "Not set"
 	objectiveStr := "Not set"
 	if err := db.GoalsCollection.FindOne(ctx, bson.M{"userId": userID}).Decode(&g); err == nil {
 		objectiveStr = g.Objective
 		goalsStr = fmt.Sprintf("Cal:%.0f, Pro:%.1f, Fat:%.1f", g.Calories, g.Protein, g.Fat)
 	}
-	db.UserCollection.FindOne(ctx, bson.M{"_id": userID}).Decode(&u)
 
 	groqReq := GroqChatRequest{
 		Model: "openai/gpt-oss-120b",
@@ -318,7 +365,9 @@ func ConsultAI(c echo.Context) error {
 				Content: "Persona: Elite Clinical Dietitian & Performance Consultant. " +
 					langInstruction +
 					"TASK: Perform a highly accurate, evidence-based Trend Analysis for the period " + startStr + " to " + endStr + ".\n\n" +
-					"--- DATA SUMMARY ---\n" + summaryStr + "\n" +
+					"--- LONG-TERM CONTEXT ---\n" + u.LongTermContext + "\n\n" +
+					"--- 30-DAY TREND DATA ---\n" + trendSummary + "\n\n" +
+					"--- DATA SUMMARY FOR REQUESTED PERIOD ---\n" + summaryStr + "\n" +
 					"User Profile: " + fmt.Sprintf("W:%.1fkg, H:%.1fcm, Age:%d", u.Weight, u.Height, u.Age) + "\n" +
 					"Daily Goals: " + goalsStr + "\n" +
 					"Objective: " + objectiveStr + "\n\n" +
@@ -468,8 +517,8 @@ func ChatAI(c echo.Context) error {
 		var foods []models.Food
 		if err := cursor.All(ctx, &foods); err == nil {
 			for _, f := range foods {
-				historyStr += f.Date.Format("2006-01-02") + ": " + f.Name + " (" +
-					fmt.Sprintf("%.0f kcal, P:%.1fg, F:%.1fg", f.Calories, f.Protein, f.Fat) + ")\n"
+				historyStr += fmt.Sprintf("- %s: %.0f kcal, P:%.1fg, F:%.1fg (%s)\n",
+					f.Name, f.Calories, models.SafeFloat(f.Protein), models.SafeFloat(f.Fat), f.MealCategory)
 			}
 		}
 	}
@@ -493,7 +542,7 @@ func ChatAI(c echo.Context) error {
 		var exercises []models.ExerciseRecord
 		if err := eCursor.All(ctx, &exercises); err == nil {
 			for _, ex := range exercises {
-				exerciseStr += fmt.Sprintf("%s: %s (%d min, %.0f kcal burned)\n", ex.Date.Format("2006-01-02"), ex.Name, ex.DurationMinutes, ex.CaloriesBurned)
+				exerciseStr += fmt.Sprintf("%s: %s (%d min, %.0f kcal burned)\n", ex.Date.Format("2006-01-02"), ex.Name, ex.DurationMinutes, models.SafeFloat(ex.CaloriesBurned))
 			}
 		}
 	}
@@ -505,7 +554,7 @@ func ChatAI(c echo.Context) error {
 		var sleeps []models.SleepRecord
 		if err := sCursor.All(ctx, &sleeps); err == nil {
 			for _, sl := range sleeps {
-				sleepStr += fmt.Sprintf("%s: %.1f hrs (Quality: %s)\n", sl.Date.Format("2006-01-02"), sl.DurationHours, sl.Quality)
+				sleepStr += fmt.Sprintf("%s: %.1f hrs (Quality: %s)\n", sl.Date.Format("2006-01-02"), sl.DurationHours, models.SafeString(sl.Quality))
 			}
 		}
 	}
@@ -545,15 +594,18 @@ func ChatAI(c echo.Context) error {
 		}
 	}
 
-	// 8. Fetch User Profile
+	// 8. Fetch User Profile & Trends
 	var u models.User
 	userStr := "Not provided"
 	if err := db.UserCollection.FindOne(ctx, bson.M{"_id": userID}).Decode(&u); err == nil {
 		userStr = fmt.Sprintf("Name: %s, Age: %d, Current W: %.1fkg, H: %.1fcm, Sex: %s", u.Name, u.Age, u.Weight, u.Height, u.Sex)
 	}
+	trendSummary, _ := trends.CalculateUserTrends(userID, 30)
 
 	contextPrompt := "Persona: Elite Clinical Dietitian & Health Consultant. " +
 		langInstruction +
+		"--- LONG-TERM CONTEXT ---\n" + u.LongTermContext + "\n\n" +
+		"--- 30-DAY TREND DATA ---\n" + trendSummary + "\n\n" +
 		"CRITICAL NUTRITION ACCURACY RULES: \n" +
 		"- DO NOT hallucinate health benefits. If a food is unhealthy, fatty (e.g., pork neck / คอหมูย่าง, fried foods), or sugary, state facts firmly. DO NOT call high-fat foods 'balanced fat'.\n" +
 		"- Know sports science: Cardio (running/cycling) builds endurance and burns calories, but DOES NOT build muscle. Resistance training builds muscle.\n" +
@@ -656,78 +708,53 @@ func ChatAI(c echo.Context) error {
 	return c.String(http.StatusOK, replyContent)
 }
 
-// GenerateDailyBriefing returns a short, motivating 2-sentence summary based on today's data.
-func GenerateDailyBriefing(ctx context.Context, userID primitive.ObjectID, summary DashboardSummary, lang string) string {
-	apiKey := os.Getenv("GROQ_API_KEY")
-	if apiKey == "" {
-		return ""
-	}
+func EstimateExerciseCalories(exerciseName string, durationMinutes int, user models.User) (float64, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
 
-	// Prepare stats summary
-	var consumedCal float64
-	for _, f := range summary.TodayFoods {
-		consumedCal += f.Calories
-	}
-
-	totalExMinutes := 0
-	now := time.Now()
-	todayStart := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
-	todayEnd := todayStart.AddDate(0, 0, 1).Add(-time.Nanosecond)
-
-	for _, e := range summary.Exercise {
-		if e.Date.After(todayStart) && e.Date.Before(todayEnd) {
-			totalExMinutes += e.DurationMinutes
-		}
-	}
-
-	langConstraint := "Respond in Thai (ภาษาไทย), warm and motivating."
-	if lang == "th" {
-		langConstraint = "Respond in Thai (ภาษาไทย), warm and motivating."
-	} else if lang == "en" {
-		langConstraint = "Respond in English, professional and encouraging."
-	}
-
-	prompt := fmt.Sprintf("Act as a Premium Health Coach. Generate a 2-sentence 'Daily Briefing' for %s. "+
-		"Today's stats: %.0f/%.0f kcal consumed, %d glasses of water, %d minutes of exercise. "+
-		"Goal: %s. "+
-		"Tone: Motivating, high-performance, expert. "+
-		"CRITICAL: Exactly 2 sentences. No more. No markdown headers. "+
-		"Language: %s", summary.User.Name, consumedCal, summary.Goals.Calories, summary.WaterToday.Glasses, totalExMinutes, summary.Goals.Objective, langConstraint)
+	prompt := fmt.Sprintf("Estimate calories burned for this exercise: '%s' done for %d minutes. "+
+		"User details: Age %d, Weight %.1fkg, Height %.1fcm, Sex %s. "+
+		"Return ONLY a numeric value (JSON format: {\"calories\": 123.4}). No text, no explanation.",
+		exerciseName, durationMinutes, user.Age, user.Weight, user.Height, user.Sex)
 
 	groqReq := GroqChatRequest{
-		Model: "openai/gpt-oss-120b", // Use a faster model for briefing
+		Model: "openai/gpt-oss-120b",
 		Messages: []GroqMessage{
-			{
-				Role:    "system",
-				Content: prompt,
-			},
+			{Role: "system", Content: "You are a precise physical activity and kinesiology expert. Return only JSON."},
+			{Role: "user", Content: prompt},
 		},
 	}
 
-	jsonData, _ := json.Marshal(groqReq)
-	req, _ := http.NewRequest("POST", "https://api.groq.com/openai/v1/chat/completions", bytes.NewBuffer(jsonData))
-	req.Header.Set("Authorization", "Bearer "+apiKey)
-	req.Header.Set("Content-Type", "application/json")
-
-	client := &http.Client{Timeout: 10 * time.Second}
-	resp, err := client.Do(req)
+	reply, err := makeGroqCall(ctx, groqReq)
 	if err != nil {
-		return ""
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return ""
+		return 0, err
 	}
 
-	var groqResp GroqChatResponse
-	if err := json.NewDecoder(resp.Body).Decode(&groqResp); err != nil {
-		return ""
+	// Clean backticks if any
+	reply = bytes.NewBufferString(reply).String()
+	jsonStr := reply
+	if bytes.Contains([]byte(reply), []byte("```")) {
+		// Extract json part
+		start := bytes.Index([]byte(reply), []byte("{"))
+		end := bytes.LastIndex([]byte(reply), []byte("}"))
+		if start != -1 && end != -1 && end > start {
+			jsonStr = reply[start : end+1]
+		}
 	}
 
-	if len(groqResp.Choices) == 0 {
-		return ""
+	var res struct {
+		Calories float64 `json:"calories"`
+	}
+	if err := json.Unmarshal([]byte(jsonStr), &res); err != nil {
+		// Fallback: try to find a float in the string
+		var val float64
+		_, err := fmt.Sscanf(jsonStr, "%f", &val)
+		if err == nil {
+			return val, nil
+		}
+		return 0, err
 	}
 
-	return groqResp.Choices[0].Message.Content
+	return res.Calories, nil
 }
+
