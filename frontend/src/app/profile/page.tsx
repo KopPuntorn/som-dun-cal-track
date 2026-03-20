@@ -23,6 +23,7 @@ type UserProfile = {
     sex: string;
     onboarded: boolean;
     tourCompleted: boolean;
+    longTermContext: string;
 };
 
 const API_BASE = (process.env.NEXT_PUBLIC_API_URL && process.env.NEXT_PUBLIC_API_URL !== "undefined") 
@@ -56,7 +57,8 @@ export default function ProfilePage() {
         height: 170, 
         sex: "other",
         onboarded: true,
-        tourCompleted: false 
+        tourCompleted: false,
+        longTermContext: ""
     });
 
     const { data: goalsData, error: goalsError } = useSWR(authLoading ? null : `${API_BASE}/goals`, fetcher);
@@ -82,7 +84,8 @@ export default function ProfilePage() {
                 height: userData.height || 170,
                 sex: userData.sex || "other",
                 onboarded: userData.onboarded ?? true,
-                tourCompleted: userData.tourCompleted ?? false
+                tourCompleted: userData.tourCompleted ?? false,
+                longTermContext: userData.longTermContext || ""
             });
             setLoading(false);
         }
@@ -252,6 +255,36 @@ export default function ProfilePage() {
                                     <span style={{ position: 'absolute', right: '16px', top: '42px', fontSize: '11px', fontWeight: 800, color: 'var(--text-secondary)' }}>CM</span>
                                 </div>
                             </div>
+                        </div>
+
+                        {/* Personal AI Context Section */}
+                        <div style={{ marginTop: '32px', padding: '24px', background: 'rgba(14, 165, 233, 0.05)', borderRadius: '20px', border: '1px solid rgba(14, 165, 233, 0.1)' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '16px' }}>
+                                <div className="icon-btn" style={{ background: 'var(--accent-pro)', border: 'none', width: '28px', height: '28px', cursor: 'default' }}>
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2a10 10 0 1 0 10 10H12V2z"></path><path d="M12 2a10 10 0 0 1 10 10"></path><path d="M12 12L2.7 16.5"></path></svg>
+                                </div>
+                                <h4 style={{ margin: 0, fontSize: '13px', textTransform: 'uppercase', letterSpacing: '1px', color: 'var(--accent-pro)', fontWeight: 800 }}>{t('aiContextTitle')}</h4>
+                            </div>
+                            <p style={{ fontSize: '12px', color: 'var(--text-secondary)', marginBottom: '16px', lineHeight: 1.5 }}>
+                                {t('aiContextDesc')}
+                            </p>
+                            <textarea
+                                value={userInputs.longTermContext}
+                                onChange={e => setUserInputs({ ...userInputs, longTermContext: e.target.value })}
+                                placeholder={t('aiContextPlaceholder')}
+                                style={{
+                                    width: '100%',
+                                    minHeight: '100px',
+                                    borderRadius: '12px',
+                                    background: 'rgba(0,0,0,0.3)',
+                                    border: '1px solid rgba(255,255,255,0.1)',
+                                    padding: '12px 16px',
+                                    color: '#fff',
+                                    fontSize: '14px',
+                                    resize: 'vertical',
+                                    outline: 'none'
+                                }}
+                            />
                         </div>
                     </div>
 

@@ -16,6 +16,7 @@ export const metadata: Metadata = {
 
 import { Providers } from '@/context/Providers';
 import BottomNav from '@/components/BottomNav';
+import OfflineIndicator from '@/components/OfflineIndicator';
 
 export default function RootLayout({
   children,
@@ -47,6 +48,7 @@ export default function RootLayout({
           </defs>
         </svg>
         <Providers>
+          <OfflineIndicator />
           {children}
           <BottomNav />
         </Providers>

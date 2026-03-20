@@ -11,6 +11,12 @@ import { useZxing } from "react-zxing";
 import { useAuth } from "@/context/AuthContext";
 import { useToast } from "@/context/ToastContext";
 import { useLanguage } from "@/context/LanguageContext";
+import ConfirmModal from "@/components/ConfirmModal";
+import ErrorState from "@/components/ErrorState";
+import SuccessAnimation from "@/components/SuccessAnimation";
+import CalendarPicker from "@/components/CalendarPicker";
+import LoadingSkeleton from "@/components/LoadingSkeleton";
+import EmptyState from "@/components/EmptyState";
 
 // Types
 type Food = {
@@ -68,6 +74,19 @@ type SleepRecord = {
   date: string;
 };
 
+type UnifiedActivity = {
+  id: string;
+  type: 'food' | 'exercise' | 'sleep' | 'weight';
+  name: string;
+  date: string;
+  calories?: number;
+  protein?: number;
+  fat?: number;
+  duration?: number;
+  weight?: number;
+  category?: string;
+};
+
 const API_BASE = (process.env.NEXT_PUBLIC_API_URL && process.env.NEXT_PUBLIC_API_URL !== "undefined")
   ? process.env.NEXT_PUBLIC_API_URL
   : "http://localhost:8080/api";
@@ -83,8 +102,10 @@ const fetcher = (url: string) => fetch(url, {
 
 export default function Home() {
   const { logout, isLoading: authLoading } = useAuth();
-  const { showToast } = useToast();
+  const { showToast, showUndoToast } = useToast();
   const { language, setLanguage, t } = useLanguage();
+  const [showClearChatConfirm, setShowClearChatConfirm] = useState(false);
+  const chatBottomRef = useRef<HTMLDivElement>(null);
   const [foods, setFoods] = useState<Food[]>([]);
   const [goals, setGoals] = useState<Goals>({ calories: 2000, protein: 150, carbs: 250, fat: 70, sugar: 50, sodium: 2000, fiber: 30 });
   const [user, setUser] = useState<UserProfile>({ name: "User", age: 25, weight: 70, height: 170, sex: "other" });
@@ -112,8 +133,8 @@ export default function Home() {
   const [exerciseRecords, setExerciseRecords] = useState<ExerciseRecord[]>([]);
   const [sleepRecords, setSleepRecords] = useState<SleepRecord[]>([]);
   const [weightRecords, setWeightRecords] = useState<any[]>([]);
-  const [briefing, setBriefing] = useState<string>("");
-  const [isBriefingLoading, setIsBriefingLoading] = useState(false);
+  const [unifiedHistory, setUnifiedHistory] = useState<UnifiedActivity[]>([]);
+
   const [editingFood, setEditingFood] = useState<Food | null>(null);
   const [editingExercise, setEditingExercise] = useState<ExerciseRecord | null>(null);
   const [editingSleep, setEditingSleep] = useState<SleepRecord | null>(null);
@@ -125,6 +146,8 @@ export default function Home() {
   const [tourStep, setTourStep] = useState(0);
   const [showTour, setShowTour] = useState(false);
   const [highlightRect, setHighlightRect] = useState<DOMRect | null>(null);
+  const [successVariant, setSuccessVariant] = useState<"food" | "exercise" | "sleep" | "water" | null>(null);
+  const [openCalendar, setOpenCalendar] = useState<"food" | "exercise" | "sleep" | null>(null);
 
   // SWR for Dashboard Summary
   const { data: dashboardData, error: dashboardError, isLoading: dashboardLoading } = useSWR(
@@ -133,12 +156,7 @@ export default function Home() {
     { revalidateOnFocus: true }
   );
 
-  // SWR for Briefing
-  const { data: briefingData, isLoading: briefingLoading } = useSWR(
-    authLoading ? null : `${API_BASE}/dashboard/briefing?lang=${language}`,
-    fetcher,
-    { revalidateOnFocus: false } // Briefing is calculated on backend, frequent refetching might be overkill
-  );
+
 
   const dataFetchedRef = useRef(false);
 
@@ -192,8 +210,12 @@ export default function Home() {
       setAiLoading(true);
       setError(null);
 
-      // Fetch from Open Food Facts
-      fetch(`https://world.openfoodfacts.org/api/v0/product/${text}.json`)
+      // Fetch via backend proxy
+      fetch(`${API_BASE}/product/${text}`, {
+        headers: {
+          "Authorization": `Bearer ${localStorage.getItem('auth_token')}`
+        }
+      })
         .then(res => res.json())
         .then(data => {
           if (data.status === 1 && data.product) {
@@ -283,6 +305,14 @@ export default function Home() {
       }
       setSleepToday(slToday);
       setSleepRecords(sleepRecent);
+
+      if (dashboardData.unifiedHistory) {
+        setUnifiedHistory(dashboardData.unifiedHistory);
+      } else {
+        // Fallback for transition
+        setUnifiedHistory([]);
+      }
+
       setLoading(false);
     }
     if (dashboardError) {
@@ -291,29 +321,50 @@ export default function Home() {
     }
   }, [dashboardData, dashboardError]);
 
-  useEffect(() => {
-    if (briefingData) {
-      setBriefing(briefingData.briefing || "");
-    }
-    setIsBriefingLoading(briefingLoading);
-  }, [briefingData, briefingLoading]);
+
 
   // Handle URL params and events
   useEffect(() => {
     if (authLoading) return;
 
     if (window.location.search.includes('add=true')) {
+      setIsActivityModalOpen(false);
       setIsFoodModalOpen(true);
       window.history.replaceState({}, '', '/');
     }
 
-    const handleOpenModal = () => setIsFoodModalOpen(true);
+    if (window.location.search.includes('log=true')) {
+      setIsFoodModalOpen(false);
+      setIsActivityModalOpen(true);
+      window.history.replaceState({}, '', '/');
+    }
+
+    if (window.location.search.includes('chat=true')) {
+      setIsChatOpen(true);
+      window.history.replaceState({}, '', '/');
+    }
+
+    const handleOpenModal = () => {
+      setIsActivityModalOpen(false);
+      setIsFoodModalOpen(true);
+    };
+    const handleOpenActivityModal = () => {
+      setIsFoodModalOpen(false);
+      setIsActivityModalOpen(true);
+    };
+    const handleOpenAiChat = () => {
+      setIsChatOpen(true);
+    };
     window.addEventListener('openAddFoodModal', handleOpenModal);
+    window.addEventListener('openLogActivityModal', handleOpenActivityModal);
+    window.addEventListener('openAiChat', handleOpenAiChat);
     
     fetchChatSessions();
 
     return () => {
       window.removeEventListener('openAddFoodModal', handleOpenModal);
+      window.removeEventListener('openLogActivityModal', handleOpenActivityModal);
+      window.removeEventListener('openAiChat', handleOpenAiChat);
     };
   }, [authLoading]);
 
@@ -377,6 +428,7 @@ export default function Home() {
   const tourSteps = [
     { title: t('tourWelcomeTitle'), desc: t('tourWelcomeDesc'), target: null },
     { title: t('tourFoodTitle'), desc: t('tourFoodDesc'), target: 'add-food-btn' },
+    { title: t('tourActivityTitle'), desc: t('tourActivityDesc'), target: 'log-activity-btn' },
     { title: t('tourAiTitle'), desc: t('tourAiDesc'), target: 'chat-toggle-btn' },
     { title: t('tourAnalyticsTitle'), desc: t('tourAnalyticsDesc'), target: 'analytics-section' },
     { title: t('tourPlayerCardTitle'), desc: t('tourPlayerCardDesc'), target: 'player-card-section' },
@@ -396,6 +448,8 @@ export default function Home() {
         if (typeof window !== 'undefined' && window.innerWidth < 768) {
           if (targetId === 'add-food-btn') targetId = 'add-food-btn-mobile';
           if (targetId === 'profile-btn') targetId = 'profile-btn-mobile';
+          if (targetId === 'log-activity-btn') targetId = 'log-activity-btn-mobile';
+          if (targetId === 'chat-toggle-btn') targetId = 'chat-toggle-btn-mobile';
         }
 
         const el = document.getElementById(targetId);
@@ -436,7 +490,11 @@ export default function Home() {
   const handleUpdateWater = async (increment: number) => {
     const newGlasses = Math.max(0, waterGlasses + increment);
     setWaterGlasses(newGlasses);
-    if (increment > 0) showToast(`Added water! (${newGlasses} glasses)`, "success");
+    if (increment > 0) {
+      showToast(`Added water! (${newGlasses} glasses)`, "success");
+      setSuccessVariant("water");
+      setTimeout(() => setSuccessVariant(null), 1600);
+    }
     try {
       await fetch(`${API_BASE}/water`, {
         method: "POST",
@@ -472,8 +530,9 @@ export default function Home() {
         setExerciseToday(prev => prev + Number(exerciseInput.durationMinutes));
         setExerciseInput({ name: '', durationMinutes: 30, caloriesBurned: 0, date: format(new Date(), 'yyyy-MM-dd') });
         showToast("Activity logged!", "success");
+        setSuccessVariant("exercise");
+        setTimeout(() => setSuccessVariant(null), 1600);
         mutate(`${API_BASE}/dashboard/summary?lang=${language}`);
-        mutate(`${API_BASE}/dashboard/briefing?lang=${language}`);
       }
     } catch (err) {
       console.error(err);
@@ -503,8 +562,9 @@ export default function Home() {
         setSleepToday(prev => prev + totalHours);
         setSleepInput({ durationHours: 8, durationMinutes: 0, quality: 'Good', date: format(new Date(), 'yyyy-MM-dd') });
         showToast("Sleep logged!", "success");
+        setSuccessVariant("sleep");
+        setTimeout(() => setSuccessVariant(null), 1600);
         mutate(`${API_BASE}/dashboard/summary?lang=${language}`);
-        mutate(`${API_BASE}/dashboard/briefing?lang=${language}`);
       }
     } catch (err) {
       console.error(err);
@@ -556,7 +616,6 @@ export default function Home() {
         setEditingFood(null);
         showToast("Entry updated!", "success");
         mutate(`${API_BASE}/dashboard/summary?lang=${language}`);
-        mutate(`${API_BASE}/dashboard/briefing?lang=${language}`);
       }
     } catch (err) {
       console.error(err);
@@ -636,8 +695,9 @@ export default function Home() {
         setFoods([newFood, ...foods]); // Add to top matching our DB sort
         setFoodInputs({ name: "", calories: "", protein: "", carbs: "", fat: "", sugar: "", sodium: "", fiber: "", mealCategory: "Breakfast", date: format(new Date(), 'yyyy-MM-dd') });
         showToast(`Added ${name}!`, "success");
+        setSuccessVariant("food");
+        setTimeout(() => setSuccessVariant(null), 1600);
         mutate(`${API_BASE}/dashboard/summary?lang=${language}`);
-        mutate(`${API_BASE}/dashboard/briefing?lang=${language}`);
       }
     } catch (err) {
       console.error(err);
@@ -645,52 +705,65 @@ export default function Home() {
   };
 
   const handleDeleteFood = async (id: string) => {
-    try {
-      const res = await fetch(`${API_BASE}/foods/${id}`, {
-        method: "DELETE"
-      });
+    const deletedFood = foods.find(f => f.id === id);
+    setFoods(foods.filter(f => f.id !== id));
 
-      if (res.ok) {
-        setFoods(foods.filter(f => f.id !== id));
-        showToast("Entry deleted", "info");
+    const timer = setTimeout(async () => {
+      try {
+        await fetch(`${API_BASE}/foods/${id}`, { method: "DELETE" });
         mutate(`${API_BASE}/dashboard/summary?lang=${language}`);
-        mutate(`${API_BASE}/dashboard/briefing?lang=${language}`);
-      }
-    } catch (err) {
-      console.error(err);
-    }
+      } catch (err) { console.error(err); }
+    }, 5000);
+
+    showUndoToast(`${t('deleted')}: ${deletedFood?.name || ''}`, () => {
+      clearTimeout(timer);
+      if (deletedFood) setFoods(prev => [deletedFood, ...prev]);
+      showToast(t('restored'), 'success');
+    });
   };
 
   const handleDeleteExercise = async (id: string) => {
-    try {
-      const res = await fetch(`${API_BASE}/exercise/${id}`, { method: "DELETE" });
-      if (res.ok) {
-        const deletedRecord = exerciseRecords.find(r => r.id === id);
-        if (deletedRecord) {
-          setExerciseToday(prev => Math.max(0, prev - deletedRecord.durationMinutes));
-        }
-        setExerciseRecords(exerciseRecords.filter(r => r.id !== id));
-        showToast("Exercise deleted", "info");
+    const deletedRecord = exerciseRecords.find(r => r.id === id);
+    if (deletedRecord) setExerciseToday(prev => Math.max(0, prev - deletedRecord.durationMinutes));
+    setExerciseRecords(exerciseRecords.filter(r => r.id !== id));
+
+    const timer = setTimeout(async () => {
+      try {
+        await fetch(`${API_BASE}/exercise/${id}`, { method: "DELETE" });
         mutate(`${API_BASE}/dashboard/summary?lang=${language}`);
-        mutate(`${API_BASE}/dashboard/briefing?lang=${language}`);
+      } catch (err) { console.error(err); }
+    }, 5000);
+
+    showUndoToast(t('deleted'), () => {
+      clearTimeout(timer);
+      if (deletedRecord) {
+        setExerciseRecords(prev => [deletedRecord, ...prev]);
+        setExerciseToday(prev => prev + deletedRecord.durationMinutes);
       }
-    } catch (err) { console.error(err); }
+      showToast(t('restored'), 'success');
+    });
   };
 
   const handleDeleteSleep = async (id: string) => {
-    try {
-      const res = await fetch(`${API_BASE}/sleep/${id}`, { method: "DELETE" });
-      if (res.ok) {
-        const deletedRecord = sleepRecords.find(r => r.id === id);
-        if (deletedRecord) {
-          setSleepToday(prev => Math.max(0, prev - deletedRecord.durationHours));
-        }
-        setSleepRecords(sleepRecords.filter(r => r.id !== id));
-        showToast("Sleep record deleted", "info");
+    const deletedRecord = sleepRecords.find(r => r.id === id);
+    if (deletedRecord) setSleepToday(prev => Math.max(0, prev - deletedRecord.durationHours));
+    setSleepRecords(sleepRecords.filter(r => r.id !== id));
+
+    const timer = setTimeout(async () => {
+      try {
+        await fetch(`${API_BASE}/sleep/${id}`, { method: "DELETE" });
         mutate(`${API_BASE}/dashboard/summary?lang=${language}`);
-        mutate(`${API_BASE}/dashboard/briefing?lang=${language}`);
+      } catch (err) { console.error(err); }
+    }, 5000);
+
+    showUndoToast(t('deleted'), () => {
+      clearTimeout(timer);
+      if (deletedRecord) {
+        setSleepRecords(prev => [deletedRecord, ...prev]);
+        setSleepToday(prev => prev + deletedRecord.durationHours);
       }
-    } catch (err) { console.error(err); }
+      showToast(t('restored'), 'success');
+    });
   };
 
   const handleDeleteWeight = async (id: string) => {
@@ -705,18 +778,20 @@ export default function Home() {
 
   const handleDeleteSession = async () => {
     if (!activeSessionId) return;
-    if (!confirm("Are you sure you want to clear this chat history?")) return;
+    setShowClearChatConfirm(true);
+  };
 
+  const confirmDeleteSession = async () => {
+    setShowClearChatConfirm(false);
+    if (!activeSessionId) return;
     try {
       const res = await fetch(`${API_BASE}/chat/sessions/${activeSessionId}`, {
         method: "DELETE"
       });
-
       if (res.ok) {
         setChatMessages([]);
         setActiveSessionId(null);
         showToast("Chat cleared", "info");
-        // Create a fresh session
         createNewSession();
       }
     } catch (err) {
@@ -740,7 +815,6 @@ export default function Home() {
         setEditingExercise(null);
         showToast("Exercise updated!", "success");
         mutate(`${API_BASE}/dashboard/summary?lang=${language}`);
-        mutate(`${API_BASE}/dashboard/briefing?lang=${language}`);
       }
     } catch (err) { console.error(err); }
   };
@@ -760,7 +834,6 @@ export default function Home() {
         setEditingSleep(null);
         showToast("Sleep record updated!", "success");
         mutate(`${API_BASE}/dashboard/summary?lang=${language}`);
-        mutate(`${API_BASE}/dashboard/briefing?lang=${language}`);
       }
     } catch (err) { console.error(err); }
   };
@@ -787,7 +860,6 @@ export default function Home() {
         setFoods(prev => [newFood, ...prev]);
         showToast(`Quick added ${food.name}!`, "success");
         mutate(`${API_BASE}/dashboard/summary?lang=${language}`);
-        mutate(`${API_BASE}/dashboard/briefing?lang=${language}`);
       }
     } catch (err) {
       console.error(err);
@@ -874,6 +946,7 @@ export default function Home() {
     setChatMessages(prev => [...prev, userMsg]);
     setChatInput("");
     setAiLoading(true);
+    setTimeout(() => chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
 
     try {
       const res = await fetch(`${API_BASE}/chat`, {
@@ -889,6 +962,7 @@ export default function Home() {
       if (res.ok) {
         const reply = await res.text();
         setChatMessages(prev => [...prev, { role: 'assistant', content: reply }]);
+        setTimeout(() => chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
       } else {
         setError("Chat service unavailable");
       }
@@ -918,16 +992,25 @@ export default function Home() {
   const calTotal = Math.round(totals.calories);
   const proTotal = Math.round(totals.protein * 10) / 10;
   const fatTotal = Math.round(totals.fat * 10) / 10;
-  const calRemaining = Math.max(0, goals.calories - calTotal);
+
+  // Active Burn Calculation
+  const today = format(new Date(), 'yyyy-MM-dd');
+  const burnedToday = Math.round(exerciseRecords
+    .filter(e => format(new Date(e.date), 'yyyy-MM-dd') === today)
+    .reduce((sum, e) => sum + (e.caloriesBurned || 0), 0)
+  );
+
+  const adjustedCalGoal = goals.calories + burnedToday;
+  const calRemaining = Math.max(0, adjustedCalGoal - calTotal);
   const proRemaining = Math.max(0, Math.round((goals.protein - proTotal) * 10) / 10);
   const fatRemaining = Math.max(0, Math.round((goals.fat - fatTotal) * 10) / 10);
 
   // Ring Calculation
   const radius = 70;
   const circumference = radius * 2 * Math.PI;
-  const calPercent = Math.min(100, Math.max(0, (calTotal / goals.calories) * 100));
+  const calPercent = Math.min(100, Math.max(0, (calTotal / adjustedCalGoal) * 100));
   const calOffset = circumference - (calPercent / 100) * circumference;
-  const isOverCal = calTotal > goals.calories;
+  const isOverCal = calTotal > adjustedCalGoal;
 
   // Bar Calculations
   const proPercent = Math.min(100, Math.max(0, (proTotal / goals.protein) * 100));
@@ -1051,10 +1134,24 @@ export default function Home() {
         </div>
       )}
       {error && (
-        <div style={{ background: "var(--danger)", padding: "12px", borderRadius: "12px", fontSize: "14px", color: "white" }}>
-          {error}
-        </div>
+        <ErrorState
+          message={error}
+          onRetry={() => { setError(null); mutate(`${API_BASE}/dashboard/summary?lang=${language}`); }}
+          retryLabel={t('retry')}
+        />
       )}
+
+      {/* Confirm Modal for Chat Clear */}
+      <ConfirmModal
+        isOpen={showClearChatConfirm}
+        title={t('clearChatTitle')}
+        message={t('clearChatMessage')}
+        confirmText={t('delete')}
+        cancelText={t('cancel')}
+        variant="danger"
+        onConfirm={confirmDeleteSession}
+        onCancel={() => setShowClearChatConfirm(false)}
+      />
 
       <header className="glass-panel main-header" style={{ borderRadius: '28px', padding: '20px 28px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
@@ -1083,6 +1180,7 @@ export default function Home() {
           </button>
 
           <button
+            id="log-activity-btn"
             onClick={() => setIsActivityModalOpen(true)}
             className="icon-btn mobile-hidden"
             style={{ background: 'rgba(255,255,255,0.05)', width: '40px', height: '40px', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
@@ -1101,7 +1199,7 @@ export default function Home() {
           <Link id="player-card-section" href="/player-card" className="icon-btn" title="Player Card">
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>
           </Link>
-          <Link href="/dashboard" className="icon-btn" title={t('analyticsTitle')}>
+          <Link id="analytics-section" href="/dashboard" className="icon-btn" title={t('analyticsTitle')}>
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
           </Link>
           <Link href="/profile" className="icon-btn mobile-hidden" title={t('profileSettings')}>
@@ -1112,40 +1210,7 @@ export default function Home() {
 
       <div className="responsive-layout">
         <div className="layout-column">
-          {/* AI Daily Briefing */}
-          {(briefing || isBriefingLoading) && (
-            <div className={`glass-panel ${isBriefingLoading ? 'skeleton-pulse' : ''}`} style={{
-              padding: '20px 24px',
-              borderRadius: '24px',
-              border: '1px solid rgba(255,255,255,0.1)',
-              background: 'linear-gradient(135deg, rgba(20,20,20,0.8), rgba(40,40,40,0.4))',
-              position: 'relative',
-              overflow: 'hidden',
-              minHeight: isBriefingLoading && !briefing ? '100px' : 'auto'
-            }}>
-              <div style={{ position: 'absolute', top: 0, right: 0, width: '100px', height: '100px', background: 'radial-gradient(circle, var(--accent-cal) 0%, transparent 70%)', opacity: 0.1, filter: 'blur(20px)' }}></div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' }}>
-                <div style={{ background: 'var(--accent-cal-gradient)', width: '24px', height: '24px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"></path></svg>
-                </div>
-                <span style={{ fontSize: '11px', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '1px', color: 'var(--accent-cal)' }}>
-                  {t('aiBriefing')} {isBriefingLoading && <span style={{ opacity: 0.5, marginLeft: '8px' }}>({t('analyzing')}...)</span>}
-                </span>
-              </div>
-              {isBriefingLoading && !briefing ? (
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '8px' }}>
-                  <div className="skeleton" style={{ height: '14px', width: '90%', background: 'rgba(255,255,255,0.05)' }}></div>
-                  <div className="skeleton" style={{ height: '14px', width: '75%', background: 'rgba(255,255,255,0.05)' }}></div>
-                </div>
-              ) : (
-                <div className="markdown-content">
-                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                    {briefing}
-                  </ReactMarkdown>
-                </div>
-              )}
-            </div>
-          )}
+
 
           {/* Performance Rings */}
           <div className="glass-panel" style={{ padding: '24px', borderRadius: '28px', display: 'flex', flexWrap: 'wrap', gap: '32px', alignItems: 'center', justifyContent: 'center' }}>
@@ -1196,7 +1261,7 @@ export default function Home() {
                 <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'var(--accent-cal)' }}></div>
                 <span style={{ fontSize: '13px', fontWeight: 600 }}>{t('nut')}</span>
                 <span style={{ fontSize: '11px', color: 'var(--text-secondary)', marginLeft: 'auto' }}>
-                  {Math.round((foods.reduce((sum, f) => sum + f.calories, 0) / goals.calories) * 100)}%
+                  {Math.round((calTotal / adjustedCalGoal) * 100)}%
                 </span>
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -1251,13 +1316,34 @@ export default function Home() {
                   }}>
                     {calTotal}
                   </span>
-                  <span className="label" style={{ opacity: 0.6 }}>/ {goals.calories} kcal</span>
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
+                    <span className="label" style={{ opacity: 0.6 }}>/ {adjustedCalGoal} kcal</span>
+                    {burnedToday > 0 && (
+                      <span style={{ fontSize: '10px', color: 'var(--accent-pro)', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '2px' }}>
+                        🔥 +{burnedToday}
+                      </span>
+                    )}
+                  </div>
                 </div>
               </div>
-              <div className="cal-stats">
-                <div className="stat">
-                  <span className="stat-value" style={isOverCal ? { color: 'var(--danger)' } : {}}>{isOverCal ? calTotal - goals.calories : calRemaining}</span>
-                  <span className="stat-label" style={{ fontWeight: 700, fontSize: '11px' }}>
+              <div className="cal-stats" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', marginTop: '24px' }}>
+                <div className="stat" style={{ textAlign: 'center' }}>
+                  <span className="stat-value" style={{ fontSize: '16px', fontWeight: 800 }}>{goals.calories}</span>
+                  <span className="stat-label" style={{ fontWeight: 700, fontSize: '10px', opacity: 0.6, textTransform: 'uppercase' }}>
+                    {t('target')}
+                  </span>
+                </div>
+                <div className="stat" style={{ textAlign: 'center', borderLeft: '1px solid rgba(255,255,255,0.1)', borderRight: '1px solid rgba(255,255,255,0.1)' }}>
+                  <span className="stat-value" style={{ fontSize: '16px', fontWeight: 800, color: 'var(--accent-pro)' }}>+{burnedToday}</span>
+                  <span className="stat-label" style={{ fontWeight: 700, fontSize: '10px', opacity: 0.6, textTransform: 'uppercase' }}>
+                    {t('activeBonus')}
+                  </span>
+                </div>
+                <div className="stat" style={{ textAlign: 'center' }}>
+                  <span className="stat-value" style={isOverCal ? { color: 'var(--danger)', fontSize: '16px', fontWeight: 800 } : { fontSize: '16px', fontWeight: 800 }}>
+                    {calRemaining}
+                  </span>
+                  <span className="stat-label" style={{ fontWeight: 700, fontSize: '10px', opacity: 0.6, textTransform: 'uppercase' }}>
                     {isOverCal ? t('over') : t('remaining')}
                   </span>
                 </div>
@@ -1325,46 +1411,105 @@ export default function Home() {
                       <div key={i} className="food-item skeleton" style={{ height: '72px', border: 'none' }}></div>
                     ))}
                   </div>
-                ) : (foods.length === 0) ? (
+                ) : (unifiedHistory.length === 0) ? (
                   <div className="glass-panel" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '40px 20px', color: 'var(--text-secondary)', textAlign: 'center', gap: '12px', background: 'rgba(255,255,255,0.02)' }}>
                     <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.5 }}><path d="M18 8h1a4 4 0 0 1 0 8h-1"></path><path d="M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"></path><line x1="6" y1="1" x2="6" y2="4"></line><line x1="10" y1="1" x2="10" y2="4"></line><line x1="14" y1="1" x2="14" y2="4"></line></svg>
-                    <div style={{ fontSize: '14px', fontWeight: 600 }}>{t('noFoodLogged') || "No food logged yet"}</div>
-                    <div style={{ fontSize: '12px', opacity: 0.6 }}>{t('tapFoodButton') || "Tap the FOOD button above to get started."}</div>
+                    <div style={{ fontSize: '14px', fontWeight: 600 }}>{t('noFoodLogged')}</div>
+                    <div style={{ fontSize: '12px', opacity: 0.6 }}>{t('tapFoodButton')}</div>
                   </div>
                 ) : (
-                  <>
-                    {/* Food Entries */}
-                    {['Breakfast', 'Lunch', 'Dinner', 'Snack'].map(category => {
-                      const categoryFoods = foods.filter(f => (f.mealCategory || 'Breakfast') === category);
-                      if (categoryFoods.length === 0) return null;
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    {unifiedHistory.map((item) => {
+                      let icon = '📝';
+                      let color = 'var(--text-primary)';
+                      let stats = null;
+                      let canEdit = true;
+
+                      if (item.type === 'food') {
+                        const cat = (item.category || 'Breakfast').toLowerCase();
+                        if (cat === 'breakfast') icon = '🍳';
+                        else if (cat === 'lunch') icon = '🥗';
+                        else if (cat === 'dinner') icon = '🍲';
+                        else icon = '🍪';
+                        color = 'var(--accent-cal)';
+                        stats = (
+                          <span>
+                            <strong style={{ color }}>{item.calories}</strong> kcal
+                            {item.protein ? <span> | <strong>{item.protein}</strong>g P</span> : null}
+                          </span>
+                        );
+                      } else if (item.type === 'exercise') {
+                        icon = '🏃';
+                        color = 'var(--accent-pro)';
+                        stats = (
+                          <span>
+                            <strong>{item.duration}</strong> min | <strong style={{ color }}>{item.calories}</strong> kcal
+                          </span>
+                        );
+                      } else if (item.type === 'sleep') {
+                        icon = '🌙';
+                        color = 'var(--accent-fat)';
+                        stats = (
+                          <span>
+                            <strong>{item.duration}</strong> hrs | {item.category === 'Good' ? t('goodQuality') : item.category === 'Fair' ? t('fairQuality') : t('poorQuality')}
+                          </span>
+                        );
+                      } else if (item.type === 'weight') {
+                        icon = '⚖️';
+                        color = '#38bdf8';
+                        stats = (
+                          <span>
+                            <strong style={{ color }}>{item.weight}</strong> kg
+                          </span>
+                        );
+                        canEdit = false;
+                      }
 
                       return (
-                        <div key={category} style={{ marginBottom: '16px' }}>
-                          <h4 style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-secondary)', marginBottom: '12px', textTransform: 'uppercase', letterSpacing: '1px', display: 'flex', alignItems: 'center', gap: '8px', opacity: 0.8 }}>
-                            <span style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'var(--accent-pro)' }}></span>
-                            {t(category.toLowerCase() as any) || category}
-                          </h4>
-                          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                            {categoryFoods.map(food => (
-                              <div key={food.id} className="food-item" style={{ padding: '12px 20px' }}>
-                                <div className="food-info">
-                                  <h4 style={{ fontSize: '14px', fontWeight: 600 }}>{food.name}</h4>
-                                  <div className="food-stats" style={{ marginTop: '2px', fontSize: '12px' }}>
-                                    <span><strong style={{ color: 'var(--accent-cal)' }}>{food.calories}</strong> kcal</span>
-                                    <span><strong>{food.protein}</strong>g P</span>
-                                  </div>
-                                </div>
-                                <div style={{ display: 'flex', gap: '4px' }}>
-                                  <button className="icon-btn" onClick={() => openEditModal(food)} style={{ width: '32px', height: '32px' }}><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg></button>
-                                  <button className="icon-btn" onClick={() => handleDeleteFood(food.id)} style={{ width: '32px', height: '32px' }}><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></button>
-                                </div>
+                        <div key={`${item.type}-${item.id}`} className="food-item" style={{ padding: '12px 20px', borderLeft: `4px solid ${color}` }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flex: 1 }}>
+                            <div style={{ fontSize: '20px', width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(255,255,255,0.03)', borderRadius: '10px' }}>
+                              {icon}
+                            </div>
+                            <div className="food-info">
+                              <h4 style={{ fontSize: '14px', fontWeight: 600 }}>{item.name || (item.type === 'sleep' ? t('sleep') : item.type)}</h4>
+                              <div className="food-stats" style={{ marginTop: '2px', fontSize: '12px', opacity: 0.8 }}>
+                                {stats}
                               </div>
-                            ))}
+                            </div>
+                            <div style={{ marginLeft: 'auto', fontSize: '10px', opacity: 0.4 }}>
+                              {format(new Date(item.date), 'HH:mm')}
+                            </div>
+                          </div>
+                          <div style={{ display: 'flex', gap: '4px', marginLeft: '12px' }}>
+                            {canEdit && (
+                              <button className="icon-btn" onClick={() => {
+                                if (item.type === 'food') {
+                                  const foodItem = foods.find(f => f.id === item.id);
+                                  if (foodItem) openEditModal(foodItem);
+                                } else if (item.type === 'exercise') {
+                                  const exItem = exerciseRecords.find(e => e.id === item.id);
+                                  if (exItem) setEditingExercise(exItem);
+                                } else if (item.type === 'sleep') {
+                                  const slItem = sleepRecords.find(s => s.id === item.id);
+                                  if (slItem) setEditingSleep(slItem);
+                                }
+                              }} style={{ width: '32px', height: '32px' }}>
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+                              </button>
+                            )}
+                            <button className="icon-btn delete-btn-hover" onClick={() => {
+                              if (item.type === 'food') handleDeleteFood(item.id);
+                              else if (item.type === 'exercise') handleDeleteExercise(item.id);
+                              else if (item.type === 'sleep') handleDeleteSleep(item.id);
+                            }} style={{ width: '32px', height: '32px' }}>
+                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                            </button>
                           </div>
                         </div>
                       );
                     })}
-                  </>
+                  </div>
                 )}
               </div>
             </section>
@@ -1459,9 +1604,9 @@ export default function Home() {
       {/* Add Food Modal */}
       {isFoodModalOpen && (
         <div className="modal-overlay" onClick={() => setIsFoodModalOpen(false)}>
-          <div className="glass-panel modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '500px', padding: '32px', borderRadius: '28px' }}>
+          <div className="glass-panel modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '500px', padding: '32px', borderRadius: '28px', overflow: 'visible' }}>
             <div className="modal-header" style={{ marginBottom: '24px' }}>
-              <h3 style={{ fontSize: '20px', fontWeight: 800 }}>Add Food</h3>
+              <h3 style={{ fontSize: '20px', fontWeight: 800 }}>{t('addFood')}</h3>
               <button onClick={() => setIsFoodModalOpen(false)} className="icon-btn" style={{ borderRadius: '50%', width: '32px', height: '32px' }}>&times;</button>
             </div>
 
@@ -1473,7 +1618,7 @@ export default function Home() {
                   style={{ flex: 1, height: '48px', borderRadius: '16px' }}
                 >
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2"></path><path d="M17 3h2a2 2 0 0 1 2 2v2"></path><path d="M21 17v2a2 2 0 0 1-2 2h-2"></path><path d="M7 21H5a2 2 0 0 1-2-2v-2"></path><rect x="7" y="7" width="10" height="10" rx="1"></rect></svg>
-                  {isScanning ? 'Stop' : 'Scan'}
+                  {isScanning ? t('stopBtn') : t('scanBtn')}
                 </button>
 
                 <div style={{ flex: 1 }}>
@@ -1490,7 +1635,7 @@ export default function Home() {
                     style={{ width: '100%', margin: 0, height: '48px', fontSize: '14px', background: 'var(--accent-pro-gradient)', color: 'white', display: 'flex', justifyContent: 'center', borderRadius: '16px', cursor: 'pointer' }}
                   >
                     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '8px' }}><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
-                    {aiLoading ? '...' : 'AI Scan'}
+                    {aiLoading ? '...' : t('aiScanBtn')}
                   </label>
                 </div>
               </div>
@@ -1508,7 +1653,7 @@ export default function Home() {
                 <input
                   type="text"
                   required
-                  placeholder="What did you eat?"
+                  placeholder={t('foodPlaceholder')}
                   value={foodInputs.name}
                   onChange={e => {
                     setFoodInputs({ ...foodInputs, name: e.target.value });
@@ -1565,19 +1710,27 @@ export default function Home() {
                   onChange={e => setFoodInputs({ ...foodInputs, mealCategory: e.target.value })}
                   style={{ flex: 1, height: '52px', padding: '0 16px', borderRadius: '16px', border: '1px solid var(--panel-border)', background: 'rgba(0,0,0,0.3)', color: 'var(--text-primary)', fontWeight: 600 }}
                 >
-                  <option value="Breakfast">🍳 Breakfast</option>
-                  <option value="Lunch">🥗 Lunch</option>
-                  <option value="Dinner">🍲 Dinner</option>
-                  <option value="Snack">🍪 Snack</option>
+                  <option value="Breakfast">🍳 {t('breakfast')}</option>
+                  <option value="Lunch">🥗 {t('lunch')}</option>
+                  <option value="Dinner">🍲 {t('dinner')}</option>
+                  <option value="Snack">🍪 {t('snack')}</option>
                 </select>
-                <div style={{ flex: 1 }}>
-                  <input
-                    type="date"
-                    required
-                    value={foodInputs.date}
-                    onChange={e => setFoodInputs({ ...foodInputs, date: e.target.value })}
-                    style={{ width: '100%', height: '52px', padding: '0 16px', borderRadius: '16px', color: 'var(--text-primary)' }}
-                  />
+                <div style={{ flex: 1, position: 'relative' }}>
+                  <button
+                    type="button"
+                    onClick={() => setOpenCalendar(openCalendar === 'food' ? null : 'food')}
+                    style={{ width: '100%', height: '52px', padding: '0 16px', borderRadius: '16px', border: '1px solid var(--panel-border)', background: 'rgba(0,0,0,0.3)', color: 'var(--text-primary)', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '14px' }}
+                  >
+                    <span>📅 {foodInputs.date}</span>
+                    <span style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>▼</span>
+                  </button>
+                  {openCalendar === 'food' && (
+                    <CalendarPicker
+                      value={foodInputs.date}
+                      onChange={(d) => setFoodInputs({ ...foodInputs, date: d })}
+                      onClose={() => setOpenCalendar(null)}
+                    />
+                  )}
                 </div>
               </div>
 
@@ -1586,7 +1739,7 @@ export default function Home() {
                   type="number"
                   required
                   min="0"
-                  placeholder="Calories"
+                  placeholder={t('calories')}
                   value={foodInputs.calories}
                   onChange={e => setFoodInputs({ ...foodInputs, calories: e.target.value })}
                   style={{ height: '52px', padding: '0 16px', borderRadius: '16px' }}
@@ -1600,7 +1753,7 @@ export default function Home() {
                     required
                     min="0"
                     step="0.1"
-                    placeholder="Protein"
+                    placeholder={t('protein')}
                     value={foodInputs.protein}
                     onChange={e => setFoodInputs({ ...foodInputs, protein: e.target.value })}
                     style={{ height: '52px', padding: '0 16px', borderRadius: '16px' }}
@@ -1612,7 +1765,7 @@ export default function Home() {
                     type="number"
                     min="0"
                     step="0.1"
-                    placeholder="Fat"
+                    placeholder={t('fat')}
                     value={foodInputs.fat}
                     onChange={e => setFoodInputs({ ...foodInputs, fat: e.target.value })}
                     style={{ height: '52px', padding: '0 16px', borderRadius: '16px' }}
@@ -1622,7 +1775,7 @@ export default function Home() {
               </div>
 
               <button type="submit" className="primary-btn active" disabled={loading} style={{ marginTop: '24px', width: '100%', height: '56px', borderRadius: '18px' }}>
-                <span>ADD FOOD</span>
+                <span>{t('addFoodBtn')}</span>
               </button>
             </form>
           </div>
@@ -1632,10 +1785,10 @@ export default function Home() {
       {/* Log Activity Modal */}
       {isActivityModalOpen && (
         <div className="modal-overlay" onClick={() => setIsActivityModalOpen(false)}>
-          <div className="glass-panel modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '500px', padding: '32px', borderRadius: '28px' }}>
+          <div className="glass-panel modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '500px', padding: '32px', borderRadius: '28px', overflow: 'visible' }}>
             <div className="modal-header" style={{ marginBottom: '24px', flexDirection: 'column', alignItems: 'flex-start', gap: '16px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center' }}>
-                <h3 style={{ fontSize: '20px', fontWeight: 800 }}>Log Activity</h3>
+                <h3 style={{ fontSize: '20px', fontWeight: 800 }}>{t('logActivityTitle')}</h3>
                 <button onClick={() => setIsActivityModalOpen(false)} className="icon-btn" style={{ borderRadius: '50%', width: '32px', height: '32px' }}>&times;</button>
               </div>
 
@@ -1647,7 +1800,7 @@ export default function Home() {
                   className={`glass-btn ${logModalTab === 'exercise' ? 'active' : ''}`}
                   style={{ flex: 1, border: 'none', borderRadius: '10px', minHeight: '36px', fontSize: '13px' }}
                 >
-                  TRAINING
+                  {t('trainingTab')}
                 </button>
                 <button
                   type="button"
@@ -1655,7 +1808,7 @@ export default function Home() {
                   className={`glass-btn ${logModalTab === 'sleep' ? 'active' : ''}`}
                   style={{ flex: 1, border: 'none', borderRadius: '10px', minHeight: '36px', fontSize: '13px' }}
                 >
-                  RECOVERY
+                  {t('recoveryTab')}
                 </button>
               </div>
             </div>
@@ -1665,7 +1818,7 @@ export default function Home() {
                 <div className="input-group">
                   <input
                     type="text"
-                    placeholder="Activity Name (e.g., Running)"
+                    placeholder={t('activityPlaceholder')}
                     value={exerciseInput.name}
                     onChange={e => setExerciseInput({ ...exerciseInput, name: e.target.value })}
                     style={{ height: '52px', borderRadius: '16px' }}
@@ -1673,39 +1826,47 @@ export default function Home() {
                 </div>
                 <div style={{ display: 'flex', gap: '16px' }}>
                   <div style={{ flex: 1, position: 'relative' }}>
-                    <input
-                      type="number"
-                      placeholder="Minutes"
-                      value={exerciseInput.durationMinutes || ''}
-                      onChange={e => setExerciseInput({ ...exerciseInput, durationMinutes: Number(e.target.value) })}
-                      style={{ height: '52px', borderRadius: '16px' }}
-                    />
-                    <span style={{ position: 'absolute', right: '16px', top: '50%', transform: 'translateY(-50%)', fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 700 }}>MIN</span>
+                    <button
+                      type="button"
+                      onClick={() => setOpenCalendar(openCalendar === 'exercise' ? null : 'exercise')}
+                      style={{ width: '100%', height: '52px', padding: '0 16px', borderRadius: '16px', border: '1px solid var(--panel-border)', background: 'rgba(0,0,0,0.3)', color: 'var(--text-primary)', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '14px' }}
+                    >
+                      <span>📅 {exerciseInput.date}</span>
+                      <span style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>▼</span>
+                    </button>
+                    {openCalendar === 'exercise' && (
+                      <CalendarPicker
+                        value={exerciseInput.date}
+                        onChange={(d) => setExerciseInput({ ...exerciseInput, date: d })}
+                        onClose={() => setOpenCalendar(null)}
+                      />
+                    )}
                   </div>
                   <div style={{ flex: 1, position: 'relative' }}>
                     <input
-                      type="date"
-                      required
-                      value={exerciseInput.date}
-                      onChange={e => setExerciseInput({ ...exerciseInput, date: e.target.value })}
-                      style={{ height: '52px', padding: '0 16px', borderRadius: '16px', color: 'var(--text-primary)' }}
+                      type="number"
+                      placeholder={t('minutes')}
+                      value={exerciseInput.durationMinutes || ''}
+                      onChange={e => setExerciseInput({ ...exerciseInput, durationMinutes: Number(e.target.value) })}
+                      style={{ height: '52px', borderRadius: '16px', paddingRight: '48px' }}
                     />
+                    <span style={{ position: 'absolute', right: '16px', top: '50%', transform: 'translateY(-50%)', fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 700 }}>{t('unitMin').toUpperCase()}</span>
                   </div>
                 </div>
                 <div style={{ display: 'flex', gap: '16px' }}>
                   <div style={{ flex: 1, position: 'relative' }}>
                     <input
                       type="number"
-                      placeholder="Kcal Burned"
+                      placeholder={t('caloriesBurnedPlc')}
                       value={exerciseInput.caloriesBurned || ''}
                       onChange={e => setExerciseInput({ ...exerciseInput, caloriesBurned: Number(e.target.value) })}
-                      style={{ height: '52px', borderRadius: '16px' }}
+                      style={{ height: '52px', borderRadius: '16px', paddingRight: '54px' }}
                     />
-                    <span style={{ position: 'absolute', right: '16px', top: '50%', transform: 'translateY(-50%)', fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 700 }}>KCAL</span>
+                    <span style={{ position: 'absolute', right: '16px', top: '50%', transform: 'translateY(-50%)', fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 700 }}>{t('unitKcal').toUpperCase()}</span>
                   </div>
                 </div>
                 <button onClick={(e) => { handleLogExercise(); setIsActivityModalOpen(false); }} className="primary-btn active" style={{ height: '56px', borderRadius: '18px', marginTop: '8px' }}>
-                  LOG ACTIVITY
+                  {t('logActivityBtn')}
                 </button>
               </div>
             )}
@@ -1716,143 +1877,57 @@ export default function Home() {
                   <div style={{ flex: 1, position: 'relative' }}>
                     <input
                       type="number"
-                      placeholder="Hours"
+                      placeholder={t('hours')}
                       value={sleepInput.durationHours || ''}
                       onChange={e => setSleepInput({ ...sleepInput, durationHours: Number(e.target.value) })}
-                      style={{ height: '52px', borderRadius: '16px' }}
+                      style={{ height: '52px', borderRadius: '16px', paddingRight: '44px' }}
                     />
-                    <span style={{ position: 'absolute', right: '16px', top: '50%', transform: 'translateY(-50%)', fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 700 }}>HR</span>
+                    <span style={{ position: 'absolute', right: '16px', top: '50%', transform: 'translateY(-50%)', fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 700 }}>{t('unitHr').toUpperCase()}</span>
                   </div>
                   <div style={{ flex: 1, position: 'relative' }}>
                     <input
                       type="number"
-                      placeholder="Minutes"
+                      placeholder={t('minutes')}
                       value={sleepInput.durationMinutes || ''}
                       onChange={e => setSleepInput({ ...sleepInput, durationMinutes: Number(e.target.value) })}
-                      style={{ height: '52px', borderRadius: '16px' }}
+                      style={{ height: '52px', borderRadius: '16px', paddingRight: '48px' }}
                     />
-                    <span style={{ position: 'absolute', right: '16px', top: '50%', transform: 'translateY(-50%)', fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 700 }}>MIN</span>
+                    <span style={{ position: 'absolute', right: '16px', top: '50%', transform: 'translateY(-50%)', fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 700 }}>{t('unitMin').toUpperCase()}</span>
                   </div>
                 </div>
                 <div style={{ display: 'flex', gap: '16px' }}>
                   <div style={{ flex: 1, position: 'relative' }}>
-                    <input
-                      type="date"
-                      required
-                      value={sleepInput.date}
-                      onChange={e => setSleepInput({ ...sleepInput, date: e.target.value })}
-                      style={{ width: '100%', height: '52px', padding: '0 16px', borderRadius: '16px', color: 'var(--text-primary)' }}
-                    />
+                    <button
+                      type="button"
+                      onClick={() => setOpenCalendar(openCalendar === 'sleep' ? null : 'sleep')}
+                      style={{ width: '100%', height: '52px', padding: '0 16px', borderRadius: '16px', border: '1px solid var(--panel-border)', background: 'rgba(0,0,0,0.3)', color: 'var(--text-primary)', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '14px' }}
+                    >
+                      <span>📅 {sleepInput.date}</span>
+                      <span style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>▼</span>
+                    </button>
+                    {openCalendar === 'sleep' && (
+                      <CalendarPicker
+                        value={sleepInput.date}
+                        onChange={(d) => setSleepInput({ ...sleepInput, date: d })}
+                        onClose={() => setOpenCalendar(null)}
+                      />
+                    )}
                   </div>
                   <select
                     value={sleepInput.quality}
                     onChange={e => setSleepInput({ ...sleepInput, quality: e.target.value })}
                     style={{ flex: 1, height: '52px', borderRadius: '16px', border: '1px solid var(--panel-border)', background: 'rgba(0,0,0,0.3)', color: 'var(--text-primary)', fontWeight: 600, padding: '0 16px' }}
                   >
-                    <option value="Good">Good Quality</option>
-                    <option value="Fair">Fair Quality</option>
-                    <option value="Poor">Poor Quality</option>
+                    <option value="Good">{t('goodQuality')}</option>
+                    <option value="Fair">{t('fairQuality')}</option>
+                    <option value="Poor">{t('poorQuality')}</option>
                   </select>
                 </div>
                 <button onClick={(e) => { handleLogSleep(); setIsActivityModalOpen(false); }} className="primary-btn active" style={{ height: '56px', borderRadius: '18px', marginTop: '8px' }}>
-                  RECORD SLEEP
+                  {t('recordSleepBtn')}
                 </button>
               </div>
             )}
-          </div>
-        </div>
-      )}
-
-      {/* Edit Food Modal */}
-      {editingFood && (
-        <div className="modal-overlay" onClick={() => setEditingFood(null)}>
-          <div className="glass-panel modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '400px' }}>
-            <div className="modal-header">
-              <h3>Edit Entry</h3>
-              <button onClick={() => setEditingFood(null)} className="icon-btn">&times;</button>
-            </div>
-            <form onSubmit={handleEditFoodSubmit}>
-              <div className="input-group" style={{ marginBottom: '12px' }}>
-                <input type="text" required placeholder="What did you eat?" value={editInputs.name} onChange={e => setEditInputs({ ...editInputs, name: e.target.value })} />
-              </div>
-              <div className="input-row" style={{ marginBottom: '12px' }}>
-                <div className="input-group">
-                  <select
-                    value={editInputs.mealCategory}
-                    onChange={e => setEditInputs({ ...editInputs, mealCategory: e.target.value })}
-                    style={{ padding: '8px', borderRadius: '8px', border: '1px solid var(--panel-border)', background: 'var(--bg-color)', color: 'var(--text-primary)' }}
-                  >
-                    <option value="Breakfast">🍳 Breakfast</option>
-                    <option value="Lunch">🥗 Lunch</option>
-                    <option value="Dinner">🍲 Dinner</option>
-                    <option value="Snack">🍪 Snack</option>
-                  </select>
-                </div>
-                <div className="input-group">
-                  <input type="number" required min="0" placeholder="Calories" value={editInputs.calories} onChange={e => setEditInputs({ ...editInputs, calories: e.target.value })} />
-                </div>
-              </div>
-              <div className="input-row" style={{ marginBottom: '24px' }}>
-                <div className="input-group">
-                  <input type="number" required min="0" step="0.1" placeholder="Protein (g)" value={editInputs.protein} onChange={e => setEditInputs({ ...editInputs, protein: e.target.value })} />
-                </div>
-                <div className="input-group">
-                  <input type="number" min="0" step="0.1" placeholder="Fat (g)" value={editInputs.fat} onChange={e => setEditInputs({ ...editInputs, fat: e.target.value })} />
-                </div>
-              </div>
-              <button type="submit" className="primary-btn" style={{ width: '100%' }}>Save Changes</button>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Edit Exercise Modal */}
-      {editingExercise && (
-        <div className="modal-overlay" onClick={() => setEditingExercise(null)}>
-          <div className="glass-panel modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '400px' }}>
-            <div className="modal-header">
-              <h3>Edit Exercise</h3>
-              <button onClick={() => setEditingExercise(null)} className="icon-btn">&times;</button>
-            </div>
-            <form onSubmit={handleEditExerciseSubmit}>
-              <div className="input-group" style={{ marginBottom: '12px' }}>
-                <input type="text" required value={editingExercise.name} onChange={e => setEditingExercise({ ...editingExercise, name: e.target.value })} />
-              </div>
-              <div className="input-row" style={{ marginBottom: '12px' }}>
-                <div className="input-group">
-                  <input type="number" required min="0" placeholder="Minutes" value={editingExercise.durationMinutes} onChange={e => setEditingExercise({ ...editingExercise, durationMinutes: Number(e.target.value) })} />
-                </div>
-                <div className="input-group">
-                  <input type="number" min="0" placeholder="Calories Burned" value={editingExercise.caloriesBurned} onChange={e => setEditingExercise({ ...editingExercise, caloriesBurned: Number(e.target.value) })} title="Optional: calories burned" />
-                </div>
-              </div>
-              <button type="submit" className="primary-btn" style={{ width: '100%' }}>Save Changes</button>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Edit Sleep Modal */}
-      {editingSleep && (
-        <div className="modal-overlay" onClick={() => setEditingSleep(null)}>
-          <div className="glass-panel modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '400px' }}>
-            <div className="modal-header">
-              <h3>Edit Sleep</h3>
-              <button onClick={() => setEditingSleep(null)} className="icon-btn">&times;</button>
-            </div>
-            <form onSubmit={handleEditSleepSubmit}>
-              <div className="input-group" style={{ marginBottom: '12px' }}>
-                <input type="number" step="0.1" required value={editingSleep.durationHours} onChange={e => setEditingSleep({ ...editingSleep, durationHours: Number(e.target.value) })} />
-              </div>
-              <div className="input-group" style={{ marginBottom: '24px' }}>
-                <select value={editingSleep.quality} onChange={e => setEditingSleep({ ...editingSleep, quality: e.target.value })} style={{ padding: '10px', borderRadius: '10px', border: '1px solid var(--panel-border)', background: 'var(--bg-color)', color: 'var(--text-primary)', width: '100%' }}>
-                  <option value="Good">Good</option>
-                  <option value="Fair">Fair</option>
-                  <option value="Poor">Poor</option>
-                </select>
-              </div>
-              <button type="submit" className="primary-btn" style={{ width: '100%' }}>Save Changes</button>
-            </form>
           </div>
         </div>
       )}
@@ -1938,6 +2013,101 @@ export default function Home() {
         </div>
       )}
 
+      {/* Edit Food Modal */}
+      {editingFood && (
+        <div className="modal-overlay" onClick={() => setEditingFood(null)}>
+          <div className="glass-panel modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '400px' }}>
+            <div className="modal-header">
+              <h3>{t('editEntry')}</h3>
+              <button onClick={() => setEditingFood(null)} className="icon-btn">&times;</button>
+            </div>
+            <form onSubmit={handleEditFoodSubmit}>
+              <div className="input-group" style={{ marginBottom: '12px' }}>
+                <input type="text" required placeholder={t('foodPlaceholder')} value={editInputs.name} onChange={e => setEditInputs({ ...editInputs, name: e.target.value })} />
+              </div>
+              <div className="input-row" style={{ marginBottom: '12px' }}>
+                <div className="input-group">
+                  <select
+                    value={editInputs.mealCategory}
+                    onChange={e => setEditInputs({ ...editInputs, mealCategory: e.target.value })}
+                    style={{ padding: '8px', borderRadius: '8px', border: '1px solid var(--panel-border)', background: 'var(--bg-color)', color: 'var(--text-primary)' }}
+                  >
+                    <option value="Breakfast">🍳 {t('breakfast')}</option>
+                    <option value="Lunch">🥗 {t('lunch')}</option>
+                    <option value="Dinner">🍲 {t('dinner')}</option>
+                    <option value="Snack">🍪 {t('snack')}</option>
+                  </select>
+                </div>
+                <div className="input-group">
+                  <input type="number" required min="0" placeholder={t('calories')} value={editInputs.calories} onChange={e => setEditInputs({ ...editInputs, calories: e.target.value })} />
+                </div>
+              </div>
+              <div className="input-row" style={{ marginBottom: '24px' }}>
+                <div className="input-group">
+                  <input type="number" required min="0" step="0.1" placeholder={`${t('protein')} (g)`} value={editInputs.protein} onChange={e => setEditInputs({ ...editInputs, protein: e.target.value })} />
+                </div>
+                <div className="input-group">
+                  <input type="number" min="0" step="0.1" placeholder={`${t('fat')} (g)`} value={editInputs.fat} onChange={e => setEditInputs({ ...editInputs, fat: e.target.value })} />
+                </div>
+              </div>
+              <button type="submit" className="primary-btn" style={{ width: '100%' }}>{t('saveChanges')}</button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Exercise Modal */}
+      {editingExercise && (
+        <div className="modal-overlay" onClick={() => setEditingExercise(null)}>
+          <div className="glass-panel modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '400px' }}>
+            <div className="modal-header">
+              <h3>{t('editExercise')}</h3>
+              <button onClick={() => setEditingExercise(null)} className="icon-btn">&times;</button>
+            </div>
+            <form onSubmit={handleEditExerciseSubmit}>
+              <div className="input-group" style={{ marginBottom: '12px' }}>
+                <input type="text" required value={editingExercise.name} onChange={e => setEditingExercise({ ...editingExercise, name: e.target.value })} />
+              </div>
+              <div className="input-row" style={{ marginBottom: '12px' }}>
+                <div className="input-group">
+                  <input type="number" required min="0" placeholder={t('minutes')} value={editingExercise.durationMinutes} onChange={e => setEditingExercise({ ...editingExercise, durationMinutes: Number(e.target.value) })} />
+                </div>
+                <div className="input-group">
+                  <input type="number" min="0" placeholder={t('caloriesBurnedPlc')} value={editingExercise.caloriesBurned} onChange={e => setEditingExercise({ ...editingExercise, caloriesBurned: Number(e.target.value) })} title="Optional: calories burned" />
+                </div>
+              </div>
+              <button type="submit" className="primary-btn" style={{ width: '100%' }}>{t('saveChanges')}</button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Sleep Modal */}
+      {editingSleep && (
+        <div className="modal-overlay" onClick={() => setEditingSleep(null)}>
+          <div className="glass-panel modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '400px' }}>
+            <div className="modal-header">
+              <h3>{t('editSleep')}</h3>
+              <button onClick={() => setEditingSleep(null)} className="icon-btn">&times;</button>
+            </div>
+            <form onSubmit={handleEditSleepSubmit}>
+              <div className="input-group" style={{ marginBottom: '12px' }}>
+                <input type="number" step="0.1" required value={editingSleep.durationHours} onChange={e => setEditingSleep({ ...editingSleep, durationHours: Number(e.target.value) })} />
+              </div>
+              <div className="input-group" style={{ marginBottom: '24px' }}>
+                <select value={editingSleep.quality} onChange={e => setEditingSleep({ ...editingSleep, quality: e.target.value })} style={{ padding: '10px', borderRadius: '10px', border: '1px solid var(--panel-border)', background: 'var(--bg-color)', color: 'var(--text-primary)', width: '100%' }}>
+                  <option value="Good">{t('goodQuality')}</option>
+                  <option value="Fair">{t('fairQuality')}</option>
+                  <option value="Poor">{t('poorQuality')}</option>
+                </select>
+              </div>
+              <button type="submit" className="primary-btn" style={{ width: '100%' }}>{t('saveChanges')}</button>
+            </form>
+          </div>
+        </div>
+      )}
+
+
       {/* Simplified AI Chat Widget */}
       <div className={`chat-widget ${isChatOpen ? 'open' : ''}`}>
         {isChatOpen && (
@@ -2006,11 +2176,14 @@ export default function Home() {
               })}
               {aiLoading && (
                 <div className="message assistant">
-                  <div className="msg-bubble" style={{ background: 'transparent', boxShadow: 'none' }}>
-                    <div className="loading-dots">Thinking...</div>
+                  <div className="msg-bubble" style={{ background: 'rgba(255,255,255,0.03)', boxShadow: 'none', padding: '16px 20px' }}>
+                    <span className="typing-dot"></span>
+                    <span className="typing-dot"></span>
+                    <span className="typing-dot"></span>
                   </div>
                 </div>
               )}
+              <div ref={chatBottomRef} />
             </div>
 
             {/* Input Area */}
@@ -2028,7 +2201,7 @@ export default function Home() {
             </form>
           </div>
         )}
-        <button id="chat-toggle-btn" className="chat-toggle-btn shadow-lg" onClick={() => setIsChatOpen(!isChatOpen)}>
+        <button id="chat-toggle-btn" className="chat-toggle-btn shadow-lg mobile-hidden" onClick={() => setIsChatOpen(!isChatOpen)}>
           {isChatOpen ? (
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
           ) : (
@@ -2038,6 +2211,7 @@ export default function Home() {
           )}
         </button>
       </div>
+      <SuccessAnimation trigger={!!successVariant} variant={successVariant || "food"} onComplete={() => setSuccessVariant(null)} />
     </div>
   );
 }

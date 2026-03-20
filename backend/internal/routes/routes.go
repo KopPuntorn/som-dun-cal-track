@@ -22,6 +22,7 @@ func SetupRoutes(e *echo.Echo) {
 	api.POST("/foods", handlers.CreateFood)
 	api.PUT("/foods/:id", handlers.UpdateFood)
 	api.DELETE("/foods/:id", handlers.DeleteFood)
+	api.GET("/product/:barcode", handlers.GetProductByBarcode)
 
 	api.GET("/goals", handlers.GetGoals)
 	api.PUT("/goals", handlers.UpdateGoals)
@@ -66,7 +67,6 @@ func SetupRoutes(e *echo.Echo) {
 	dashboard := api.Group("/dashboard")
 	{
 		dashboard.GET("/summary", handlers.GetDashboardSummary)
-		dashboard.GET("/briefing", handlers.GetDashboardBriefing)
 	}
 
 	// Player Card

@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"encoding/json"
 	"log/slog"
 	"net/http"
 	"regexp"
@@ -209,4 +210,42 @@ func DeleteFood(c echo.Context) error {
 	}
 
 	return c.JSON(http.StatusOK, map[string]string{"message": "deleted successfully"})
+}
+
+// GetProductByBarcode fetches product data from Open Food Facts API
+func GetProductByBarcode(c echo.Context) error {
+	barcode := c.Param("barcode")
+	if barcode == "" {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "barcode is required"})
+	}
+
+	url := "https://world.openfoodfacts.org/api/v0/product/" + barcode + ".json"
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "failed to create request"})
+	}
+
+	// Set User-Agent as required by Open Food Facts
+	req.Header.Set("User-Agent", "SomDun - Web - 1.0 - https://somdun.com")
+
+	client := &http.Client{
+		Timeout: 10 * time.Second,
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "failed to fetch from Open Food Facts"})
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return c.JSON(resp.StatusCode, map[string]string{"error": "Open Food Facts returned an error"})
+	}
+
+	var result interface{}
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "failed to decode response"})
+	}
+
+	return c.JSON(http.StatusOK, result)
 }

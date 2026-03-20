@@ -58,6 +58,8 @@ func UpdateUserProfile(c echo.Context) error {
 	if u.TourCompleted {
 		update["$set"].(bson.M)["tourCompleted"] = u.TourCompleted
 	}
+	// Always allow updating LongTermContext even if empty (user might want to clear it)
+	update["$set"].(bson.M)["longTermContext"] = u.LongTermContext
 
 	userID := c.Get("userID").(primitive.ObjectID)
 	var updatedUser models.User
