@@ -5,18 +5,19 @@ import useSWR from "swr";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { useLanguage } from "@/context/LanguageContext";
+import TiltCard from "@/components/TiltCard";
 
-const API_BASE = (process.env.NEXT_PUBLIC_API_URL && process.env.NEXT_PUBLIC_API_URL !== "undefined") 
-    ? process.env.NEXT_PUBLIC_API_URL 
-    : "http://localhost:8080/api";
+const API_BASE = (process.env.NEXT_PUBLIC_API_URL && process.env.NEXT_PUBLIC_API_URL !== "undefined")
+  ? process.env.NEXT_PUBLIC_API_URL
+  : "http://localhost:8080/api";
 
 const fetcher = (url: string) => fetch(url, {
-    headers: {
-        "Authorization": `Bearer ${localStorage.getItem('auth_token')}`
-    }
+  headers: {
+    "Authorization": `Bearer ${localStorage.getItem('auth_token')}`
+  }
 }).then(res => {
-    if (!res.ok) throw new Error("Failed to fetch data");
-    return res.json();
+  if (!res.ok) throw new Error("Failed to fetch data");
+  return res.json();
 });
 
 type CardData = {
@@ -119,7 +120,7 @@ function radarLabelPositions(cx: number, cy: number, r: number) {
 }
 
 export default function PlayerCardPage() {
-  const { isLoading: authLoading } = useAuth();
+  const { user, isLoading: authLoading } = useAuth();
   const { t, language, setLanguage } = useLanguage();
   const router = useRouter();
   const cardRef = useRef<HTMLDivElement>(null);
@@ -146,6 +147,12 @@ export default function PlayerCardPage() {
       setLoading(false);
     }
   }, [cardData, cardError]);
+
+  // Gamification Logic (Synced with Backend)
+  const totalXP = user?.xp || 0;
+  const level = user?.level || 1;
+  const currentLevelXP = totalXP % 1000;
+  const xpProgress = (currentLevelXP / 1000) * 100;
 
   const handleShare = async () => {
     if (!cardRef.current) return;
@@ -220,7 +227,11 @@ export default function PlayerCardPage() {
   }
 
   return (
-    <div className="app-container" style={{ maxWidth: "600px", alignItems: "center" }}>
+    <div className="app-container perspective-1000" style={{ maxWidth: "600px", alignItems: "center" }}>
+      {/* 3D Background Depth */}
+      <div className="floating-blob floating-blob-1"></div>
+      <div className="floating-blob floating-blob-2"></div>
+      <div className="floating-blob floating-blob-3"></div>
       {/* Header */}
       <header className="glass-panel" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", padding: "16px 24px", borderRadius: '24px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -228,7 +239,15 @@ export default function PlayerCardPage() {
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
           </button>
         </div>
-        <h1 style={{ fontSize: "20px", margin: 0, background: 'none', WebkitTextFillColor: 'var(--text-primary)' }}>{t("playerCard")}</h1>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <h1 style={{ fontSize: "20px", margin: 0, background: 'none', WebkitTextFillColor: 'var(--text-primary)' }}>{t("playerCard")}</h1>
+            <span className="level-badge" style={{ padding: '2px 8px', fontSize: '10px' }}>{t('lvl')} {level}</span>
+          </div>
+          <div className="xp-bar-container" style={{ width: '80px', height: '4px' }}>
+            <div className="xp-bar-fill" style={{ width: `${xpProgress}%` }}></div>
+          </div>
+        </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <button
             onClick={() => setLanguage(language === 'en' ? 'th' : 'en')}
@@ -238,10 +257,10 @@ export default function PlayerCardPage() {
           >
             {language === 'en' ? 'TH' : 'EN'}
           </button>
-          <button 
-            onClick={handleShare} 
-            disabled={!card || isSharing} 
-            className="icon-btn" 
+          <button
+            onClick={handleShare}
+            disabled={!card || isSharing}
+            className="icon-btn"
             title={t("shareCard")}
             style={{ display: card ? "flex" : "none" }}
           >
@@ -278,246 +297,247 @@ export default function PlayerCardPage() {
       ) : card ? (
         <>
           {/* ═══ THE CARD ═══ */}
-          <div ref={cardRef} className="player-card-wrapper" style={{ perspective: "1000px", marginBottom: '32px' }}>
-            <div
-              className="player-card"
-              style={{
-                width: "340px",
-                minHeight: "520px",
-                borderRadius: "24px",
-                background: "linear-gradient(160deg, rgba(15,15,20,0.98) 0%, rgba(10,10,15,0.99) 100%)",
-                border: `2px solid`,
-                borderImageSlice: 1,
-                borderImageSource: theme.gradient,
-                boxShadow: theme.glow,
-                padding: "0",
-                position: "relative",
-                overflow: "hidden",
-                margin: "0 auto",
-                transition: 'transform 0.5s cubic-bezier(0.16, 1, 0.3, 1)',
-              }}
-            >
-              {/* Rarity shimmer overlay */}
-              <div style={{
-                position: "absolute",
-                top: 0,
-                left: 0,
-                right: 0,
-                bottom: 0,
-                background: `linear-gradient(135deg, transparent 30%, rgba(255,255,255,0.03) 50%, transparent 70%)`,
-                pointerEvents: "none",
-                zIndex: 0,
-              }} />
-
-              {/* Top Section: OVR + Name + Position */}
-              <div style={{ padding: "28px 24px 16px", position: "relative", zIndex: 1 }}>
-                <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-                  {/* OVR Badge */}
-                  <div style={{ textAlign: "center" }}>
-                    <div style={{
-                      fontSize: "48px",
-                      fontWeight: 900,
-                      lineHeight: 1,
-                      background: theme.gradient,
-                      WebkitBackgroundClip: "text",
-                      WebkitTextFillColor: "transparent",
-                      letterSpacing: "-2px",
-                    }}>
-                      {card.ovr}
-                    </div>
-                    <div style={{
-                      fontSize: "11px",
-                      fontWeight: 700,
-                      letterSpacing: "3px",
-                      color: "var(--text-secondary)",
-                      marginTop: "2px",
-                    }}>
-                      OVR
-                    </div>
-                  </div>
-
-                  {/* Position Badge */}
-                  <div style={{
-                    padding: "6px 14px",
-                    borderRadius: "8px",
-                    background: "rgba(255,255,255,0.05)",
-                    border: "1px solid rgba(255,255,255,0.1)",
-                    fontSize: "14px",
-                    fontWeight: 700,
-                    letterSpacing: "2px",
-                    color: "var(--text-primary)",
-                  }}>
-                    {card.position}
-                  </div>
-                </div>
-
-                {/* Player Name */}
+          <TiltCard maxTilt={15} intensity={400} glareOpacity={0.3}>
+            <div ref={cardRef} className="player-card-wrapper perspective-1000" style={{ marginBottom: '32px' }}>
+              <div
+                className="player-card depth-card-3d"
+                style={{
+                  width: "340px",
+                  minHeight: "520px",
+                  borderRadius: "24px",
+                  background: "linear-gradient(160deg, rgba(15,15,20,0.98) 0%, rgba(10,10,15,0.99) 100%)",
+                  border: `2px solid`,
+                  borderImageSlice: 1,
+                  borderImageSource: theme.gradient,
+                  boxShadow: theme.glow,
+                  padding: "0",
+                  position: "relative",
+                  overflow: "hidden",
+                  margin: "0 auto",
+                  transition: 'transform 0.5s cubic-bezier(0.16, 1, 0.3, 1)',
+                }}
+              >
+                {/* Rarity shimmer overlay */}
                 <div style={{
-                  marginTop: "12px",
-                  fontSize: "28px",
-                  fontWeight: 800,
-                  letterSpacing: "1px",
-                  textTransform: "uppercase",
-                  color: "var(--text-primary)",
-                }}>
-                  {card.name}
-                </div>
+                  position: "absolute",
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  background: `linear-gradient(135deg, transparent 30%, rgba(255,255,255,0.03) 50%, transparent 70%)`,
+                  pointerEvents: "none",
+                  zIndex: 0,
+                }} />
 
-                {/* Rarity Label */}
-                <div style={{
-                  fontSize: "12px",
-                  fontWeight: 600,
-                  letterSpacing: "3px",
-                  background: theme.gradient,
-                  WebkitBackgroundClip: "text",
-                  WebkitTextFillColor: "transparent",
-                  marginTop: "4px",
-                }}>
-                  {theme.emoji} {t(`rarity${card.rarity.charAt(0).toUpperCase() + card.rarity.slice(1)}` as any)}
-                </div>
-              </div>
-
-              {/* Radar Chart */}
-              <div style={{ display: "flex", justifyContent: "center", padding: "8px 0", position: "relative", zIndex: 1 }}>
-                <svg width="220" height="220" viewBox="0 0 220 220">
-                  {/* Grid rings */}
-                  {[0.33, 0.66, 1].map((scale, i) => (
-                    <polygon
-                      key={i}
-                      points={radarPoints(
-                        { nut: 99 * scale, hyd: 99 * scale, fit: 99 * scale, rec: 99 * scale, dis: 99 * scale, end: 99 * scale } as CardData["stats"],
-                        110, 110, 70
-                      )}
-                      fill="none"
-                      stroke="rgba(255,255,255,0.06)"
-                      strokeWidth="1"
-                    />
-                  ))}
-
-                  {/* Axis lines */}
-                  {radarLabelPositions(110, 110, 70).map(({ x, y }, i) => (
-                    <line
-                      key={i}
-                      x1="110"
-                      y1="110"
-                      x2={110 + (x - 110) * (70 / (70 + 22))}
-                      y2={110 + (y - 110) * (70 / (70 + 22))}
-                      stroke="rgba(255,255,255,0.05)"
-                      strokeWidth="1"
-                    />
-                  ))}
-
-                  {/* Data polygon */}
-                  <polygon
-                    points={radarPoints(card.stats, 110, 110, 70)}
-                    fill="url(#radarGrad)"
-                    stroke="url(#radarStroke)"
-                    strokeWidth="2"
-                    opacity="0.85"
-                  />
-
-                  {/* Gradient defs */}
-                  <defs>
-                    <linearGradient id="radarGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                      <stop offset="0%" stopColor={card.rarity === "diamond" ? "#0ff5f5" : card.rarity === "gold" ? "#ffd700" : "#10b981"} stopOpacity="0.25" />
-                      <stop offset="100%" stopColor={card.rarity === "diamond" ? "#7b2ff7" : card.rarity === "gold" ? "#ff6b00" : "#059669"} stopOpacity="0.1" />
-                    </linearGradient>
-                    <linearGradient id="radarStroke" x1="0%" y1="0%" x2="100%" y2="100%">
-                      <stop offset="0%" stopColor={card.rarity === "diamond" ? "#0ff5f5" : card.rarity === "gold" ? "#ffd700" : "#10b981"} />
-                      <stop offset="100%" stopColor={card.rarity === "diamond" ? "#7b2ff7" : card.rarity === "gold" ? "#ff6b00" : "#059669"} />
-                    </linearGradient>
-                  </defs>
-
-                  {/* Labels */}
-                  {radarLabelPositions(110, 110, 70).map(({ key, x, y }) => (
-                    <text
-                      key={key}
-                      x={x}
-                      y={y}
-                      textAnchor="middle"
-                      dominantBaseline="middle"
-                      fill="var(--text-secondary)"
-                      fontSize="10"
-                      fontWeight="700"
-                      letterSpacing="1"
-                    >
-                      {STAT_LABELS[key]}
-                    </text>
-                  ))}
-
-                  {/* Data point dots */}
-                  {(() => {
-                    const keys = ["nut", "hyd", "fit", "rec", "dis", "end"] as const;
-                    const angleStep = (Math.PI * 2) / keys.length;
-                    const startAngle = -Math.PI / 2;
-                    return keys.map((key, i) => {
-                      const val = card.stats[key] / 99;
-                      const angle = startAngle + angleStep * i;
-                      const x = 110 + Math.cos(angle) * 70 * val;
-                      const y = 110 + Math.sin(angle) * 70 * val;
-                      return (
-                        <circle key={key} cx={x} cy={y} r="3" fill="white" opacity="0.9" />
-                      );
-                    });
-                  })()}
-                </svg>
-              </div>
-
-              {/* Stats Grid */}
-              <div style={{ padding: "8px 24px 24px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", position: "relative", zIndex: 1 }}>
-                {(Object.keys(STAT_LABELS) as Array<keyof typeof STAT_LABELS>).map((key) => {
-                  const val = card.stats[key as keyof CardData["stats"]];
-                  return (
-                    <div
-                      key={key}
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "10px",
-                        padding: "10px 12px",
-                        borderRadius: "12px",
-                        background: "rgba(255,255,255,0.02)",
-                        border: "1px solid rgba(255,255,255,0.04)",
-                      }}
-                    >
-                      <span style={{
-                        fontSize: "24px",
-                        fontWeight: 800,
-                        minWidth: "36px",
+                {/* Top Section: OVR + Name + Position */}
+                <div style={{ padding: "28px 24px 16px", position: "relative", zIndex: 1 }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
+                    {/* OVR Badge */}
+                    <div style={{ textAlign: "center" }}>
+                      <div style={{
+                        fontSize: "48px",
+                        fontWeight: 900,
+                        lineHeight: 1,
                         background: theme.gradient,
                         WebkitBackgroundClip: "text",
                         WebkitTextFillColor: "transparent",
+                        letterSpacing: "-2px",
                       }}>
-                        {val}
-                      </span>
-                      <div>
-                        <div style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "1px", color: "var(--text-secondary)" }}>{STAT_LABELS[key]}</div>
-                        <div style={{ fontSize: "10px", color: "rgba(255,255,255,0.3)" }}>{t(key as any)}</div>
+                        {card.ovr}
+                      </div>
+                      <div style={{
+                        fontSize: "11px",
+                        fontWeight: 700,
+                        letterSpacing: "3px",
+                        color: "var(--text-secondary)",
+                        marginTop: "2px",
+                      }}>
+                        OVR
                       </div>
                     </div>
-                  );
-                })}
-              </div>
 
-              {/* Footer */}
-              <div style={{
-                padding: "12px 24px 20px",
-                borderTop: "1px solid rgba(255,255,255,0.04)",
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                position: "relative",
-                zIndex: 1,
-              }}>
-                <span style={{ fontSize: "11px", color: "var(--text-secondary)", letterSpacing: "2px", fontWeight: 600 }}>
-                  {monthLabel.toUpperCase()}
-                </span>
-                <span style={{ fontSize: "11px", color: "var(--text-secondary)" }}>
-                  {t("daysTrackedSuffix").replace("{tracked}", String(card.daysTracked)).replace("{total}", String(card.daysInMonth))}
-                </span>
+                    {/* Position Badge */}
+                    <div style={{
+                      padding: "6px 14px",
+                      borderRadius: "8px",
+                      background: "rgba(255,255,255,0.05)",
+                      border: "1px solid rgba(255,255,255,0.1)",
+                      fontSize: "14px",
+                      fontWeight: 700,
+                      letterSpacing: "2px",
+                      color: "var(--text-primary)",
+                    }}>
+                      {card.position}
+                    </div>
+                  </div>
+
+                  {/* Player Name */}
+                  <div style={{
+                    marginTop: "12px",
+                    fontSize: "28px",
+                    fontWeight: 800,
+                    letterSpacing: "1px",
+                    textTransform: "uppercase",
+                    color: "var(--text-primary)",
+                  }}>
+                    {card.name}
+                  </div>
+
+                  {/* Rarity Label */}
+                  <div style={{
+                    fontSize: "12px",
+                    fontWeight: 600,
+                    letterSpacing: "3px",
+                    background: theme.gradient,
+                    WebkitBackgroundClip: "text",
+                    WebkitTextFillColor: "transparent",
+                    marginTop: "4px",
+                  }}>
+                    {theme.emoji} {t(`rarity${card.rarity.charAt(0).toUpperCase() + card.rarity.slice(1)}` as any)}
+                  </div>
+                </div>
+
+                {/* Radar Chart */}
+                <div style={{ display: "flex", justifyContent: "center", padding: "8px 0", position: "relative", zIndex: 1 }}>
+                  <svg width="220" height="220" viewBox="0 0 220 220">
+                    {/* Grid rings */}
+                    {[0.33, 0.66, 1].map((scale, i) => (
+                      <polygon
+                        key={i}
+                        points={radarPoints(
+                          { nut: 99 * scale, hyd: 99 * scale, fit: 99 * scale, rec: 99 * scale, dis: 99 * scale, end: 99 * scale } as CardData["stats"],
+                          110, 110, 70
+                        )}
+                        fill="none"
+                        stroke="rgba(255,255,255,0.06)"
+                        strokeWidth="1"
+                      />
+                    ))}
+
+                    {/* Axis lines */}
+                    {radarLabelPositions(110, 110, 70).map(({ x, y }, i) => (
+                      <line
+                        key={i}
+                        x1="110"
+                        y1="110"
+                        x2={110 + (x - 110) * (70 / (70 + 22))}
+                        y2={110 + (y - 110) * (70 / (70 + 22))}
+                        stroke="rgba(255,255,255,0.05)"
+                        strokeWidth="1"
+                      />
+                    ))}
+
+                    {/* Data polygon */}
+                    <polygon
+                      points={radarPoints(card.stats, 110, 110, 70)}
+                      fill="url(#radarGrad)"
+                      stroke="url(#radarStroke)"
+                      strokeWidth="2"
+                      opacity="0.85"
+                    />
+
+                    {/* Gradient defs */}
+                    <defs>
+                      <linearGradient id="radarGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" stopColor={card.rarity === "diamond" ? "#0ff5f5" : card.rarity === "gold" ? "#ffd700" : "#10b981"} stopOpacity="0.25" />
+                        <stop offset="100%" stopColor={card.rarity === "diamond" ? "#7b2ff7" : card.rarity === "gold" ? "#ff6b00" : "#059669"} stopOpacity="0.1" />
+                      </linearGradient>
+                      <linearGradient id="radarStroke" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" stopColor={card.rarity === "diamond" ? "#0ff5f5" : card.rarity === "gold" ? "#ffd700" : "#10b981"} />
+                        <stop offset="100%" stopColor={card.rarity === "diamond" ? "#7b2ff7" : card.rarity === "gold" ? "#ff6b00" : "#059669"} />
+                      </linearGradient>
+                    </defs>
+
+                    {/* Labels */}
+                    {radarLabelPositions(110, 110, 70).map(({ key, x, y }) => (
+                      <text
+                        key={key}
+                        x={x}
+                        y={y}
+                        textAnchor="middle"
+                        dominantBaseline="middle"
+                        fill="var(--text-secondary)"
+                        fontSize="10"
+                        fontWeight="700"
+                        letterSpacing="1"
+                      >
+                        {STAT_LABELS[key]}
+                      </text>
+                    ))}
+
+                    {/* Data point dots */}
+                    {(() => {
+                      const keys = ["nut", "hyd", "fit", "rec", "dis", "end"] as const;
+                      const angleStep = (Math.PI * 2) / keys.length;
+                      const startAngle = -Math.PI / 2;
+                      return keys.map((key, i) => {
+                        const val = card.stats[key] / 99;
+                        const angle = startAngle + angleStep * i;
+                        const x = 110 + Math.cos(angle) * 70 * val;
+                        const y = 110 + Math.sin(angle) * 70 * val;
+                        return (
+                          <circle key={key} cx={x} cy={y} r="3" fill="white" opacity="0.9" />
+                        );
+                      });
+                    })()}
+                  </svg>
+                </div>
+
+                {/* Stats Grid */}
+                <div style={{ padding: "8px 24px 24px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px", position: "relative", zIndex: 1 }}>
+                  {(Object.keys(STAT_LABELS) as Array<keyof typeof STAT_LABELS>).map((key) => {
+                    const val = card.stats[key as keyof CardData["stats"]];
+                    return (
+                      <div
+                        key={key}
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "10px",
+                          padding: "10px 12px",
+                          borderRadius: "12px",
+                          background: "rgba(255,255,255,0.02)",
+                          border: "1px solid rgba(255,255,255,0.04)",
+                        }}
+                      >
+                        <span style={{
+                          fontSize: "24px",
+                          fontWeight: 800,
+                          minWidth: "36px",
+                          background: theme.gradient,
+                          WebkitBackgroundClip: "text",
+                          WebkitTextFillColor: "transparent",
+                        }}>
+                          {val}
+                        </span>
+                        <div>
+                          <div style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "1px", color: "var(--text-secondary)" }}>{STAT_LABELS[key]}</div>
+                          <div style={{ fontSize: "10px", color: "rgba(255,255,255,0.3)" }}>{t(key as any)}</div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {/* Footer */}
+                <div style={{
+                  padding: "12px 24px 20px",
+                  borderTop: "1px solid rgba(255,255,255,0.04)",
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  position: "relative",
+                  zIndex: 1,
+                }}>
+                  <span style={{ fontSize: "11px", color: "var(--text-secondary)", letterSpacing: "2px", fontWeight: 600 }}>
+                    {monthLabel.toUpperCase()}
+                  </span>
+                  <span style={{ fontSize: "11px", color: "var(--text-secondary)" }}>
+                  </span>
+                </div>
               </div>
             </div>
-          </div>
+          </TiltCard>
 
 
           {/* Fun Stats */}

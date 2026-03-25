@@ -58,6 +58,8 @@ type User struct {
 	LastBriefing     string          `json:"lastBriefing" bson:"lastBriefing"`
 	LastBriefingHash string          `json:"lastBriefingHash" bson:"lastBriefingHash"`
 	LongTermContext  string          `json:"longTermContext" bson:"longTermContext"`
+	XP               int             `json:"xp" bson:"xp"`
+	Level            int             `json:"level" bson:"level"`
 }
 
 // WaterIntake represents amount of water consumed on a specific date

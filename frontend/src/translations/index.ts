@@ -9,6 +9,8 @@ export const translations = {
         back: "Back",
 
         navDashboard: "Dashboard",
+        navHome: "Home",
+        navAdd: "Add",
         navLogActivity: "Activity",
         navAddFood: "Add Food",
         navAiAssistant: "AI Assistant",
@@ -138,6 +140,8 @@ export const translations = {
         rarityBronze: "BRONZE",
         shareTitleTemplate: "Player Card {month}",
         shareTextTemplate: "My OVR is {ovr}! 🏆",
+        lvl: "LVL",
+        xp: "XP",
 
         // Onboarding Tour
         tourWelcomeTitle: "Welcome to SomDun! ⚖️",
@@ -230,6 +234,8 @@ export const translations = {
         back: "ย้อนกลับ",
 
         navDashboard: "แดชบอร์ด",
+        navHome: "หน้าหลัก",
+        navAdd: "บันทึกข้อมูล",
         navLogActivity: "กิจกรรม",
         navAddFood: "เพิ่มอาหาร",
         navAiAssistant: "ผู้ช่วย AI",
@@ -359,6 +365,8 @@ export const translations = {
         rarityBronze: "ทองแดง",
         shareTitleTemplate: "การ์ดผู้เล่น {month}",
         shareTextTemplate: "คะแนน OVR ของฉันคือ {ovr}! 🏆",
+        lvl: "เลเวล",
+        xp: "XP",
 
         // Onboarding Tour
         tourWelcomeTitle: "ยินดีต้อนรับสู่ สมดุล (SomDun)! ⚖️",

@@ -131,3 +131,35 @@ func DeleteChatSession(c echo.Context) error {
 
 	return c.NoContent(http.StatusNoContent)
 }
+// UpdateChatSession allows renaming a chat session
+func UpdateChatSession(c echo.Context) error {
+	userID := c.Get("userID").(primitive.ObjectID)
+	sessionID, err := primitive.ObjectIDFromHex(c.Param("id"))
+	if err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid session id"})
+	}
+
+	var req struct {
+		Title string `json:"title"`
+	}
+	if err := c.Bind(&req); err != nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid request body"})
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	result, err := db.ChatSessionsCollection.UpdateOne(ctx,
+		bson.M{"_id": sessionID, "userId": userID},
+		bson.M{"$set": bson.M{"title": req.Title, "updatedAt": time.Now()}},
+	)
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "failed to update chat session"})
+	}
+
+	if result.MatchedCount == 0 {
+		return c.JSON(http.StatusNotFound, map[string]string{"error": "chat session not found"})
+	}
+
+	return c.JSON(http.StatusOK, map[string]string{"status": "updated"})
+}

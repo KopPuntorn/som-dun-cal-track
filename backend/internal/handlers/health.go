@@ -64,9 +64,19 @@ func UpdateWater(c echo.Context) error {
 	filter := bson.M{"date": req.Date, "userId": userID}
 	update := bson.M{"$set": bson.M{"glasses": req.Glasses}}
 
+	// Get previous water to calculate XP diff
+	var prevW models.WaterIntake
+	_ = db.WaterCollection.FindOne(ctx, filter).Decode(&prevW)
+	diff := req.Glasses - prevW.Glasses
+
 	_, err := db.WaterCollection.UpdateOne(ctx, filter, update, opts)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+	}
+
+	// Add/Sub XP
+	if diff != 0 {
+		db.AddUserXP(userID, diff*50)
 	}
 
 	return c.JSON(http.StatusOK, map[string]string{"message": "updated successfully"})
@@ -301,6 +311,10 @@ func AddExercise(c echo.Context) error {
 
 	record.ID = result.InsertedID.(primitive.ObjectID)
 	slog.Info("Exercise record added", "userID", record.UserID, "id", record.ID, "name", record.Name)
+
+	// Add XP
+	db.AddUserXP(record.UserID, record.DurationMinutes*10)
+
 	return c.JSON(http.StatusCreated, record)
 }
 
@@ -315,9 +329,18 @@ func DeleteExercise(c echo.Context) error {
 	defer cancel()
 
 	filter := bson.M{"_id": objID, "userId": c.Get("userID").(primitive.ObjectID)}
+	// Fetch record first to know how much XP to subtract
+	var record models.ExerciseRecord
+	_ = db.ExerciseCollection.FindOne(ctx, filter).Decode(&record)
+
 	result, err := db.ExerciseCollection.DeleteOne(ctx, filter)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+	}
+
+	if result.DeletedCount > 0 {
+		userID := c.Get("userID").(primitive.ObjectID)
+		db.AddUserXP(userID, -(record.DurationMinutes * 10))
 	}
 
 	if result.DeletedCount == 0 {
@@ -438,6 +461,10 @@ func AddSleep(c echo.Context) error {
 	}
 
 	record.ID = result.InsertedID.(primitive.ObjectID)
+
+	// Add XP
+	db.AddUserXP(record.UserID, int(record.DurationHours*100))
+
 	return c.JSON(http.StatusCreated, record)
 }
 
@@ -452,9 +479,18 @@ func DeleteSleep(c echo.Context) error {
 	defer cancel()
 
 	filter := bson.M{"_id": objID, "userId": c.Get("userID").(primitive.ObjectID)}
+	// Fetch record first to know how much XP to subtract
+	var record models.SleepRecord
+	_ = db.SleepCollection.FindOne(ctx, filter).Decode(&record)
+
 	result, err := db.SleepCollection.DeleteOne(ctx, filter)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+	}
+
+	if result.DeletedCount > 0 {
+		userID := c.Get("userID").(primitive.ObjectID)
+		db.AddUserXP(userID, -int(record.DurationHours*100))
 	}
 
 	if result.DeletedCount == 0 {
