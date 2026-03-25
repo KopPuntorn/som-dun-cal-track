@@ -13,6 +13,8 @@ export type UserProfile = {
     sex: string;
     googleId?: string;
     onboarded: boolean;
+    xp: number;
+    level: number;
 };
 
 type AuthContextType = {
@@ -21,6 +23,7 @@ type AuthContextType = {
     login: (token: string, user: UserProfile) => void;
     logout: () => void;
     isLoading: boolean;
+    refreshUser: () => Promise<void>;
 };
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -135,12 +138,38 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         router.push("/login"); // Immediately send user out
     };
 
+    const refreshUser = async () => {
+        const currentToken = typeof window !== 'undefined' ? localStorage.getItem("auth_token") : null;
+        if (!currentToken || !originalFetch) return;
+
+        const API_BASE = (process.env.NEXT_PUBLIC_API_URL && process.env.NEXT_PUBLIC_API_URL !== "undefined") 
+            ? process.env.NEXT_PUBLIC_API_URL 
+            : "http://localhost:8080/api";
+
+        try {
+            const response = await originalFetch(`${API_BASE}/user`, {
+                headers: {
+                    "Authorization": `Bearer ${currentToken}`
+                }
+            });
+            if (response.ok) {
+                const updatedUser = await response.json();
+                setUser(updatedUser);
+                localStorage.setItem("auth_user", JSON.stringify(updatedUser));
+            }
+        } catch (err) {
+            console.error("Failed to refresh user profile:", err);
+        }
+    };
+
     return (
-        <AuthContext.Provider value={{ user, token, login, logout, isLoading }}>
+        <AuthContext.Provider value={{ user, token, login, logout, isLoading, refreshUser }}>
             {children}
         </AuthContext.Provider>
     );
 }
+
+const originalFetch = typeof window !== 'undefined' ? window.fetch : null;
 
 export function useAuth() {
     const context = useContext(AuthContext);

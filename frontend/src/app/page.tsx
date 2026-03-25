@@ -17,6 +17,9 @@ import SuccessAnimation from "@/components/SuccessAnimation";
 import CalendarPicker from "@/components/CalendarPicker";
 import LoadingSkeleton from "@/components/LoadingSkeleton";
 import EmptyState from "@/components/EmptyState";
+import TiltCard from "@/components/TiltCard";
+import ParticleBurst from "@/components/ParticleBurst";
+import { motion } from "framer-motion";
 
 // Types
 type Food = {
@@ -101,24 +104,15 @@ const fetcher = (url: string) => fetch(url, {
 });
 
 export default function Home() {
-  const { logout, isLoading: authLoading } = useAuth();
+  const { user, logout, refreshUser, isLoading: authLoading } = useAuth();
   const { showToast, showUndoToast } = useToast();
   const { language, setLanguage, t } = useLanguage();
-  const [showClearChatConfirm, setShowClearChatConfirm] = useState(false);
-  const chatBottomRef = useRef<HTMLDivElement>(null);
   const [foods, setFoods] = useState<Food[]>([]);
   const [goals, setGoals] = useState<Goals>({ calories: 2000, protein: 150, carbs: 250, fat: 70, sugar: 50, sodium: 2000, fiber: 30 });
-  const [user, setUser] = useState<UserProfile>({ name: "User", age: 25, weight: 70, height: 170, sex: "other" });
 
   const [foodInputs, setFoodInputs] = useState({ name: "", calories: "", protein: "", carbs: "", fat: "", sugar: "", sodium: "", fiber: "", mealCategory: "Breakfast", date: format(new Date(), 'yyyy-MM-dd') });
   const [loading, setLoading] = useState(true);
   const [aiLoading, setAiLoading] = useState(false);
-
-  const [chatMessages, setChatMessages] = useState<{ role: 'user' | 'assistant', content: string }[]>([]);
-  const [chatInput, setChatInput] = useState("");
-  const [isChatOpen, setIsChatOpen] = useState(false);
-  const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
-  const [isLoadingSessions, setIsLoadingSessions] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [searchResults, setSearchResults] = useState<Food[]>([]);
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -139,19 +133,21 @@ export default function Home() {
   const [editingExercise, setEditingExercise] = useState<ExerciseRecord | null>(null);
   const [editingSleep, setEditingSleep] = useState<SleepRecord | null>(null);
   const [editInputs, setEditInputs] = useState({ name: "", calories: "", protein: "", carbs: "", fat: "", sugar: "", sodium: "", fiber: "", mealCategory: "Breakfast" });
-  const [isFoodModalOpen, setIsFoodModalOpen] = useState(false);
-  const [isActivityModalOpen, setIsActivityModalOpen] = useState(false);
-  const [logModalTab, setLogModalTab] = useState<'exercise' | 'sleep'>('exercise');
+  const [isActionModalOpen, setIsActionModalOpen] = useState(false);
+  const [logModalTab, setLogModalTab] = useState<'food' | 'exercise' | 'sleep'>('food');
   const [detailView, setDetailView] = useState<'training' | 'recovery' | null>(null);
   const [tourStep, setTourStep] = useState(0);
   const [showTour, setShowTour] = useState(false);
   const [highlightRect, setHighlightRect] = useState<DOMRect | null>(null);
   const [successVariant, setSuccessVariant] = useState<"food" | "exercise" | "sleep" | "water" | null>(null);
+  const [burstTrigger, setBurstTrigger] = useState(0);
+  const [burstPos, setBurstPos] = useState({ x: '50%', y: '50%' });
+  const [burstColors, setBurstColors] = useState<string[]>(['#0ea5e9', '#f43f5e', '#a855f7', '#ffffff']);
   const [openCalendar, setOpenCalendar] = useState<"food" | "exercise" | "sleep" | null>(null);
 
   // SWR for Dashboard Summary
   const { data: dashboardData, error: dashboardError, isLoading: dashboardLoading } = useSWR(
-    authLoading ? null : `${API_BASE}/dashboard/summary?lang=${language}`, 
+    authLoading ? null : `${API_BASE}/dashboard/summary?lang=${language}`,
     fetcher,
     { revalidateOnFocus: true }
   );
@@ -201,7 +197,7 @@ export default function Home() {
   const getCompositeDate = (dateStr: string) => {
     const now = new Date();
     if (!dateStr || dateStr === format(now, 'yyyy-MM-dd')) return now.toISOString();
-    
+
     // For other dates, use the selected date but with current local time
     // to avoid defaulting to 00:00 UTC (which is 07:00 local in Thailand)
     const [y, m, d] = dateStr.split('-').map(Number);
@@ -279,14 +275,6 @@ export default function Home() {
         });
       }
       if (dashboardData.user) {
-        const newUser = {
-          name: dashboardData.user.name || "User",
-          age: dashboardData.user.age || 25,
-          weight: dashboardData.user.weight || 70,
-          height: dashboardData.user.height || 170,
-          sex: dashboardData.user.sex || "other"
-        };
-        setUser(newUser);
         if (dashboardData.user.onboarded && !dashboardData.user.tourCompleted) {
           setShowTour(true);
         }
@@ -295,7 +283,7 @@ export default function Home() {
       setWaterGlasses(dashboardData.waterToday?.glasses || 0);
       setRecentFoods(dashboardData.recentFoods || []);
       setWeightRecords(dashboardData.weightRecent || []);
-      
+
       const today = format(new Date(), 'yyyy-MM-dd');
       const exerciseRecent = dashboardData.exerciseRecent || [];
       const exToday = exerciseRecent
@@ -339,89 +327,34 @@ export default function Home() {
     if (authLoading) return;
 
     if (window.location.search.includes('add=true')) {
-      setIsActivityModalOpen(false);
-      setIsFoodModalOpen(true);
+      setLogModalTab('food');
+      setIsActionModalOpen(true);
       window.history.replaceState({}, '', '/');
     }
 
     if (window.location.search.includes('log=true')) {
-      setIsFoodModalOpen(false);
-      setIsActivityModalOpen(true);
-      window.history.replaceState({}, '', '/');
-    }
-
-    if (window.location.search.includes('chat=true')) {
-      setIsChatOpen(true);
+      setLogModalTab('exercise');
+      setIsActionModalOpen(true);
       window.history.replaceState({}, '', '/');
     }
 
     const handleOpenModal = () => {
-      setIsActivityModalOpen(false);
-      setIsFoodModalOpen(true);
+      setLogModalTab('food');
+      setIsActionModalOpen(true);
     };
     const handleOpenActivityModal = () => {
-      setIsFoodModalOpen(false);
-      setIsActivityModalOpen(true);
+      setLogModalTab('exercise');
+      setIsActionModalOpen(true);
     };
-    const handleOpenAiChat = () => {
-      setIsChatOpen(true);
-    };
+
     window.addEventListener('openAddFoodModal', handleOpenModal);
     window.addEventListener('openLogActivityModal', handleOpenActivityModal);
-    window.addEventListener('openAiChat', handleOpenAiChat);
-    
-    fetchChatSessions();
 
     return () => {
       window.removeEventListener('openAddFoodModal', handleOpenModal);
       window.removeEventListener('openLogActivityModal', handleOpenActivityModal);
-      window.removeEventListener('openAiChat', handleOpenAiChat);
     };
   }, [authLoading]);
-
-  const fetchChatSessions = async () => {
-    setIsLoadingSessions(true);
-    try {
-      const res = await fetch(`${API_BASE}/chat/sessions`);
-      if (res.ok) {
-        const data = (await res.json()) || [];
-        if (data.length > 0) {
-          // Auto-select the most recent session (since we only want one)
-          setActiveSessionId(data[0].id);
-          // Fetch its messages
-          const msgRes = await fetch(`${API_BASE}/chat/sessions/${data[0].id}`);
-          if (msgRes.ok) {
-            const session = await msgRes.json();
-            setChatMessages(session.messages || []);
-          }
-        } else {
-          // Create a default session if none exists
-          createNewSession();
-        }
-      }
-    } catch (err) {
-      console.error("Failed to fetch sessions", err);
-    } finally {
-      setIsLoadingSessions(false);
-    }
-  };
-
-  const createNewSession = async () => {
-    try {
-      const res = await fetch(`${API_BASE}/chat/sessions`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title: "My Chat" }),
-      });
-      if (res.ok) {
-        const newSession = await res.json();
-        setActiveSessionId(newSession.id);
-        setChatMessages([]);
-      }
-    } catch (err) {
-      console.error("Delete session error:", err);
-    }
-  };
 
   const handleCompleteTour = async () => {
     setShowTour(false);
@@ -504,6 +437,9 @@ export default function Home() {
     if (increment > 0) {
       showToast(`Added water! (${newGlasses} glasses)`, "success");
       setSuccessVariant("water");
+      setBurstPos({ x: '85%', y: '45%' });
+      setBurstColors(['#0ea5e9', '#38bdf8', '#bae6fd']);
+      setBurstTrigger(prev => prev + 1);
       setTimeout(() => setSuccessVariant(null), 1600);
     }
     try {
@@ -516,6 +452,7 @@ export default function Home() {
         })
       });
       mutate(`${API_BASE}/dashboard/summary?lang=${language}`);
+      refreshUser();
     } catch (err) {
       console.error(err);
     }
@@ -542,8 +479,12 @@ export default function Home() {
         setExerciseInput({ name: '', durationMinutes: 30, caloriesBurned: 0, date: format(new Date(), 'yyyy-MM-dd') });
         showToast("Activity logged!", "success");
         setSuccessVariant("exercise");
+        setBurstPos({ x: '50%', y: '50%' });
+        setBurstColors(['#f43f5e', '#fb7185', '#fda4af']);
+        setBurstTrigger(prev => prev + 1);
         setTimeout(() => setSuccessVariant(null), 1600);
         mutate(`${API_BASE}/dashboard/summary?lang=${language}`);
+        refreshUser();
       }
     } catch (err) {
       console.error(err);
@@ -574,8 +515,12 @@ export default function Home() {
         setSleepInput({ durationHours: 8, durationMinutes: 0, quality: 'Good', date: format(new Date(), 'yyyy-MM-dd') });
         showToast("Sleep logged!", "success");
         setSuccessVariant("sleep");
+        setBurstPos({ x: '50%', y: '50%' });
+        setBurstColors(['#a855f7', '#c084fc', '#d8b4fe']);
+        setBurstTrigger(prev => prev + 1);
         setTimeout(() => setSuccessVariant(null), 1600);
         mutate(`${API_BASE}/dashboard/summary?lang=${language}`);
+        refreshUser();
       }
     } catch (err) {
       console.error(err);
@@ -627,6 +572,7 @@ export default function Home() {
         setEditingFood(null);
         showToast("Entry updated!", "success");
         mutate(`${API_BASE}/dashboard/summary?lang=${language}`);
+        refreshUser();
       }
     } catch (err) {
       console.error(err);
@@ -707,8 +653,12 @@ export default function Home() {
         setFoodInputs({ name: "", calories: "", protein: "", carbs: "", fat: "", sugar: "", sodium: "", fiber: "", mealCategory: "Breakfast", date: format(new Date(), 'yyyy-MM-dd') });
         showToast(`Added ${name}!`, "success");
         setSuccessVariant("food");
+        setBurstPos({ x: '50%', y: '85%' });
+        setBurstColors(['#f43f5e', '#fb7185', '#fda4af']);
+        setBurstTrigger(prev => prev + 1);
         setTimeout(() => setSuccessVariant(null), 1600);
         mutate(`${API_BASE}/dashboard/summary?lang=${language}`);
+        refreshUser();
       }
     } catch (err) {
       console.error(err);
@@ -723,6 +673,7 @@ export default function Home() {
       try {
         await fetch(`${API_BASE}/foods/${id}`, { method: "DELETE" });
         mutate(`${API_BASE}/dashboard/summary?lang=${language}`);
+        refreshUser();
       } catch (err) { console.error(err); }
     }, 5000);
 
@@ -742,6 +693,7 @@ export default function Home() {
       try {
         await fetch(`${API_BASE}/exercise/${id}`, { method: "DELETE" });
         mutate(`${API_BASE}/dashboard/summary?lang=${language}`);
+        refreshUser();
       } catch (err) { console.error(err); }
     }, 5000);
 
@@ -764,6 +716,7 @@ export default function Home() {
       try {
         await fetch(`${API_BASE}/sleep/${id}`, { method: "DELETE" });
         mutate(`${API_BASE}/dashboard/summary?lang=${language}`);
+        refreshUser();
       } catch (err) { console.error(err); }
     }, 5000);
 
@@ -787,29 +740,6 @@ export default function Home() {
     } catch (err) { console.error(err); }
   };
 
-  const handleDeleteSession = async () => {
-    if (!activeSessionId) return;
-    setShowClearChatConfirm(true);
-  };
-
-  const confirmDeleteSession = async () => {
-    setShowClearChatConfirm(false);
-    if (!activeSessionId) return;
-    try {
-      const res = await fetch(`${API_BASE}/chat/sessions/${activeSessionId}`, {
-        method: "DELETE"
-      });
-      if (res.ok) {
-        setChatMessages([]);
-        setActiveSessionId(null);
-        showToast("Chat cleared", "info");
-        createNewSession();
-      }
-    } catch (err) {
-      console.error(err);
-      showToast("Failed to clear chat", "error");
-    }
-  };
 
   const handleEditExerciseSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -877,17 +807,6 @@ export default function Home() {
     }
   };
 
-  const parseAiResponse = (content: string) => {
-    const foodDataRegex = /\[FOOD_DATA:\s*({.*?})\]/g;
-    const foods: any[] = [];
-    const cleanContent = content.replace(foodDataRegex, (m, json) => {
-      try {
-        foods.push(JSON.parse(json));
-      } catch { }
-      return "";
-    }).replace(/<br\s*\/?>/gi, '\n').trim();
-    return { cleanContent, foods };
-  };
 
   const handleImageScan = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -943,48 +862,6 @@ export default function Home() {
   };
 
 
-  const handleSendMessage = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!chatInput.trim() || aiLoading) return;
-
-    let sessionId = activeSessionId;
-
-    // If no active session, create one first or use a scratch session (stateless)
-    // For this implementation, we allow stateless chat if no session is selected,
-    // but the backend will only persist if sessionId is provided.
-
-    const userMsg = { role: 'user' as const, content: chatInput };
-    setChatMessages(prev => [...prev, userMsg]);
-    setChatInput("");
-    setAiLoading(true);
-    setTimeout(() => chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
-
-    try {
-      const res = await fetch(`${API_BASE}/chat`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          sessionId: sessionId,
-          messages: sessionId ? [userMsg] : [...chatMessages, userMsg],
-          language
-        }),
-      });
-
-      if (res.ok) {
-        const reply = await res.text();
-        setChatMessages(prev => [...prev, { role: 'assistant', content: reply }]);
-        setTimeout(() => chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
-      } else {
-        setError("Chat service unavailable");
-      }
-    } catch (err) {
-      console.error(err);
-      setError("Failed to reach AI Chat");
-    } finally {
-      setAiLoading(false);
-    }
-  };
-
 
   // Calculations
   const totals = foods.reduce(
@@ -1030,8 +907,18 @@ export default function Home() {
   const isGoalPro = proTotal >= goals.protein;
   const isGoalFat = fatTotal >= goals.fat;
 
+  // Gamification Logic (Synced with Backend)
+  const totalXP = user?.xp || 0;
+  const level = user?.level || 1;
+  const currentLevelXP = totalXP % 1000;
+  const xpProgress = (currentLevelXP / 1000) * 100;
+
   return (
-    <div className="app-container">
+    <div className="app-container perspective-1000">
+      {/* 3D Background Depth */}
+      <div className="floating-blob floating-blob-1"></div>
+      <div className="floating-blob floating-blob-2"></div>
+      <div className="floating-blob floating-blob-3"></div>
       {/* Search Header */}
 
       {showTour && (
@@ -1152,17 +1039,6 @@ export default function Home() {
         />
       )}
 
-      {/* Confirm Modal for Chat Clear */}
-      <ConfirmModal
-        isOpen={showClearChatConfirm}
-        title={t('clearChatTitle')}
-        message={t('clearChatMessage')}
-        confirmText={t('delete')}
-        cancelText={t('cancel')}
-        variant="danger"
-        onConfirm={confirmDeleteSession}
-        onCancel={() => setShowClearChatConfirm(false)}
-      />
 
       <header className="glass-panel main-header" style={{ borderRadius: '28px', padding: '20px 28px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
@@ -1174,30 +1050,46 @@ export default function Home() {
               style={{ objectFit: 'contain', padding: '4px' }}
             />
           </div>
-          <div>
-            <h1 style={{ fontSize: '28px', marginBottom: '2px' }}>SomDun</h1>
-            <p className="date-display" style={{ fontSize: '12px' }}>{currentDate}</p>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <h1 style={{ fontSize: '28px', margin: 0 }}>SomDun</h1>
+              <span className="level-badge">LVL {level}</span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <div className="xp-bar-container" style={{ width: '120px' }}>
+                <div className="xp-bar-fill" style={{ width: `${xpProgress}%` }}></div>
+              </div>
+              <span style={{ fontSize: '10px', fontWeight: 800, color: 'var(--text-secondary)', opacity: 0.8 }}>{currentLevelXP} / 1000 XP</span>
+            </div>
           </div>
         </div>
         <div className="header-actions" style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+          <Link
+            href="/ai-chat"
+            className="icon-btn active"
+            style={{
+              background: 'var(--accent-cal-gradient)',
+              border: 'none',
+              width: '40px',
+              height: '40px',
+              borderRadius: '12px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              boxShadow: '0 0 15px rgba(244, 63, 94, 0.3)'
+            }}
+            title="Ask AI"
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path><path d="M9 10l2 2 4-4"></path></svg>
+          </Link>
           <button
-            id="add-food-btn"
-            onClick={() => setIsFoodModalOpen(true)}
+            id="add-action-btn"
+            onClick={() => { setLogModalTab('food'); setIsActionModalOpen(true); }}
             className="icon-btn active mobile-hidden"
-            style={{ background: 'var(--accent-pro-gradient)', border: 'none', width: '40px', height: '40px', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-            title="Add Food"
+            style={{ background: 'rgba(255,255,255,0.05)', border: 'none', width: '40px', height: '40px', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+            title={t('quickAdd')}
           >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-          </button>
-
-          <button
-            id="log-activity-btn"
-            onClick={() => setIsActivityModalOpen(true)}
-            className="icon-btn mobile-hidden"
-            style={{ background: 'rgba(255,255,255,0.05)', width: '40px', height: '40px', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-            title="Log Activity"
-          >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
           </button>
           <button
             onClick={() => setLanguage(language === 'en' ? 'th' : 'en')}
@@ -1220,11 +1112,16 @@ export default function Home() {
       </header>
 
       <div className="responsive-layout">
-        <div className="layout-column">
+        <motion.div
+          className="layout-column"
+          initial={{ opacity: 0, y: 30 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
+        >
 
 
           {/* Performance Rings */}
-          <div className="glass-panel" style={{ padding: '24px', borderRadius: '28px', display: 'flex', flexWrap: 'wrap', gap: '32px', alignItems: 'center', justifyContent: 'center' }}>
+          <div className="glass-panel depth-card-3d" style={{ padding: '24px', borderRadius: '28px', display: 'flex', flexWrap: 'wrap', gap: '32px', alignItems: 'center', justifyContent: 'center' }}>
             <div style={{ position: 'relative', width: '140px', height: '140px' }}>
               {/* Concentric Rings - SVG */}
               <svg width="140" height="140" viewBox="0 0 140 140">
@@ -1236,28 +1133,28 @@ export default function Home() {
 
                 {/* Progress Rings */}
                 {/* Nutrition (Outer) */}
-                <circle cx="70" cy="70" r="62" fill="none" stroke="var(--accent-cal)" strokeWidth="12" strokeLinecap="round"
+                <circle className="grow-cal" cx="70" cy="70" r="62" fill="none" stroke="var(--accent-cal)" strokeWidth="12" strokeLinecap="round"
                   strokeDasharray={`${Math.min(100, (foods.reduce((sum, f) => sum + f.calories, 0) / goals.calories) * 100) * 3.89} 389`}
                   transform="rotate(-90 70 70)"
-                  style={{ transition: 'stroke-dasharray 1s ease-out' }}
+                  style={{ transition: 'stroke-dasharray 1s ease-out', filter: 'drop-shadow(0 0 5px var(--accent-cal))' }}
                 />
                 {/* Hydration */}
-                <circle cx="70" cy="70" r="48" fill="none" stroke="#38bdf8" strokeWidth="12" strokeLinecap="round"
+                <circle className="glow-pro" cx="70" cy="70" r="48" fill="none" stroke="#38bdf8" strokeWidth="12" strokeLinecap="round"
                   strokeDasharray={`${Math.min(100, (waterGlasses / 8) * 100) * 3.01} 301`}
                   transform="rotate(-90 70 70)"
-                  style={{ transition: 'stroke-dasharray 1s ease-out', transitionDelay: '0.2s' }}
+                  style={{ transition: 'stroke-dasharray 1s ease-out', transitionDelay: '0.2s', filter: 'drop-shadow(0 0 5px #38bdf8)' }}
                 />
                 {/* Fitness */}
-                <circle cx="70" cy="70" r="34" fill="none" stroke="var(--accent-pro)" strokeWidth="12" strokeLinecap="round"
+                <circle className="glow-pro" cx="70" cy="70" r="34" fill="none" stroke="var(--accent-pro)" strokeWidth="12" strokeLinecap="round"
                   strokeDasharray={`${Math.min(100, (exerciseToday / 30) * 100) * 2.13} 213`}
                   transform="rotate(-90 70 70)"
-                  style={{ transition: 'stroke-dasharray 1s ease-out', transitionDelay: '0.4s' }}
+                  style={{ transition: 'stroke-dasharray 1s ease-out', transitionDelay: '0.4s', filter: 'drop-shadow(0 0 5px var(--accent-pro))' }}
                 />
                 {/* Recovery (Inner) */}
-                <circle cx="70" cy="70" r="20" fill="none" stroke="var(--accent-fat)" strokeWidth="12" strokeLinecap="round"
+                <circle className="glow-fat" cx="70" cy="70" r="20" fill="none" stroke="var(--accent-fat)" strokeWidth="12" strokeLinecap="round"
                   strokeDasharray={`${Math.min(100, (sleepToday / 8) * 100) * 1.25} 125`}
                   transform="rotate(-90 70 70)"
-                  style={{ transition: 'stroke-dasharray 1s ease-out', transitionDelay: '0.6s' }}
+                  style={{ transition: 'stroke-dasharray 1s ease-out', transitionDelay: '0.6s', filter: 'drop-shadow(0 0 5px var(--accent-fat))' }}
                 />
               </svg>
               <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -1296,7 +1193,7 @@ export default function Home() {
           {/* Goals Dashboard */}
           <section className="dashboard">
             {/* Calories Card */}
-            <div id="analytics-section" className="glass-panel cal-card" style={{ padding: '32px' }}>
+            <div id="analytics-section" className="glass-panel cal-card depth-card-3d" style={{ padding: '32px' }}>
               <h2 style={{ fontSize: '18px', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '2px', marginBottom: '16px' }}>Calories</h2>
               <div className="ring-container">
                 <svg className="progress-ring" viewBox="0 0 160 160" style={{ width: '100%', height: '100%' }}>
@@ -1362,7 +1259,7 @@ export default function Home() {
             </div>
 
             {/* Macros Progress */}
-            <div className="glass-panel" style={{ display: 'flex', flexDirection: 'column', gap: '24px', padding: '32px' }}>
+            <div className="glass-panel depth-card-3d" style={{ display: 'flex', flexDirection: 'column', gap: '24px', padding: '32px' }}>
               {/* Protein Bar */}
               <div className="pro-card" style={{ background: 'none', border: 'none', padding: 0 }}>
                 <div className="pro-header">
@@ -1525,72 +1422,79 @@ export default function Home() {
               </div>
             </section>
           </div>
-        </div>
+        </motion.div>
 
-        <div className="layout-column">
+        <motion.div
+          className="layout-column"
+          initial={{ opacity: 0, y: 30 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1], delay: 0.15 }}
+        >
           {/* Quick Stats Summary */}
-          <section className="glass-panel" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
-            <h3 style={{ fontSize: '13px', fontWeight: 700, margin: 0, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '1px' }}>{t('dailyProgress')}</h3>
+          <TiltCard intensity={300} maxTilt={15} glareOpacity={0.2} style={{ borderRadius: '24px' }}>
+            <section className="glass-panel depth-card-3d" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              <h3 style={{ fontSize: '13px', fontWeight: 700, margin: 0, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '1px' }}>{t('dailyProgress')}</h3>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              {/* Water Summary */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  <div className="icon-btn" style={{ width: '32px', height: '32px', background: 'rgba(14, 165, 233, 0.1)', border: 'none', color: 'var(--accent-pro)' }}>
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"></path></svg>
-                  </div>
-                  <div>
-                    <div style={{ fontSize: '14px', fontWeight: 700 }}>{waterGlasses} {t('glasses')}</div>
-                    <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>{t('hydrationGoal')}: 8</div>
-                  </div>
-                </div>
-                <div style={{ display: 'flex', gap: '4px' }}>
-                  <button onClick={() => handleUpdateWater(-1)} className="glass-btn" style={{ width: '28px', height: '28px', padding: 0, borderRadius: '6px', minHeight: '28px' }}>-</button>
-                  <button onClick={() => handleUpdateWater(1)} className="glass-btn active" style={{ width: '28px', height: '28px', padding: 0, borderRadius: '6px', minHeight: '28px' }}>+</button>
-                </div>
-              </div>
-
-              {/* Activity Summary */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div
-                  onClick={() => setDetailView('training')}
-                  className="interactive-card"
-                  style={{ display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer', flex: 1, padding: '8px', borderRadius: '12px', transition: 'all 0.2s ease', margin: '-8px' }}
-                >
-                  <div className="icon-btn" style={{ width: '32px', height: '32px', background: 'rgba(244, 63, 94, 0.1)', border: 'none', color: '#f43f5e' }}>
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
-                  </div>
-                  <div>
-                    <div style={{ fontSize: '14px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      {exerciseToday} {t('mins')}
-                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" style={{ opacity: 0.5 }}><polyline points="9 18 15 12 9 6"></polyline></svg>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                {/* Water Summary */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <div className="icon-btn" style={{ width: '32px', height: '32px', background: 'rgba(14, 165, 233, 0.1)', border: 'none', color: 'var(--accent-pro)' }}>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"></path></svg>
                     </div>
-                    <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>{t('totalTraining')}</div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Sleep Summary */}
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div
-                  onClick={() => setDetailView('recovery')}
-                  className="interactive-card"
-                  style={{ display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer', flex: 1, padding: '8px', borderRadius: '12px', transition: 'all 0.2s ease', margin: '-8px' }}
-                >
-                  <div className="icon-btn" style={{ width: '32px', height: '32px', background: 'rgba(168, 85, 247, 0.1)', border: 'none', color: 'var(--accent-fat)' }}>
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
-                  </div>
-                  <div>
-                    <div style={{ fontSize: '14px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
-                      {Math.round(sleepToday * 10) / 10} {t('hours')}
-                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" style={{ opacity: 0.5 }}><polyline points="9 18 15 12 9 6"></polyline></svg>
+                    <div>
+                      <div style={{ fontSize: '14px', fontWeight: 700 }}>{waterGlasses} {t('glasses')}</div>
+                      <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>{t('hydrationGoal')}: 8</div>
                     </div>
-                    <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>{t('restRecovery')}</div>
+                  </div>
+                  <div style={{ display: 'flex', gap: '4px' }}>
+                    <button onClick={() => handleUpdateWater(-1)} className="glass-btn" style={{ width: '28px', height: '28px', padding: 0, borderRadius: '6px', minHeight: '28px' }}>-</button>
+                    <button onClick={() => handleUpdateWater(1)} className="glass-btn active" style={{ width: '28px', height: '28px', padding: 0, borderRadius: '6px', minHeight: '28px' }}>+</button>
+                  </div>
+                </div>
+
+                {/* Activity Summary */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div
+                    onClick={() => setDetailView('training')}
+                    className="interactive-card"
+                    style={{ display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer', flex: 1, padding: '8px', borderRadius: '12px', transition: 'all 0.2s ease', margin: '-8px' }}
+                  >
+                    <div className="icon-btn" style={{ width: '32px', height: '32px', background: 'rgba(244, 63, 94, 0.1)', border: 'none', color: '#f43f5e' }}>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '14px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        {exerciseToday} {t('mins')}
+                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" style={{ opacity: 0.5 }}><polyline points="9 18 15 12 9 6"></polyline></svg>
+                      </div>
+                      <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>{t('totalTraining')}</div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Sleep Summary */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div
+                    onClick={() => setDetailView('recovery')}
+                    className="interactive-card"
+                    style={{ display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer', flex: 1, padding: '8px', borderRadius: '12px', transition: 'all 0.2s ease', margin: '-8px' }}
+                  >
+                    <div className="icon-btn" style={{ width: '32px', height: '32px', background: 'rgba(168, 85, 247, 0.1)', border: 'none', color: 'var(--accent-fat)' }}>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '14px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        {Math.round(sleepToday * 10) / 10} {t('hours')}
+                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" style={{ opacity: 0.5 }}><polyline points="9 18 15 12 9 6"></polyline></svg>
+                      </div>
+                      <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>{t('restRecovery')}</div>
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
-          </section>
+            </section>
+          </TiltCard>
 
 
           {/* Recent Foods */}
@@ -1609,209 +1513,38 @@ export default function Home() {
 
           {/* Spacer for bottom nav */}
           <div className="bottom-nav-spacer" style={{ height: '80px' }} />
-        </div>
+        </motion.div>
       </div>
 
-      {/* Add Food Modal */}
-      {isFoodModalOpen && (
-        <div className="modal-overlay" onClick={() => setIsFoodModalOpen(false)}>
-          <div className="glass-panel modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '500px', padding: '32px', borderRadius: '28px', overflow: 'visible' }}>
-            <div className="modal-header" style={{ marginBottom: '24px' }}>
-              <h3 style={{ fontSize: '20px', fontWeight: 800 }}>{t('addFood')}</h3>
-              <button onClick={() => setIsFoodModalOpen(false)} className="icon-btn" style={{ borderRadius: '50%', width: '32px', height: '32px' }}>&times;</button>
-            </div>
-
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginBottom: '24px' }}>
-              <div style={{ display: 'flex', gap: '12px', width: '100%' }}>
-                <button
-                  onClick={() => setIsScanning(!isScanning)}
-                  className={`glass-btn ${isScanning ? 'active' : ''}`}
-                  style={{ flex: 1, height: '48px', borderRadius: '16px' }}
-                >
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2"></path><path d="M17 3h2a2 2 0 0 1 2 2v2"></path><path d="M21 17v2a2 2 0 0 1-2 2h-2"></path><path d="M7 21H5a2 2 0 0 1-2-2v-2"></path><rect x="7" y="7" width="10" height="10" rx="1"></rect></svg>
-                  {isScanning ? t('stopBtn') : t('scanBtn')}
-                </button>
-
-                <div style={{ flex: 1 }}>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={handleImageScan}
-                    style={{ display: 'none' }}
-                    id="ai-scan-input"
-                  />
-                  <label
-                    htmlFor="ai-scan-input"
-                    className="primary-btn"
-                    style={{ width: '100%', margin: 0, height: '48px', fontSize: '14px', background: 'var(--accent-pro-gradient)', color: 'white', display: 'flex', justifyContent: 'center', borderRadius: '16px', cursor: 'pointer' }}
-                  >
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '8px' }}><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
-                    {aiLoading ? '...' : t('aiScanBtn')}
-                  </label>
-                </div>
-              </div>
-            </div>
-
-            {isScanning && (
-              <div style={{ marginBottom: '24px', borderRadius: '20px', overflow: 'hidden', border: '2px solid var(--panel-border)', background: '#000', position: 'relative', height: '240px' }}>
-                <video ref={zxingRef} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate( -50%, -50%)', width: '180px', height: '120px', border: '2px solid var(--accent-pro)', borderRadius: '12px', boxShadow: '0 0 0 1000px rgba(0,0,0,0.5)' }}></div>
-              </div>
-            )}
-
-            <form id="add-food-form" onSubmit={(e) => { handleAddFood(e); setIsFoodModalOpen(false); }}>
-              <div className="input-group" style={{ position: 'relative' }}>
-                <input
-                  type="text"
-                  required
-                  placeholder={t('foodPlaceholder')}
-                  value={foodInputs.name}
-                  onChange={e => {
-                    setFoodInputs({ ...foodInputs, name: e.target.value });
-                    handleSearch(e.target.value);
-                  }}
-                  style={{ height: '52px', fontSize: '16px', padding: '0 20px', borderRadius: '16px' }}
-                  onBlur={() => setTimeout(() => setSearchResults([]), 200)}
-                />
-                {searchResults.length > 0 && (
-                  <div className="glass-panel" style={{
-                    position: 'absolute',
-                    top: '100%',
-                    left: 0,
-                    right: 0,
-                    zIndex: 50,
-                    marginTop: '8px',
-                    padding: '8px',
-                    maxHeight: '240px',
-                    overflowY: 'auto',
-                    borderRadius: '16px'
-                  }}>
-                    {searchResults.map((item, idx) => (
-                      <div
-                        key={idx}
-                        onClick={() => selectSearchResult(item)}
-                        style={{
-                          padding: '12px 16px',
-                          cursor: 'pointer',
-                          borderRadius: '10px',
-                          display: 'flex',
-                          justifyContent: 'space-between',
-                          alignItems: 'center',
-                          transition: 'background 0.2s'
-                        }}
-                        onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
-                        onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                      >
-                        <div>
-                          <div style={{ fontSize: '14px', fontWeight: 600 }}>{item.name}</div>
-                          <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '2px' }}>
-                            P:{item.protein}g | C:{item.carbs}g | F:{item.fat}g
-                          </div>
-                        </div>
-                        <span style={{ fontSize: '13px', fontWeight: 800, color: 'var(--accent-cal)' }}>{item.calories} kcal</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              <div className="input-row" style={{ marginTop: '16px' }}>
-                <select
-                  value={foodInputs.mealCategory}
-                  onChange={e => setFoodInputs({ ...foodInputs, mealCategory: e.target.value })}
-                  style={{ flex: 1, height: '52px', padding: '0 16px', borderRadius: '16px', border: '1px solid var(--panel-border)', background: 'rgba(0,0,0,0.3)', color: 'var(--text-primary)', fontWeight: 600 }}
-                >
-                  <option value="Breakfast">🍳 {t('breakfast')}</option>
-                  <option value="Lunch">🥗 {t('lunch')}</option>
-                  <option value="Dinner">🍲 {t('dinner')}</option>
-                  <option value="Snack">🍪 {t('snack')}</option>
-                </select>
-                <div style={{ flex: 1, position: 'relative' }}>
-                  <button
-                    type="button"
-                    onClick={() => setOpenCalendar(openCalendar === 'food' ? null : 'food')}
-                    style={{ width: '100%', height: '52px', padding: '0 16px', borderRadius: '16px', border: '1px solid var(--panel-border)', background: 'rgba(0,0,0,0.3)', color: 'var(--text-primary)', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '14px' }}
-                  >
-                    <span>📅 {foodInputs.date}</span>
-                    <span style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>▼</span>
-                  </button>
-                  {openCalendar === 'food' && (
-                    <CalendarPicker
-                      value={foodInputs.date}
-                      onChange={(d) => setFoodInputs({ ...foodInputs, date: d })}
-                      onClose={() => setOpenCalendar(null)}
-                    />
-                  )}
-                </div>
-              </div>
-
-              <div className="input-row" style={{ marginTop: '16px' }}>
-                <input
-                  type="number"
-                  required
-                  min="0"
-                  placeholder={t('calories')}
-                  value={foodInputs.calories}
-                  onChange={e => setFoodInputs({ ...foodInputs, calories: e.target.value })}
-                  style={{ height: '52px', padding: '0 16px', borderRadius: '16px' }}
-                />
-              </div>
-
-              <div className="input-row" style={{ marginTop: '12px' }}>
-                <div style={{ flex: 1, position: 'relative' }}>
-                  <input
-                    type="number"
-                    required
-                    min="0"
-                    step="0.1"
-                    placeholder={t('protein')}
-                    value={foodInputs.protein}
-                    onChange={e => setFoodInputs({ ...foodInputs, protein: e.target.value })}
-                    style={{ height: '52px', padding: '0 16px', borderRadius: '16px' }}
-                  />
-                  <span style={{ position: 'absolute', right: '16px', top: '50%', transform: 'translateY(-50%)', fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 700 }}>G</span>
-                </div>
-                <div style={{ flex: 1, position: 'relative' }}>
-                  <input
-                    type="number"
-                    min="0"
-                    step="0.1"
-                    placeholder={t('fat')}
-                    value={foodInputs.fat}
-                    onChange={e => setFoodInputs({ ...foodInputs, fat: e.target.value })}
-                    style={{ height: '52px', padding: '0 16px', borderRadius: '16px' }}
-                  />
-                  <span style={{ position: 'absolute', right: '16px', top: '50%', transform: 'translateY(-50%)', fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 700 }}>G</span>
-                </div>
-              </div>
-
-              <button type="submit" className="primary-btn active" disabled={loading} style={{ marginTop: '24px', width: '100%', height: '56px', borderRadius: '18px' }}>
-                <span>{t('addFoodBtn')}</span>
-              </button>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Log Activity Modal */}
-      {isActivityModalOpen && (
-        <div className="modal-overlay" onClick={() => setIsActivityModalOpen(false)}>
+      {/* Add Action Modal */}
+      {isActionModalOpen && (
+        <div className="modal-overlay" onClick={() => setIsActionModalOpen(false)}>
           <div className="glass-panel modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '500px', padding: '32px', borderRadius: '28px', overflow: 'visible' }}>
             <div className="modal-header" style={{ marginBottom: '24px', flexDirection: 'column', alignItems: 'flex-start', gap: '16px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center' }}>
-                <h3 style={{ fontSize: '20px', fontWeight: 800 }}>{t('logActivityTitle')}</h3>
-                <button onClick={() => setIsActivityModalOpen(false)} className="icon-btn" style={{ borderRadius: '50%', width: '32px', height: '32px' }}>&times;</button>
+                <h3 style={{ fontSize: '20px', fontWeight: 800 }}>
+                  {logModalTab === 'food' ? t('addFood') : logModalTab === 'exercise' ? t('logActivityTitle') : t('logActivityTitle')}
+                </h3>
+                <button onClick={() => setIsActionModalOpen(false)} className="icon-btn" style={{ borderRadius: '50%', width: '32px', height: '32px' }}>&times;</button>
               </div>
 
               {/* Tab Switcher */}
               <div style={{ display: "flex", background: "rgba(0,0,0,0.4)", borderRadius: '14px', padding: "4px", border: '1px solid var(--panel-border)', width: '100%' }}>
                 <button
                   type="button"
+                  onClick={() => setLogModalTab('food')}
+                  className={`glass-btn ${logModalTab === 'food' ? 'active' : ''}`}
+                  style={{ flex: 1, border: 'none', borderRadius: '10px', minHeight: '36px', fontSize: '13px' }}
+                >
+                  🍎 {t('addFood')}
+                </button>
+                <button
+                  type="button"
                   onClick={() => setLogModalTab('exercise')}
                   className={`glass-btn ${logModalTab === 'exercise' ? 'active' : ''}`}
                   style={{ flex: 1, border: 'none', borderRadius: '10px', minHeight: '36px', fontSize: '13px' }}
                 >
-                  {t('trainingTab')}
+                  🏃 {t('trainingTab')}
                 </button>
                 <button
                   type="button"
@@ -1819,10 +1552,183 @@ export default function Home() {
                   className={`glass-btn ${logModalTab === 'sleep' ? 'active' : ''}`}
                   style={{ flex: 1, border: 'none', borderRadius: '10px', minHeight: '36px', fontSize: '13px' }}
                 >
-                  {t('recoveryTab')}
+                  🌙 {t('recoveryTab')}
                 </button>
               </div>
             </div>
+
+            {logModalTab === 'food' && (
+              <>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginBottom: '24px' }}>
+                  <div style={{ display: 'flex', gap: '12px', width: '100%' }}>
+                    <button
+                      onClick={() => setIsScanning(!isScanning)}
+                      className={`glass-btn ${isScanning ? 'active' : ''}`}
+                      style={{ flex: 1, height: '48px', borderRadius: '16px' }}
+                    >
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2"></path><path d="M17 3h2a2 2 0 0 1 2 2v2"></path><path d="M21 17v2a2 2 0 0 1-2 2h-2"></path><path d="M7 21H5a2 2 0 0 1-2-2v-2"></path><rect x="7" y="7" width="10" height="10" rx="1"></rect></svg>
+                      {isScanning ? t('stopBtn') : t('scanBtn')}
+                    </button>
+
+                    <div style={{ flex: 1 }}>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleImageScan}
+                        style={{ display: 'none' }}
+                        id="ai-scan-input"
+                      />
+                      <label
+                        htmlFor="ai-scan-input"
+                        className="primary-btn"
+                        style={{ width: '100%', margin: 0, height: '48px', fontSize: '14px', background: 'var(--accent-pro-gradient)', color: 'white', display: 'flex', justifyContent: 'center', borderRadius: '16px', cursor: 'pointer' }}
+                      >
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '8px' }}><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
+                        {aiLoading ? '...' : t('aiScanBtn')}
+                      </label>
+                    </div>
+                  </div>
+                </div>
+
+                {isScanning && (
+                  <div style={{ marginBottom: '24px', borderRadius: '20px', overflow: 'hidden', border: '2px solid var(--panel-border)', background: '#000', position: 'relative', height: '240px' }}>
+                    <video ref={zxingRef} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate( -50%, -50%)', width: '180px', height: '120px', border: '2px solid var(--accent-pro)', borderRadius: '12px', boxShadow: '0 0 0 1000px rgba(0,0,0,0.5)' }}></div>
+                  </div>
+                )}
+
+                <form id="add-food-form" onSubmit={(e) => { handleAddFood(e); setIsActionModalOpen(false); }}>
+                  <div className="input-group" style={{ position: 'relative' }}>
+                    <input
+                      type="text"
+                      required
+                      placeholder={t('foodPlaceholder')}
+                      value={foodInputs.name}
+                      onChange={e => {
+                        setFoodInputs({ ...foodInputs, name: e.target.value });
+                        handleSearch(e.target.value);
+                      }}
+                      style={{ height: '52px', fontSize: '16px', padding: '0 20px', borderRadius: '16px' }}
+                      onBlur={() => setTimeout(() => setSearchResults([]), 200)}
+                    />
+                    {searchResults.length > 0 && (
+                      <div className="glass-panel" style={{
+                        position: 'absolute',
+                        top: '100%',
+                        left: 0,
+                        right: 0,
+                        zIndex: 50,
+                        marginTop: '8px',
+                        padding: '8px',
+                        maxHeight: '240px',
+                        overflowY: 'auto',
+                        borderRadius: '16px'
+                      }}>
+                        {searchResults.map((item, idx) => (
+                          <div
+                            key={idx}
+                            onClick={() => selectSearchResult(item)}
+                            style={{
+                              padding: '12px 16px',
+                              cursor: 'pointer',
+                              borderRadius: '10px',
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              alignItems: 'center',
+                              transition: 'background 0.2s'
+                            }}
+                            onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
+                            onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                          >
+                            <div>
+                              <div style={{ fontSize: '14px', fontWeight: 600 }}>{item.name}</div>
+                              <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '2px' }}>
+                                P:{item.protein}g | C:{item.carbs}g | F:{item.fat}g
+                              </div>
+                            </div>
+                            <span style={{ fontSize: '13px', fontWeight: 800, color: 'var(--accent-cal)' }}>{item.calories} kcal</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="input-row" style={{ marginTop: '16px' }}>
+                    <select
+                      value={foodInputs.mealCategory}
+                      onChange={e => setFoodInputs({ ...foodInputs, mealCategory: e.target.value })}
+                      style={{ flex: 1, height: '52px', padding: '0 16px', borderRadius: '16px', border: '1px solid var(--panel-border)', background: 'rgba(0,0,0,0.3)', color: 'var(--text-primary)', fontWeight: 600 }}
+                    >
+                      <option value="Breakfast">🍳 {t('breakfast')}</option>
+                      <option value="Lunch">🥗 {t('lunch')}</option>
+                      <option value="Dinner">🍲 {t('dinner')}</option>
+                      <option value="Snack">🍪 {t('snack')}</option>
+                    </select>
+                    <div style={{ flex: 1, position: 'relative' }}>
+                      <button
+                        type="button"
+                        onClick={() => setOpenCalendar(openCalendar === 'food' ? null : 'food')}
+                        style={{ width: '100%', height: '52px', padding: '0 16px', borderRadius: '16px', border: '1px solid var(--panel-border)', background: 'rgba(0,0,0,0.3)', color: 'var(--text-primary)', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '14px' }}
+                      >
+                        <span>📅 {foodInputs.date}</span>
+                        <span style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>▼</span>
+                      </button>
+                      {openCalendar === 'food' && (
+                        <CalendarPicker
+                          value={foodInputs.date}
+                          onChange={(d) => setFoodInputs({ ...foodInputs, date: d })}
+                          onClose={() => setOpenCalendar(null)}
+                        />
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="input-row" style={{ marginTop: '16px' }}>
+                    <input
+                      type="number"
+                      required
+                      min="0"
+                      placeholder={t('calories')}
+                      value={foodInputs.calories}
+                      onChange={e => setFoodInputs({ ...foodInputs, calories: e.target.value })}
+                      style={{ height: '52px', padding: '0 16px', borderRadius: '16px' }}
+                    />
+                  </div>
+
+                  <div className="input-row" style={{ marginTop: '12px' }}>
+                    <div style={{ flex: 1, position: 'relative' }}>
+                      <input
+                        type="number"
+                        required
+                        min="0"
+                        step="0.1"
+                        placeholder={t('protein')}
+                        value={foodInputs.protein}
+                        onChange={e => setFoodInputs({ ...foodInputs, protein: e.target.value })}
+                        style={{ height: '52px', padding: '0 16px', borderRadius: '16px' }}
+                      />
+                      <span style={{ position: 'absolute', right: '16px', top: '50%', transform: 'translateY(-50%)', fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 700 }}>G</span>
+                    </div>
+                    <div style={{ flex: 1, position: 'relative' }}>
+                      <input
+                        type="number"
+                        min="0"
+                        step="0.1"
+                        placeholder={t('fat')}
+                        value={foodInputs.fat}
+                        onChange={e => setFoodInputs({ ...foodInputs, fat: e.target.value })}
+                        style={{ height: '52px', padding: '0 16px', borderRadius: '16px' }}
+                      />
+                      <span style={{ position: 'absolute', right: '16px', top: '50%', transform: 'translateY(-50%)', fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 700 }}>G</span>
+                    </div>
+                  </div>
+
+                  <button type="submit" className="primary-btn active" disabled={loading} style={{ marginTop: '24px', width: '100%', height: '56px', borderRadius: '18px' }}>
+                    <span>{t('addFoodBtn')}</span>
+                  </button>
+                </form>
+              </>
+            )}
 
             {logModalTab === 'exercise' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
@@ -1876,7 +1782,7 @@ export default function Home() {
                     <span style={{ position: 'absolute', right: '16px', top: '50%', transform: 'translateY(-50%)', fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 700 }}>{t('unitKcal').toUpperCase()}</span>
                   </div>
                 </div>
-                <button onClick={(e) => { handleLogExercise(); setIsActivityModalOpen(false); }} className="primary-btn active" style={{ height: '56px', borderRadius: '18px', marginTop: '8px' }}>
+                <button onClick={(e) => { handleLogExercise(); setIsActionModalOpen(false); }} className="primary-btn active" style={{ height: '56px', borderRadius: '18px', marginTop: '8px' }}>
                   {t('logActivityBtn')}
                 </button>
               </div>
@@ -1934,7 +1840,7 @@ export default function Home() {
                     <option value="Poor">{t('poorQuality')}</option>
                   </select>
                 </div>
-                <button onClick={(e) => { handleLogSleep(); setIsActivityModalOpen(false); }} className="primary-btn active" style={{ height: '56px', borderRadius: '18px', marginTop: '8px' }}>
+                <button onClick={(e) => { handleLogSleep(); setIsActionModalOpen(false); }} className="primary-btn active" style={{ height: '56px', borderRadius: '18px', marginTop: '8px' }}>
                   {t('recordSleepBtn')}
                 </button>
               </div>
@@ -2012,7 +1918,7 @@ export default function Home() {
             <button
               onClick={() => {
                 setLogModalTab(detailView === 'training' ? 'exercise' : 'sleep');
-                setIsActivityModalOpen(true);
+                setIsActionModalOpen(true);
                 setDetailView(null);
               }}
               className="primary-btn active"
@@ -2119,109 +2025,7 @@ export default function Home() {
       )}
 
 
-      {/* Simplified AI Chat Widget */}
-      <div className={`chat-widget ${isChatOpen ? 'open' : ''}`}>
-        {isChatOpen && (
-          <div className="chat-window shadow-2xl">
-            {/* Header */}
-            <div className="chat-header" style={{ padding: '16px 24px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'var(--success)', boxShadow: '0 0 10px var(--success)' }}></div>
-                <h3>AI Assistant</h3>
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <button
-                  onClick={handleDeleteSession}
-                  className="icon-btn"
-                  title="Clear Chat"
-                  style={{ color: 'var(--text-secondary)', opacity: 0.6 }}
-                  onMouseEnter={e => e.currentTarget.style.color = 'var(--danger)'}
-                  onMouseLeave={e => e.currentTarget.style.color = 'var(--text-secondary)'}
-                >
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
-                </button>
-                <button
-                  onClick={() => setIsChatOpen(false)}
-                  className="close-btn"
-                >
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-                </button>
-              </div>
-            </div>
-
-            {/* Chat Messages */}
-            <div className="chat-messages" style={{ paddingTop: '12px' }}>
-              {chatMessages.length === 0 && (
-                <div className="msg-placeholder" style={{ display: 'flex', flexDirection: 'column', gap: '12px', opacity: 0.7, padding: '40px 20px' }}>
-                  <div style={{ fontSize: '32px' }}>👋</div>
-                  <p>{language === 'th' ? 'สวัสดีครับ! ผมเป็นผู้ช่วยดูแลสุขภาพของคุณ ต้องการวิเคราะห์สุขภาพเชิงลึก หรือบันทึกอะไรเพิ่มเติม แจ้งได้เลยครับ' : 'Hello! I\'m your health assistant. Ask me for a deep health analysis or log your meals anytime!'}</p>
-                </div>
-              )}
-              {chatMessages.map((m, i) => {
-                const { cleanContent, foods: detectedFoods } = parseAiResponse(m.content);
-                return (
-                  <div key={i} className={`message ${m.role}`}>
-                    <div className="msg-bubble">
-                      <div className="markdown-content">
-                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                          {cleanContent}
-                        </ReactMarkdown>
-                      </div>
-                      {detectedFoods.length > 0 && m.role === 'assistant' && (
-                        <div className="detected-foods" style={{ marginTop: '12px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                          {detectedFoods.map((f, fi) => (
-                            <button
-                              key={fi}
-                              onClick={() => handleQuickAdd(f)}
-                              className="primary-btn outline"
-                              style={{ margin: 0, justifyContent: 'center', background: 'rgba(255,255,255,0.05)', borderStyle: 'solid', width: 'auto' }}
-                            >
-                              + เพิ่ม {f.name} ({f.calories} kcal)
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-              {aiLoading && (
-                <div className="message assistant">
-                  <div className="msg-bubble" style={{ background: 'rgba(255,255,255,0.03)', boxShadow: 'none', padding: '16px 20px' }}>
-                    <span className="typing-dot"></span>
-                    <span className="typing-dot"></span>
-                    <span className="typing-dot"></span>
-                  </div>
-                </div>
-              )}
-              <div ref={chatBottomRef} />
-            </div>
-
-            {/* Input Area */}
-            <form className="chat-input-area" onSubmit={handleSendMessage}>
-              <input
-                type="text"
-                placeholder="Message..."
-                value={chatInput}
-                onChange={(e) => setChatInput(e.target.value)}
-                autoFocus
-              />
-              <button type="submit" disabled={aiLoading || !chatInput.trim()}>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
-              </button>
-            </form>
-          </div>
-        )}
-        <button id="chat-toggle-btn" className="chat-toggle-btn shadow-lg mobile-hidden" onClick={() => setIsChatOpen(!isChatOpen)}>
-          {isChatOpen ? (
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-          ) : (
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
-            </svg>
-          )}
-        </button>
-      </div>
+      <ParticleBurst trigger={burstTrigger} originX={burstPos.x} originY={burstPos.y} colors={burstColors} count={16} />
       <SuccessAnimation trigger={!!successVariant} variant={successVariant || "food"} onComplete={() => setSuccessVariant(null)} />
     </div>
   );

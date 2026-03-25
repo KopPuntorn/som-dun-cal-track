@@ -446,7 +446,7 @@ func ChatAI(c echo.Context) error {
 	// Determine language instruction
 	langInstruction := "คุณคือ 'ที่ปรึกษาด้านสุขภาพและนักกำหนดอาหารระดับพรีเมียม' ที่มีความเชี่ยวชาญสูงสุด สื่อสารด้วยภาษาไทยที่สมบูรณ์แบบ (ห้ามใช้อักษรภาษาอื่นนอกจากไทยและอังกฤษ) เป็นธรรมชาติ รูปประโยคเหมือนคนไทยพูดจริงๆ มีระดับ และน่าเชื่อถือ " +
 		"ห้ามแปลตรงตัวจากภาษาอังกฤษ (เช่น ห้ามใช้คำว่า 'คุณอาจต้องการพิจารณาการเพิ่ม X ลงในอาหาร' ให้ใช้ 'แนะนำให้ทาน X เสริมดีกว่าครับ') " +
-		"ห้ามใช้คำทับศัพท์ภาษาอังกฤษโดยไม่จำเป็นเด็ดขาด CRITICAL: ห้ามพิมพ์ตัวอักษรภาษารัสเซีย จีน หรือภาษาอื่นที่ไม่ใช่ไทยและอังกฤษเด็ดขาด! ห้ามพิมพ์คำว่า 'Калอรี่' หรือ '营养' (Nutrition) โดยเด็ดขาด ให้ใช้คำว่า 'แคลอรี่' และ 'โภชนาการ' แทนเท่านั้น! โปรดตรวจสอบทุกตัวอักษรก่อนตอบ " +
+		"ห้ามใช้คำทับศัพท์ภาษาอังกฤษโดยไม่จำเป็นเด็ดขาด CRITICAL: ห้ามพิมพ์ตัวอักษรภาษารัสเซีย จีน หรือภาษาอื่นที่ไม่ใช่ไทยและอังกฤษเด็ดขาด! ห้ามพิมพ์คำว่า 'Кาลอรี่' หรือ '营养' (Nutrition) โดยเด็ดขาด ให้ใช้คำว่า 'แคลอรี่' และ 'โภชนาการ' แทนเท่านั้น! โปรดตรวจสอบทุกตัวอักษรก่อนตอบ " +
 		"ในการเรียกชื่ออาหารเสริมให้ใช้คำที่คนไทยคุ้นเคย เช่น 'เวย์โปรตีน' แทน 'โปรตีนผง' "
 	foodNameLang := "Thai"
 	foodExampleName := "ข้าวผัดกะเพราอกไก่ไข่ดาว"
@@ -455,8 +455,8 @@ func ChatAI(c echo.Context) error {
 		foodNameLang = "English"
 		foodExampleName = "Basil Chicken Stir-fry with Rice and Fried Egg"
 	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	// Increase timeout to 60s to allow for Groq response + DB updates
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 
 	userID := c.Get("userID").(primitive.ObjectID)
@@ -476,8 +476,13 @@ func ChatAI(c echo.Context) error {
 		}
 	}
 
-	// If using session, we persist the latest user message first
-	if useSession && len(data.Messages) > 0 {
+	// --- Ensure Session ID for New Sessions ---
+	if !useSession {
+		sessionID = primitive.NewObjectID()
+	}
+
+	// If sending messages, persist user message
+	if len(data.Messages) > 0 {
 		lastMsg := data.Messages[len(data.Messages)-1]
 		if lastMsg.Role == "user" {
 			newMsg := models.ChatMessage{
@@ -486,15 +491,34 @@ func ChatAI(c echo.Context) error {
 				Timestamp: time.Now(),
 			}
 
-			// Update session with new user message
-			db.ChatSessionsCollection.UpdateOne(ctx,
-				bson.M{"_id": sessionID},
-				bson.D{
-					{Key: "$push", Value: bson.M{"messages": newMsg}},
-					{Key: "$set", Value: bson.M{"updatedAt": time.Now()}},
-				},
-			)
-			session.Messages = append(session.Messages, newMsg)
+			if useSession {
+				db.ChatSessionsCollection.UpdateOne(ctx,
+					bson.M{"_id": sessionID},
+					bson.D{
+						{Key: "$push", Value: bson.M{"messages": newMsg}},
+						{Key: "$set", Value: bson.M{"updatedAt": time.Now()}},
+					},
+				)
+				session.Messages = append(session.Messages, newMsg)
+			} else {
+				// Create new session in DB
+				// Slice title properly using runes to avoid Thai character corruption
+				runes := []rune(newMsg.Content)
+				title := string(runes)
+				if len(runes) > 40 {
+					title = string(runes[:37]) + "..."
+				}
+				session = models.ChatSession{
+					ID:        sessionID,
+					UserID:    userID,
+					Title:     title,
+					Messages:  []models.ChatMessage{newMsg},
+					CreatedAt: time.Now(),
+					UpdatedAt: time.Now(),
+				}
+				db.ChatSessionsCollection.InsertOne(ctx, session)
+				useSession = true
+			}
 		}
 	}
 
@@ -509,17 +533,38 @@ func ChatAI(c echo.Context) error {
 	}
 
 	// --- RAG: Fetch Context from DB ---
-	// 1. Fetch last 20 foods for context
-	opts := options.Find().SetLimit(20).SetSort(bson.D{{Key: "date", Value: -1}})
-	cursor, err := db.FoodsCollection.Find(ctx, bson.M{"userId": userID}, opts)
+	now := time.Now()
+	startOfToday := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+
+	// 1. Fetch Today's foods
+	todayCursor, _ := db.FoodsCollection.Find(ctx, bson.M{
+		"userId": userID,
+		"date":   bson.M{"$gte": startOfToday},
+	}, options.Find().SetSort(bson.D{{Key: "date", Value: -1}}))
+	var todayFoodStr string
+	var todayFoods []models.Food
+	if err := todayCursor.All(ctx, &todayFoods); err == nil {
+		for _, f := range todayFoods {
+			todayFoodStr += fmt.Sprintf("- %s: %.0f kcal, P:%.1fg, F:%.1fg (%s)\n",
+				f.Name, f.Calories, models.SafeFloat(f.Protein), models.SafeFloat(f.Fat), f.MealCategory)
+		}
+	}
+	if todayFoodStr == "" {
+		todayFoodStr = "No foods recorded today yet."
+	}
+
+	// 2. Fetch Recent History (Last 15, excluding today if many)
+	histOpts := options.Find().SetLimit(15).SetSort(bson.D{{Key: "date", Value: -1}})
+	histCursor, _ := db.FoodsCollection.Find(ctx, bson.M{
+		"userId": userID,
+		"date":   bson.M{"$lt": startOfToday},
+	}, histOpts)
 	var historyStr string
-	if err == nil {
-		var foods []models.Food
-		if err := cursor.All(ctx, &foods); err == nil {
-			for _, f := range foods {
-				historyStr += fmt.Sprintf("- %s: %.0f kcal, P:%.1fg, F:%.1fg (%s)\n",
-					f.Name, f.Calories, models.SafeFloat(f.Protein), models.SafeFloat(f.Fat), f.MealCategory)
-			}
+	var historyFoods []models.Food
+	if err := histCursor.All(ctx, &historyFoods); err == nil {
+		for _, f := range historyFoods {
+			historyStr += fmt.Sprintf("- %s: %.0f kcal, P:%.1fg, F:%.1fg (%s, %s)\n",
+				f.Name, f.Calories, models.SafeFloat(f.Protein), models.SafeFloat(f.Fat), f.MealCategory, f.Date.Format("2006-01-02"))
 		}
 	}
 
@@ -542,7 +587,7 @@ func ChatAI(c echo.Context) error {
 		var exercises []models.ExerciseRecord
 		if err := eCursor.All(ctx, &exercises); err == nil {
 			for _, ex := range exercises {
-				exerciseStr += fmt.Sprintf("%s: %s (%d min, %.0f kcal burned)\n", ex.Date.Format("2006-01-02"), ex.Name, ex.DurationMinutes, models.SafeFloat(ex.CaloriesBurned))
+				exerciseStr += fmt.Sprintf("- %s (%d min, %.0f kcal burned, %s)\n", ex.Name, ex.DurationMinutes, models.SafeFloat(ex.CaloriesBurned), ex.Date.Format("2006-01-02"))
 			}
 		}
 	}
@@ -554,7 +599,7 @@ func ChatAI(c echo.Context) error {
 		var sleeps []models.SleepRecord
 		if err := sCursor.All(ctx, &sleeps); err == nil {
 			for _, sl := range sleeps {
-				sleepStr += fmt.Sprintf("%s: %.1f hrs (Quality: %s)\n", sl.Date.Format("2006-01-02"), sl.DurationHours, models.SafeString(sl.Quality))
+				sleepStr += fmt.Sprintf("- %s: %.1f hrs (%s)\n", sl.Date.Format("2006-01-02"), sl.DurationHours, models.SafeString(sl.Quality))
 			}
 		}
 	}
@@ -566,7 +611,7 @@ func ChatAI(c echo.Context) error {
 		var waters []models.WaterIntake
 		if err := watCursor.All(ctx, &waters); err == nil {
 			for _, wat := range waters {
-				waterStr += fmt.Sprintf("%s: %d glasses\n", wat.Date, wat.Glasses)
+				waterStr += fmt.Sprintf("- %s: %d glasses\n", wat.Date, wat.Glasses)
 			}
 		}
 	}
@@ -578,7 +623,7 @@ func ChatAI(c echo.Context) error {
 		var measurements []models.BodyMeasurement
 		if err := mCursor.All(ctx, &measurements); err == nil {
 			for _, m := range measurements {
-				measurementStr += fmt.Sprintf("%s: Waist: %.1fcm, Body Fat: %.1f%%\n", m.Date.Format("2006-01-02"), m.WaistCircumference, m.BodyFatPercentage)
+				measurementStr += fmt.Sprintf("- %s: Waist: %.1fcm, Body Fat: %.1f%%\n", m.Date.Format("2006-01-02"), m.WaistCircumference, m.BodyFatPercentage)
 			}
 		}
 	}
@@ -604,6 +649,7 @@ func ChatAI(c echo.Context) error {
 
 	contextPrompt := "Persona: Elite Clinical Dietitian & Health Consultant. " +
 		langInstruction +
+		"\n\n--- CURRENT DATE/TIME ---\n" + now.Format("Monday, 2006-01-02 15:04 MST") + "\n\n" +
 		"--- LONG-TERM CONTEXT ---\n" + u.LongTermContext + "\n\n" +
 		"--- 30-DAY TREND DATA ---\n" + trendSummary + "\n\n" +
 		"CRITICAL NUTRITION ACCURACY RULES: \n" +
@@ -615,17 +661,18 @@ func ChatAI(c echo.Context) error {
 		"While health is your expertise, you are intelligent enough to discuss any topic with a consistent, premium persona.\n\n" +
 		"--- USER DATA ---\n" +
 		"Profile: " + userStr + "\nGoals: " + goalsStr + "\nObjective: " + objectiveStr + "\n" +
-		"Recent Food History: " + historyStr + "\n" +
+		"\n--- TODAY'S MEALS ---\n" + todayFoodStr + "\n" +
+		"\n--- RECENT FOOD HISTORY ---\n" + historyStr + "\n" +
 		"Weight Trend: " + weightStr + "\nExercise: " + exerciseStr + "\nSleep: " + sleepStr + "\nWater: " + waterStr + "\nMeasurements: " + measurementStr + "\n\n" +
 		"CRITICAL INSTRUCTIONS:\n" +
 		"1. Connect the dots logically (e.g., accurately assess if their meal matches their exercise).\n" +
 		"2. Provide precise and highly accurate nutritional breakdowns. Always verify that your macronutrient suggestions logically match the suggested calories based on the formula: Calories >= (P*4)+(F*9).\n" +
-		fmt.Sprintf("3. If you recommend or they mention a food, append a JSON tag at the VERY END: `[FOOD_DATA: {\"name\": \"%s\", \"calories\": 100, \"protein\": 10, \"fat\": 2}]`\n", foodExampleName) +
-		fmt.Sprintf("4. Ensure JSON is valid, macronutrients STRICTLY sum up realistically, and the name is in %s language.\n", foodNameLang) +
+		fmt.Sprintf("3. If you recommend or they mention a food, append a special tag at the VERY END: `[ADD: %s | 100 | 10 | 2]` (Format: [ADD: Name | Calories | Protein | Fat])\n", foodExampleName) +
+		"4. Ensure macronutrients STRICTLY sum up realistically, and the name is in " + foodNameLang + " language.\n" +
 		"5. Use Markdown, emojis, and clear spacing. " +
 		"6. Maintain a polite, highly expert, and encouraging tone. " +
 		"7. Keep responses CONCISE and high-impact. Avoid extremely long tables or repetitive summaries unless specifically asked for a deep dive. Focus on quality over quantity. " +
-		"8. STRICT LANGUAGE LOCKDOWN: Use ONLY Thai and Latin (English) characters. ABSOLUTELY NO Chinese (e.g., 营养), Cyrillic (e.g., Калอรี่), Japanese, or other foreign scripts. If you output 'Nutrition', it must be 'โภชนาการ'. If you output 'Calories', it must be 'แคลอรี่' or 'kcal' in Latin characters. Failure to stick to Thai/English characters will result in failure of the task."
+		"8. STRICT LANGUAGE LOCKDOWN: Use ONLY Thai and Latin (English) characters. ABSOLUTELY NO Chinese (e.g., 营养), Cyrillic (e.g., คาลอรี่), Japanese, or other foreign scripts. If you output 'Nutrition', it must be 'โภชนาการ'. If you output 'Calories', it must be 'แคลอรี่' or 'kcal' in Latin characters. Failure to stick to Thai/English characters will result in failure of the task."
 
 	systemMsg := GroqMessage{
 		Role:    "system",
@@ -670,7 +717,6 @@ func ChatAI(c echo.Context) error {
 
 	replyContent := groqResp.Choices[0].Message.Content
 
-	// Persist assistant's reply if using session
 	if useSession {
 		replyMsg := models.ChatMessage{
 			Role:      "assistant",
@@ -678,34 +724,23 @@ func ChatAI(c echo.Context) error {
 			Timestamp: time.Now(),
 		}
 
-		update := bson.M{
-			"$push": bson.M{"messages": replyMsg},
-			"$set":  bson.M{"updatedAt": time.Now()},
-		}
-
-		// Auto-title if still using default title
-		if session.Title == "New Chat" || session.Title == "New Conversation" || session.Title == "My Chat" {
-			newTitle := replyContent
-			if len(newTitle) > 40 {
-				newTitle = newTitle[:37] + "..."
-			}
-			// Better: use user's first message as title if possible
-			if len(session.Messages) > 0 {
-				newTitle = session.Messages[0].Content
-				if len(newTitle) > 40 {
-					newTitle = newTitle[:37] + "..."
-				}
-			}
-			update["$set"].(bson.M)["title"] = newTitle
-		}
-
-		db.ChatSessionsCollection.UpdateOne(ctx,
+		_, err := db.ChatSessionsCollection.UpdateOne(ctx,
 			bson.M{"_id": sessionID},
-			update,
+			bson.M{
+				"$push": bson.M{"messages": replyMsg},
+				"$set":  bson.M{"updatedAt": time.Now()},
+			},
 		)
+		if err != nil {
+			slog.Error("Failed to update chat session with assistant message", "error", err, "sessionID", sessionID)
+		}
 	}
 
-	return c.String(http.StatusOK, replyContent)
+	// Return response as JSON
+	return c.JSON(http.StatusOK, map[string]string{
+		"response":  replyContent,
+		"sessionId": sessionID.Hex(),
+	})
 }
 
 func EstimateExerciseCalories(exerciseName string, durationMinutes int, user models.User) (float64, error) {
@@ -757,4 +792,3 @@ func EstimateExerciseCalories(exerciseName string, durationMinutes int, user mod
 
 	return res.Calories, nil
 }
-

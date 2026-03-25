@@ -82,6 +82,7 @@ func RegisterUser(c echo.Context) error {
 		Email:        req.Email,
 		PasswordHash: string(hashedPassword),
 		Name:         req.Name,
+		Level:        1,
 	}
 
 	res, err := db.UserCollection.InsertOne(ctx, newUser)
@@ -167,6 +168,7 @@ func GoogleLogin(c echo.Context) error {
 			Email:    email,
 			Name:     name,
 			GoogleID: payload.Subject,
+			Level:    1,
 		}
 		res, err := db.UserCollection.InsertOne(ctx, user)
 		if err != nil {

@@ -132,6 +132,12 @@ func CreateFood(c echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 	}
 
+	// Add XP
+	xpAmount := int(food.Calories / 10)
+	if xpAmount > 0 {
+		db.AddUserXP(userID, xpAmount)
+	}
+
 	return c.JSON(http.StatusCreated, food)
 }
 
@@ -200,9 +206,20 @@ func DeleteFood(c echo.Context) error {
 	defer cancel()
 
 	filter := bson.M{"_id": foodID, "userId": userID}
+	// Fetch food first to know how much XP to subtract
+	var food models.Food
+	_ = db.FoodsCollection.FindOne(ctx, filter).Decode(&food)
+
 	result, err := db.FoodsCollection.DeleteOne(ctx, filter)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+	}
+
+	if result.DeletedCount > 0 {
+		xpAmount := int(food.Calories / 10)
+		if xpAmount > 0 {
+			db.AddUserXP(userID, -xpAmount)
+		}
 	}
 
 	if result.DeletedCount == 0 {

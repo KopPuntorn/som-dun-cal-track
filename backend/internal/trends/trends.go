@@ -69,8 +69,35 @@ func CalculateUserTrends(userID primitive.ObjectID, days int) (string, error) {
 		sCursor.All(ctx, &sleeps)
 	}
 
+	// --- Dynamic Period Normalization ---
+	// If the user hasn't used the app for the full 'days', we should divide by the actual elapsed days
+	divisor := float64(days)
+	earliestRecord := endTime
+	hasData := false
+
+	for _, f := range foods {
+		if f.Date.Before(earliestRecord) { earliestRecord = f.Date; hasData = true }
+	}
+	for _, w := range weights {
+		if w.Date.Before(earliestRecord) { earliestRecord = w.Date; hasData = true }
+	}
+	for _, e := range exercises {
+		if e.Date.Before(earliestRecord) { earliestRecord = e.Date; hasData = true }
+	}
+	for _, s := range sleeps {
+		if s.Date.Before(earliestRecord) { earliestRecord = s.Date; hasData = true }
+	}
+
+	if hasData {
+		daysSinceStart := int(time.Since(earliestRecord).Hours()/24) + 1
+		if float64(daysSinceStart) < divisor {
+			divisor = float64(daysSinceStart)
+		}
+	}
+	if divisor < 1 { divisor = 1 }
+
 	// --- Calculations ---
-	summary := TrendSummary{PeriodDays: days}
+	summary := TrendSummary{PeriodDays: int(divisor)} // Use actual divisor for period description if needed
 
 	if len(foods) > 0 {
 		var totalCal, totalPro, totalFat float64
@@ -81,10 +108,10 @@ func CalculateUserTrends(userID primitive.ObjectID, days int) (string, error) {
 			totalFat += models.SafeFloat(f.Fat)
 			loggedDays[f.Date.Format("2006-01-02")] = true
 		}
-		summary.AvgCalories = totalCal / float64(days)
-		summary.AvgProtein = totalPro / float64(days)
-		summary.AvgFat = totalFat / float64(days)
-		summary.Consistency = float64(len(loggedDays)) / float64(days)
+		summary.AvgCalories = totalCal / divisor
+		summary.AvgProtein = totalPro / divisor
+		summary.AvgFat = totalFat / divisor
+		summary.Consistency = float64(len(loggedDays)) / divisor
 	}
 
 	if len(weights) >= 2 {

@@ -76,5 +76,6 @@ func SetupRoutes(e *echo.Echo) {
 	api.POST("/chat/sessions", handlers.CreateChatSession)
 	api.GET("/chat/sessions", handlers.ListChatSessions)
 	api.GET("/chat/sessions/:id", handlers.GetChatSession)
+	api.PUT("/chat/sessions/:id", handlers.UpdateChatSession)
 	api.DELETE("/chat/sessions/:id", handlers.DeleteChatSession)
 }
