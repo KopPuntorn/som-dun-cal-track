@@ -24,8 +24,13 @@ import (
 
 // AI Related Models
 type GroqChatRequest struct {
-	Model    string        `json:"model"`
-	Messages []GroqMessage `json:"messages"`
+	Model            string        `json:"model"`
+	Messages         []GroqMessage `json:"messages"`
+	Temperature      float64       `json:"temperature,omitempty"`
+	MaxTokens        int           `json:"max_tokens,omitempty"`
+	TopP             float64       `json:"top_p,omitempty"`
+	FrequencyPenalty float64       `json:"frequency_penalty,omitempty"`
+	PresencePenalty  float64       `json:"presence_penalty,omitempty"`
 }
 
 type GroqMessage struct {
@@ -134,7 +139,10 @@ func AnalyzeImage(c echo.Context) error {
 
 	// Prepare Groq Request
 	groqReq := GroqChatRequest{
-		Model: "meta-llama/llama-4-scout-17b-16e-instruct",
+		Model:       "meta-llama/llama-4-scout-17b-16e-instruct",
+		Temperature: 0.2,
+		MaxTokens:   220,
+		TopP:        0.9,
 		Messages: []GroqMessage{
 			{
 				Role: "system",
@@ -142,7 +150,8 @@ func AnalyzeImage(c echo.Context) error {
 					"Estimate portion sizes visually and calculate nutritional values based on standard USDA data or equivalent authoritative sources. "+
 					"Crucially, consider hidden calories from cooking oils, sauces, and sugars commonly used in such dishes. Be extremely realistic—Thai street food is often heavily oiled and sweetened. "+
 					"Ensure that the macronutrients mathematically align with the total calories (Calories should roughly be at least (Protein * 4) + (Fat * 9)). "+
-					"CRITICAL: The response MUST be a pure raw JSON object with these exact keys: name (string, MUST be in %s), calories (number), protein (number), fat (number). "+
+					"CRITICAL: Output MUST be valid JSON that can be parsed by JSON.parse. Use this exact schema and keys only: {name: string, calories: number, protein: number, fat: number}. "+
+					"If multiple foods are visible, pick the primary dish name and estimate the combined macros for the plate. "+
 					"LANGUAGE CONSTRAINT: %s "+
 					"Respond ONLY with the JSON object. NO markdown, NO text before or after. Example: {\"name\": \"%s\", \"calories\": 450, \"protein\": 20, \"fat\": 15}", langName, langConstraint, exampleName),
 			},
@@ -200,7 +209,10 @@ func SuggestGoals(c echo.Context) error {
 		"Respond ONLY with the JSON object. NO markdown, NO text before or after.", data.Age, data.Sex, data.Weight, data.Height, data.Objective, langConstraint)
 
 	groqReq := GroqChatRequest{
-		Model: "openai/gpt-oss-120b",
+		Model:       "openai/gpt-oss-120b",
+		Temperature: 0.2,
+		MaxTokens:   250,
+		TopP:        0.9,
 		Messages: []GroqMessage{
 			{
 				Role:    "system",
@@ -281,6 +293,11 @@ func ConsultAI(c echo.Context) error {
 	db.UserCollection.FindOne(ctx, bson.M{"_id": userID}).Decode(&u)
 	trendSummary, _ := trends.CalculateUserTrends(userID, 30)
 
+	preferenceStr := ""
+	if u.DietaryPreferences != "" || u.Allergies != "" || u.FoodDislikes != "" || u.TonePreference != "" {
+		preferenceStr = fmt.Sprintf("Dietary preferences: %s; Allergies: %s; Dislikes: %s; Tone: %s", u.DietaryPreferences, u.Allergies, u.FoodDislikes, u.TonePreference)
+	}
+
 	// --- FETCH ALL RELEVANT DATA FOR THE RANGE ---
 
 	// 1. Fetch Food Logs & Aggregates
@@ -358,7 +375,10 @@ func ConsultAI(c echo.Context) error {
 	}
 
 	groqReq := GroqChatRequest{
-		Model: "openai/gpt-oss-120b",
+		Model:       "openai/gpt-oss-120b",
+		Temperature: 0.3,
+		MaxTokens:   900,
+		TopP:        0.9,
 		Messages: []GroqMessage{
 			{
 				Role: "system",
@@ -369,6 +389,7 @@ func ConsultAI(c echo.Context) error {
 					"--- 30-DAY TREND DATA ---\n" + trendSummary + "\n\n" +
 					"--- DATA SUMMARY FOR REQUESTED PERIOD ---\n" + summaryStr + "\n" +
 					"User Profile: " + fmt.Sprintf("W:%.1fkg, H:%.1fcm, Age:%d", u.Weight, u.Height, u.Age) + "\n" +
+					"User Preferences: " + preferenceStr + "\n" +
 					"Daily Goals: " + goalsStr + "\n" +
 					"Objective: " + objectiveStr + "\n\n" +
 					"--- ACTIVITY LOGS IN THIS PERIOD ---\n" +
@@ -380,6 +401,7 @@ func ConsultAI(c echo.Context) error {
 					"2. Connect weight changes scientifically with their nutrition, energy balance, and exercise logs for this specific period.\n" +
 					"3. Provide deep, evidence-based insights into how this week's trends impact their " + objectiveStr + " goal.\n" +
 					"4. Give 3 'Level-Up' recommendations for the upcoming week based on this analysis. Ensure nutritional advice is 100% accurate, fact-checked, and scientifically sound (e.g. clearly distinguish cardio from muscle-building).\n" +
+					"Format: \n- Snapshot (1-2 sentences)\n- Key Insights (3 bullets)\n- Level-Up Plan (3 bullets)\n" +
 					"Keep response CONCISE (max 350 words). Tone: Expert, motivating, and polished. No generic AI fluff.",
 			},
 			{
@@ -642,8 +664,12 @@ func ChatAI(c echo.Context) error {
 	// 8. Fetch User Profile & Trends
 	var u models.User
 	userStr := "Not provided"
+	preferenceStr := "Not provided"
 	if err := db.UserCollection.FindOne(ctx, bson.M{"_id": userID}).Decode(&u); err == nil {
 		userStr = fmt.Sprintf("Name: %s, Age: %d, Current W: %.1fkg, H: %.1fcm, Sex: %s", u.Name, u.Age, u.Weight, u.Height, u.Sex)
+		if u.DietaryPreferences != "" || u.Allergies != "" || u.FoodDislikes != "" || u.TonePreference != "" {
+			preferenceStr = fmt.Sprintf("Dietary preferences: %s; Allergies: %s; Dislikes: %s; Tone: %s", u.DietaryPreferences, u.Allergies, u.FoodDislikes, u.TonePreference)
+		}
 	}
 	trendSummary, _ := trends.CalculateUserTrends(userID, 30)
 
@@ -660,7 +686,7 @@ func ChatAI(c echo.Context) error {
 		"Use the provided user data deeply to personalize every response. " +
 		"While health is your expertise, you are intelligent enough to discuss any topic with a consistent, premium persona.\n\n" +
 		"--- USER DATA ---\n" +
-		"Profile: " + userStr + "\nGoals: " + goalsStr + "\nObjective: " + objectiveStr + "\n" +
+		"Profile: " + userStr + "\nPreferences: " + preferenceStr + "\nGoals: " + goalsStr + "\nObjective: " + objectiveStr + "\n" +
 		"\n--- TODAY'S MEALS ---\n" + todayFoodStr + "\n" +
 		"\n--- RECENT FOOD HISTORY ---\n" + historyStr + "\n" +
 		"Weight Trend: " + weightStr + "\nExercise: " + exerciseStr + "\nSleep: " + sleepStr + "\nWater: " + waterStr + "\nMeasurements: " + measurementStr + "\n\n" +
@@ -682,8 +708,11 @@ func ChatAI(c echo.Context) error {
 	messages := append([]GroqMessage{systemMsg}, chatHistory...)
 
 	groqReq := GroqChatRequest{
-		Model:    "openai/gpt-oss-120b",
-		Messages: messages,
+		Model:       "openai/gpt-oss-120b",
+		Messages:    messages,
+		Temperature: 0.6,
+		MaxTokens:   900,
+		TopP:        0.9,
 	}
 
 	slog.Info("Chatting with AI", "model", groqReq.Model, "userID", userID, "sessionID", data.SessionID)
@@ -753,7 +782,10 @@ func EstimateExerciseCalories(exerciseName string, durationMinutes int, user mod
 		exerciseName, durationMinutes, user.Age, user.Weight, user.Height, user.Sex)
 
 	groqReq := GroqChatRequest{
-		Model: "openai/gpt-oss-120b",
+		Model:       "openai/gpt-oss-120b",
+		Temperature: 0.1,
+		MaxTokens:   120,
+		TopP:        0.9,
 		Messages: []GroqMessage{
 			{Role: "system", Content: "You are a precise physical activity and kinesiology expert. Return only JSON."},
 			{Role: "user", Content: prompt},

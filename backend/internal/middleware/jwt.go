@@ -10,6 +10,12 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
+type AuthClaims struct {
+	UserID string `json:"user_id"`
+	Email  string `json:"email"`
+	jwt.RegisteredClaims
+}
+
 // JWTMiddleware creates a middleware to protect routes
 func JWTMiddleware(next echo.HandlerFunc) echo.HandlerFunc {
 	return func(c echo.Context) error {
@@ -24,28 +30,35 @@ func JWTMiddleware(next echo.HandlerFunc) echo.HandlerFunc {
 			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "JWT_SECRET not configured"})
 		}
 
-		token, err := jwt.Parse(tokenStr, func(token *jwt.Token) (interface{}, error) {
+		issuer := os.Getenv("JWT_ISSUER")
+		audience := os.Getenv("JWT_AUDIENCE")
+
+		claims := AuthClaims{}
+		parserOptions := []jwt.ParserOption{
+			jwt.WithValidMethods([]string{jwt.SigningMethodHS256.Alg()}),
+		}
+		if issuer != "" {
+			parserOptions = append(parserOptions, jwt.WithIssuer(issuer))
+		}
+		if audience != "" {
+			parserOptions = append(parserOptions, jwt.WithAudience(audience))
+		}
+
+		token, err := jwt.ParseWithClaims(tokenStr, &claims, func(token *jwt.Token) (interface{}, error) {
 			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 				return nil, fmt.Errorf("unexpected signing method")
 			}
 			return []byte(secret), nil
-		})
+		}, parserOptions...)
 
 		if err != nil || !token.Valid {
 			return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Invalid token"})
 		}
-
-		claims, ok := token.Claims.(jwt.MapClaims)
-		if !ok {
-			return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Invalid token claims"})
-		}
-
-		userIDStr, ok := claims["user_id"].(string)
-		if !ok {
+		if claims.UserID == "" {
 			return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Invalid user_id in token"})
 		}
 
-		userID, err := primitive.ObjectIDFromHex(userIDStr)
+		userID, err := primitive.ObjectIDFromHex(claims.UserID)
 		if err != nil {
 			return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Invalid user_id format"})
 		}

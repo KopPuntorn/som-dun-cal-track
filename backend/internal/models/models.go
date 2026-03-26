@@ -44,22 +44,26 @@ type Goals struct {
 
 // User represents authenticated user and their personal profile
 type User struct {
-	ID           primitive.ObjectID `json:"id" bson:"_id,omitempty"`
-	Email        string             `json:"email" bson:"email"`
-	PasswordHash string             `json:"-" bson:"passwordHash,omitempty"`
-	GoogleID     string             `json:"googleId,omitempty" bson:"googleId,omitempty"`
-	Name         string             `json:"name" bson:"name"`
-	Age          int                `json:"age" bson:"age"`
-	Weight       float64            `json:"weight" bson:"weight"`
-	Height       float64            `json:"height" bson:"height"`
-	Sex          string             `json:"sex" bson:"sex"`
-	Onboarded     bool               `json:"onboarded" bson:"onboarded"`
-	TourCompleted bool               `json:"tourCompleted" bson:"tourCompleted"`
-	LastBriefing     string          `json:"lastBriefing" bson:"lastBriefing"`
-	LastBriefingHash string          `json:"lastBriefingHash" bson:"lastBriefingHash"`
-	LongTermContext  string          `json:"longTermContext" bson:"longTermContext"`
-	XP               int             `json:"xp" bson:"xp"`
-	Level            int             `json:"level" bson:"level"`
+	ID                 primitive.ObjectID `json:"id" bson:"_id,omitempty"`
+	Email              string             `json:"email" bson:"email"`
+	PasswordHash       string             `json:"-" bson:"passwordHash,omitempty"`
+	GoogleID           string             `json:"googleId,omitempty" bson:"googleId,omitempty"`
+	Name               string             `json:"name" bson:"name"`
+	Age                int                `json:"age" bson:"age"`
+	Weight             float64            `json:"weight" bson:"weight"`
+	Height             float64            `json:"height" bson:"height"`
+	Sex                string             `json:"sex" bson:"sex"`
+	Onboarded          bool               `json:"onboarded" bson:"onboarded"`
+	TourCompleted      bool               `json:"tourCompleted" bson:"tourCompleted"`
+	LastBriefing       string             `json:"lastBriefing" bson:"lastBriefing"`
+	LastBriefingHash   string             `json:"lastBriefingHash" bson:"lastBriefingHash"`
+	LongTermContext    string             `json:"longTermContext" bson:"longTermContext"`
+	DietaryPreferences string             `json:"dietaryPreferences" bson:"dietaryPreferences"`
+	Allergies          string             `json:"allergies" bson:"allergies"`
+	FoodDislikes       string             `json:"foodDislikes" bson:"foodDislikes"`
+	TonePreference     string             `json:"tonePreference" bson:"tonePreference"`
+	XP                 int                `json:"xp" bson:"xp"`
+	Level              int                `json:"level" bson:"level"`
 }
 
 // WaterIntake represents amount of water consumed on a specific date
@@ -99,13 +103,13 @@ type SleepRecord struct {
 
 // BodyMeasurement represents a user's body metrics and progress photos
 type BodyMeasurement struct {
-	ID                  primitive.ObjectID `json:"id" bson:"_id,omitempty"`
-	UserID              primitive.ObjectID `json:"userId" bson:"userId"`
-	Date                time.Time          `json:"date" bson:"date"`
-	Weight              float64            `json:"weight" bson:"weight"`
-	WaistCircumference  float64            `json:"waistCircumference" bson:"waistCircumference"`
-	BodyFatPercentage   float64            `json:"bodyFatPercentage" bson:"bodyFatPercentage"`
-	ProgressPhotoURL    string             `json:"progressPhotoUrl,omitempty" bson:"progressPhotoUrl,omitempty"`
+	ID                 primitive.ObjectID `json:"id" bson:"_id,omitempty"`
+	UserID             primitive.ObjectID `json:"userId" bson:"userId"`
+	Date               time.Time          `json:"date" bson:"date"`
+	Weight             float64            `json:"weight" bson:"weight"`
+	WaistCircumference float64            `json:"waistCircumference" bson:"waistCircumference"`
+	BodyFatPercentage  float64            `json:"bodyFatPercentage" bson:"bodyFatPercentage"`
+	ProgressPhotoURL   string             `json:"progressPhotoUrl,omitempty" bson:"progressPhotoUrl,omitempty"`
 }
 
 // ChatMessage represents a single message in a chat session
