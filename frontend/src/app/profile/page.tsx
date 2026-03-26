@@ -7,6 +7,7 @@ import { useToast } from "@/context/ToastContext";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useLanguage } from "@/context/LanguageContext";
+import PageHeader from "@/components/PageHeader";
 
 type Goals = {
     calories: number;
@@ -146,31 +147,38 @@ export default function ProfilePage() {
 
     if (authLoading || loading) {
         return (
-            <div className="app-container" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '80vh' }}>
-                <div className="loading-dots" style={{ fontSize: '24px' }}>Loading Profile...</div>
+            <div className="page-shell page-shell--center">
+                <div className="floating-blob floating-blob-1" />
+                <div className="floating-blob floating-blob-2" />
+                <div className="floating-blob floating-blob-3" />
+                <div className="app-container" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '80vh' }}>
+                    <div className="loading-dots" style={{ fontSize: '24px' }}>Loading Profile…</div>
+                </div>
             </div>
         );
     }
 
     return (
-        <div className="app-container" style={{ maxWidth: '600px', alignItems: 'center' }}>
-            {/* Header */}
-            <header className="glass-panel" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", padding: "16px 24px", borderRadius: '24px', marginBottom: '24px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <button onClick={() => router.push("/")} className="icon-btn" title={t('back')}>
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
-                    </button>
-                </div>
-                <h1 style={{ fontSize: "20px", margin: 0, background: 'none', WebkitTextFillColor: 'var(--text-primary)' }}>{t('profileSettings')}</h1>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <Link href="/player-card" className="icon-btn" title="Player Card">
-                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>
-                    </Link>
-                    <button onClick={handleLogout} className="icon-btn" title={t('logout')} style={{ color: "var(--danger)" }}>
-                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
-                    </button>
-                </div>
-            </header>
+        <div className="page-shell">
+            <div className="floating-blob floating-blob-1" />
+            <div className="floating-blob floating-blob-2" />
+            <div className="floating-blob floating-blob-3" />
+            <div className="app-container" style={{ maxWidth: '600px', alignItems: 'center' }}>
+            <PageHeader
+                title={t('profileSettings')}
+                backHref="/"
+                backLabel={t('back')}
+                actions={
+                    <>
+                        <Link href="/player-card" className="icon-btn" title="Player Card" aria-label="Player Card">
+                            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>
+                        </Link>
+                        <button onClick={handleLogout} className="icon-btn" title={t('logout')} style={{ color: "var(--danger)" }} aria-label={t('logout')}>
+                            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+                        </button>
+                    </>
+                }
+            />
 
             {error && (
                 <div style={{ background: "rgba(255, 45, 85, 0.1)", borderLeft: "4px solid var(--danger)", padding: "14px 20px", borderRadius: "12px", fontSize: "14px", color: "var(--text-primary)", width: '100%', marginBottom: '20px' }}>
@@ -387,6 +395,7 @@ export default function ProfilePage() {
                         ) : t('saveProfile').toUpperCase()}
                     </button>
                 </form>
+            </div>
             </div>
         </div>
     );

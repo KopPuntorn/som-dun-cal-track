@@ -912,24 +912,100 @@ export default function Home() {
   const level = user?.level || 1;
   const currentLevelXP = totalXP % 1000;
   const xpProgress = (currentLevelXP / 1000) * 100;
+  const stepLabel = t('tourStep');
+  const tourDialogRef = useRef<HTMLDivElement>(null);
+  const previousFocusRef = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    if (!showTour) return;
+
+    previousFocusRef.current = document.activeElement as HTMLElement | null;
+
+    const focusDialog = () => {
+      const dialog = tourDialogRef.current;
+      if (!dialog) return;
+      const focusable = dialog.querySelectorAll<HTMLElement>(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+      );
+      const first = focusable[0];
+      if (first) first.focus();
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (!showTour) return;
+      const dialog = tourDialogRef.current;
+      if (!dialog) return;
+
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        handleCompleteTour();
+        return;
+      }
+
+      if (event.key === 'ArrowRight') {
+        event.preventDefault();
+        if (tourStep < tourSteps.length - 1) {
+          setTourStep(tourStep + 1);
+        } else {
+          handleCompleteTour();
+        }
+        return;
+      }
+
+      if (event.key === 'ArrowLeft') {
+        event.preventDefault();
+        if (tourStep > 0) {
+          setTourStep(tourStep - 1);
+        }
+        return;
+      }
+
+      if (event.key === 'Tab') {
+        const focusable = dialog.querySelectorAll<HTMLElement>(
+          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+        );
+        if (!focusable.length) return;
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (event.shiftKey && document.activeElement === first) {
+          event.preventDefault();
+          last.focus();
+        } else if (!event.shiftKey && document.activeElement === last) {
+          event.preventDefault();
+          first.focus();
+        }
+      }
+    };
+
+    const focusTimer = window.setTimeout(focusDialog, 50);
+    document.addEventListener('keydown', handleKeyDown);
+
+    return () => {
+      window.clearTimeout(focusTimer);
+      document.removeEventListener('keydown', handleKeyDown);
+      previousFocusRef.current?.focus();
+    };
+  }, [showTour, tourStep, tourSteps.length]);
 
   return (
-    <div className="app-container perspective-1000">
-      {/* 3D Background Depth */}
-      <div className="floating-blob floating-blob-1"></div>
-      <div className="floating-blob floating-blob-2"></div>
-      <div className="floating-blob floating-blob-3"></div>
-      {/* Search Header */}
+    <div className="page-shell">
+      <div className="floating-blob floating-blob-1" />
+      <div className="floating-blob floating-blob-2" />
+      <div className="floating-blob floating-blob-3" />
+      <div className="app-container perspective-1000">
+        {/* Search Header */}
 
       {showTour && (
-        <div className="tour-overlay" style={{
-          position: 'fixed',
-          top: 0, left: 0, right: 0, bottom: 0,
-          zIndex: 9999,
-          pointerEvents: 'auto'
-        }}>
+        <div
+          className="tour-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="tour-title"
+          aria-describedby="tour-desc"
+          ref={tourDialogRef}
+        >
           {/* SVG Spotlight Mask Background */}
-          <svg style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none' }}>
+          <svg className="tour-spotlight" aria-hidden="true">
             <defs>
               <mask id="spotlight-mask">
                 <rect width="100%" height="100%" fill="white" />
@@ -963,7 +1039,7 @@ export default function Home() {
           </svg>
 
           {/* Tooltip Content */}
-          <div className="glass-panel" style={{
+          <div className="glass-panel tour-tooltip" style={{
             maxWidth: '380px',
             width: 'calc(100% - 40px)',
             padding: '32px',
@@ -987,20 +1063,41 @@ export default function Home() {
             border: '1px solid rgba(255,255,255,0.15)',
             boxShadow: '0 20px 40px rgba(0,0,0,0.5)'
           }}>
-            <h2 style={{ fontSize: '22px', fontWeight: 800, marginBottom: '16px', background: 'var(--accent-cal-gradient)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-              {tourSteps[tourStep].title}
-            </h2>
-            <p style={{ color: 'var(--text-secondary)', lineHeight: 1.6, marginBottom: '32px' }}>
-              {tourSteps[tourStep].desc}
-            </p>
+            <div className="tour-tooltip-header">
+              <span className="tour-step-label">{stepLabel} {tourStep + 1}/{tourSteps.length}</span>
+              <button onClick={handleCompleteTour} className="icon-btn tour-close" aria-label={t('tourSkip')}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+              </button>
+            </div>
+            <h2 className="tour-title" id="tour-title">{tourSteps[tourStep].title}</h2>
+            <p className="tour-desc" id="tour-desc">{tourSteps[tourStep].desc}</p>
 
-            <div style={{ display: 'flex', gap: '12px' }}>
+            <div className="tour-progress">
+              <div className="tour-progress-bar" style={{ width: `${((tourStep + 1) / tourSteps.length) * 100}%` }} />
+            </div>
+
+            <div className="tour-actions">
               <button
                 onClick={handleCompleteTour}
                 className="glass-btn"
                 style={{ flex: 1, height: '48px', borderRadius: '14px', fontSize: '14px' }}
               >
                 {t('tourSkip')}
+              </button>
+              <button
+                onClick={() => {
+                  if (tourStep > 0) {
+                    setTourStep(tourStep - 1);
+                  }
+                }}
+                className="glass-btn"
+                style={{ flex: 1, height: '48px', borderRadius: '14px', fontSize: '14px' }}
+                disabled={tourStep === 0}
+              >
+                {t('tourBack')}
               </button>
               <button
                 onClick={() => {
@@ -1016,16 +1113,9 @@ export default function Home() {
                 {tourStep === tourSteps.length - 1 ? t('tourFinish') : t('tourNext')}
               </button>
             </div>
-
-            <div style={{ display: 'flex', justifyContent: 'center', gap: '8px', marginTop: '24px' }}>
+            <div className="tour-dots">
               {tourSteps.map((_, i) => (
-                <div key={i} style={{
-                  width: '8px',
-                  height: '8px',
-                  borderRadius: '50%',
-                  background: i === tourStep ? 'var(--accent-cal)' : 'rgba(255,255,255,0.1)',
-                  transition: 'all 0.3s'
-                }}></div>
+                <div key={i} className={`tour-dot ${i === tourStep ? 'active' : ''}`} />
               ))}
             </div>
           </div>
@@ -2027,6 +2117,7 @@ export default function Home() {
 
       <ParticleBurst trigger={burstTrigger} originX={burstPos.x} originY={burstPos.y} colors={burstColors} count={16} />
       <SuccessAnimation trigger={!!successVariant} variant={successVariant || "food"} onComplete={() => setSuccessVariant(null)} />
+      </div>
     </div>
   );
 }

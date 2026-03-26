@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/labstack/echo/v4"
@@ -29,7 +30,7 @@ func UploadImage(c echo.Context) error {
 	defer src.Close()
 
 	// Validate extension
-	ext := filepath.Ext(file.Filename)
+	ext := strings.ToLower(filepath.Ext(file.Filename))
 	allowedExts := map[string]bool{".jpg": true, ".jpeg": true, ".png": true, ".webp": true, ".gif": true}
 	if !allowedExts[ext] {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid file extension"})
@@ -41,11 +42,13 @@ func UploadImage(c echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "failed to read file for validation"})
 	}
 	fileType := http.DetectContentType(buff)
-	if fileType[:5] != "image" {
+	if !strings.HasPrefix(fileType, "image/") {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "file is not an image"})
 	}
 	// Seek back to start of file for copying
-	src.Seek(0, io.SeekStart)
+	if _, err := src.Seek(0, io.SeekStart); err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "failed to read file for upload"})
+	}
 
 	// Ensure uploads directory exists
 	uploadDir := "uploads"

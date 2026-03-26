@@ -93,11 +93,10 @@ export default function LoginPage() {
     };
 
     return (
-        <div className="login-screen" style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "100vh", width: '100vw', position: "relative", background: '#050505', overflowX: 'hidden', overflowY: 'auto', padding: '20px 16px' }}>
-            {/* Decorative background glows */}
-            <div style={{ position: "absolute", top: "5%", left: "5%", width: "50vw", height: "50vw", background: "var(--accent-cal)", opacity: 0.1, filter: "blur(160px)", borderRadius: "50%" }}></div>
-            <div style={{ position: "absolute", bottom: "5%", right: "5%", width: "50vw", height: "50vw", background: "var(--accent-pro)", opacity: 0.12, filter: "blur(160px)", borderRadius: "50%" }}></div>
-            <div style={{ position: "absolute", top: "30%", left: "40%", width: "30vw", height: "30vw", background: "var(--accent-fat)", opacity: 0.05, filter: "blur(140px)", borderRadius: "50%" }}></div>
+        <div className="page-shell page-shell--center login-screen" style={{ width: '100vw', overflowX: 'hidden', overflowY: 'auto', padding: '20px 16px' }}>
+            <div className="floating-blob floating-blob-1" />
+            <div className="floating-blob floating-blob-2" />
+            <div className="floating-blob floating-blob-3" />
 
             <div className="glass-panel login-panel" style={{ width: "100%", maxWidth: "400px", zIndex: 1, display: "flex", flexDirection: "column", gap: "16px", padding: '20px 16px', borderRadius: '32px', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)', margin: 'auto' }}>
 

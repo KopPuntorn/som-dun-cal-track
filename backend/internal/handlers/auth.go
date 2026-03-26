@@ -39,12 +39,29 @@ type AuthResponse struct {
 	User  models.User `json:"user"`
 }
 
+type AuthClaims struct {
+	UserID string `json:"user_id"`
+	Email  string `json:"email"`
+	jwt.RegisteredClaims
+}
+
 func GenerateJWT(user models.User) (string, error) {
-	claims := jwt.MapClaims{
-		"user_id": user.ID.Hex(),
-		"email":   user.Email,
-		"exp":     time.Now().Add(time.Hour * 24 * 365 * 100).Unix(),
+	issuer := os.Getenv("JWT_ISSUER")
+	audience := os.Getenv("JWT_AUDIENCE")
+
+	claims := AuthClaims{
+		UserID: user.ID.Hex(),
+		Email:  user.Email,
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(time.Now().Add(24 * time.Hour)),
+			IssuedAt:  jwt.NewNumericDate(time.Now()),
+			Issuer:    issuer,
+		},
 	}
+	if audience != "" {
+		claims.Audience = jwt.ClaimStrings{audience}
+	}
+
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	secret := os.Getenv("JWT_SECRET")
 	if secret == "" {
@@ -156,7 +173,14 @@ func GoogleLogin(c echo.Context) error {
 		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Invalid Google token"})
 	}
 
-	email := payload.Claims["email"].(string)
+	emailValue, ok := payload.Claims["email"]
+	if !ok {
+		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Invalid Google token"})
+	}
+	email, ok := emailValue.(string)
+	if !ok || email == "" {
+		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Invalid Google token"})
+	}
 	name, _ := payload.Claims["name"].(string)
 
 	var user models.User

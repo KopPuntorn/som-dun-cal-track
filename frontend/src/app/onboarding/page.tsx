@@ -139,13 +139,13 @@ export default function OnboardingPage() {
         }
     };
 
-    if (isLoading || !user) return <div className="app-container">Loading...</div>;
+    if (isLoading || !user) return <div className="app-container">Loading…</div>;
 
     return (
-        <div className="app-container" style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "100vh", position: "relative" }}>
-            {/* Decorative background glows */}
-            <div style={{ position: "absolute", top: "15%", right: "15%", width: "35vw", height: "35vw", background: "var(--accent-pro)", opacity: 0.1, filter: "blur(120px)", borderRadius: "50%" }}></div>
-            <div style={{ position: "absolute", bottom: "15%", left: "15%", width: "35vw", height: "35vw", background: "var(--accent-fat)", opacity: 0.1, filter: "blur(120px)", borderRadius: "50%" }}></div>
+        <div className="page-shell page-shell--center">
+            <div className="floating-blob floating-blob-1" />
+            <div className="floating-blob floating-blob-2" />
+            <div className="floating-blob floating-blob-3" />
 
             <div className="glass-panel" style={{ width: "100%", maxWidth: "540px", padding: "48px", borderRadius: '32px', zIndex: 1 }}>
                 <div style={{ textAlign: "center", marginBottom: "40px" }}>

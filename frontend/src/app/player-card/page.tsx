@@ -220,20 +220,25 @@ export default function PlayerCardPage() {
 
   if (authLoading) {
     return (
-      <div className="app-container" style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "80vh" }}>
-        <div className="loading-dots" style={{ fontSize: "24px" }}>{t("loading")}</div>
+      <div className="page-shell page-shell--center">
+        <div className="floating-blob floating-blob-1" />
+        <div className="floating-blob floating-blob-2" />
+        <div className="floating-blob floating-blob-3" />
+        <div className="app-container" style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "80vh" }}>
+          <div className="loading-dots" style={{ fontSize: "24px" }}>{t("loading")}</div>
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="app-container perspective-1000" style={{ maxWidth: "600px", alignItems: "center" }}>
-      {/* 3D Background Depth */}
-      <div className="floating-blob floating-blob-1"></div>
-      <div className="floating-blob floating-blob-2"></div>
-      <div className="floating-blob floating-blob-3"></div>
-      {/* Header */}
-      <header className="glass-panel" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", padding: "16px 24px", borderRadius: '24px' }}>
+    <div className="page-shell">
+      <div className="floating-blob floating-blob-1" />
+      <div className="floating-blob floating-blob-2" />
+      <div className="floating-blob floating-blob-3" />
+      <div className="app-container perspective-1000" style={{ maxWidth: "600px", alignItems: "center" }}>
+        {/* Header */}
+        <header className="glass-panel" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", padding: "16px 24px", borderRadius: '24px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <button onClick={() => router.push("/")} className="icon-btn" title={t("back")}>
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
@@ -587,6 +592,7 @@ export default function PlayerCardPage() {
           <p style={{ fontSize: "13px", marginTop: "8px", opacity: 0.6 }}>{t("startTrackingPrompt")}</p>
         </div>
       )}
+      </div>
     </div>
   );
 }

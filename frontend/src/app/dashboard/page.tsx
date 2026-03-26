@@ -16,11 +16,13 @@ import {
     ResponsiveContainer,
     LineChart,
     Line,
-    ReferenceLine
+    ReferenceLine,
+    Cell
 } from 'recharts';
 import { format, subDays, startOfDay, endOfDay, isBefore, eachDayOfInterval } from 'date-fns';
 import { useAuth } from "@/context/AuthContext";
 import { useLanguage } from "@/context/LanguageContext";
+import PageHeader from "@/components/PageHeader";
 
 type Food = {
     id: string;
@@ -432,26 +434,57 @@ export default function DashboardPage() {
         })).sort((a, b) => a.sortKey.localeCompare(b.sortKey));
     }, [measurements]);
 
+    const avgCalories = chartData.length
+        ? Math.round(chartData.reduce((sum, d) => sum + (d.calories || 0), 0) / chartData.length)
+        : 0;
+    const avgProtein = chartData.length
+        ? Math.round(chartData.reduce((sum, d) => sum + (d.protein || 0), 0) / chartData.length)
+        : 0;
+    const avgFat = chartData.length
+        ? Math.round(chartData.reduce((sum, d) => sum + (d.fat || 0), 0) / chartData.length)
+        : 0;
+    const latestMeasurement = chartDataMeasurements.length ? chartDataMeasurements[chartDataMeasurements.length - 1] : null;
+    const lastUpdatedLabel = t('chartLastUpdated');
+    const noDataLabel = t('chartNoData');
+    const energyLabel = t('chartEnergy');
+    const macroLabel = t('chartMacros');
+    const bodyLabel = t('chartBody');
+    const avgLabel = t('chartAvg');
+    const goalLabel = t('chartGoal');
+    const calorieTitle = t('chartCaloriesTitle');
+    const proteinTitle = t('chartProteinTitle');
+    const fatTitle = t('chartFatTitle');
+
     return (
-        <div className="app-container">
-            <header className="main-header glass-panel" style={{ display: 'flex', gap: '16px', justifyContent: 'flex-start' }}>
-                <Link href="/" className="icon-btn" title={t('back')}>
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
-                </Link>
-                <div>
-                    <h1 style={{ marginBottom: 0, fontSize: '24px' }}>{user?.name ? `${user.name}'s ${t('navDashboard')}` : t('analyticsTitle')}</h1>
-                    <p className="date-display" style={{ marginTop: '4px' }}>{t('historyTrends')}</p>
-                </div>
-                <div className="header-actions" style={{ display: 'flex', gap: '8px', alignItems: 'center', marginLeft: 'auto' }}>
-                    <button onClick={() => setLanguage(language === 'en' ? 'th' : 'en')} className="icon-btn" style={{ fontSize: '14px', fontWeight: 'bold' }}>{language === 'en' ? 'TH' : 'EN'}</button>
-                    <Link href="/player-card" className="icon-btn" title="Player Card">
-                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>
-                    </Link>
-                    <button onClick={logout} className="icon-btn" style={{ color: "var(--danger)" }}>
-                        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
-                    </button>
-                </div>
-            </header>
+        <div className="page-shell">
+            <div className="floating-blob floating-blob-1" />
+            <div className="floating-blob floating-blob-2" />
+            <div className="floating-blob floating-blob-3" />
+            <div className="app-container">
+            <PageHeader
+                title={user?.name ? `${user.name}'s ${t('navDashboard')}` : t('analyticsTitle')}
+                subtitle={t('historyTrends')}
+                backHref="/"
+                backLabel={t('back')}
+                actions={
+                    <>
+                        <button
+                            onClick={() => setLanguage(language === 'en' ? 'th' : 'en')}
+                            className="icon-btn"
+                            style={{ fontSize: '14px', fontWeight: 'bold' }}
+                            aria-label={language === 'en' ? 'เปลี่ยนเป็นภาษาไทย' : 'Switch to English'}
+                        >
+                            {language === 'en' ? 'TH' : 'EN'}
+                        </button>
+                        <Link href="/player-card" className="icon-btn" title="Player Card" aria-label="Player Card">
+                            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>
+                        </Link>
+                        <button onClick={logout} className="icon-btn" style={{ color: "var(--danger)" }} aria-label={t('logout')}>
+                            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
+                        </button>
+                    </>
+                }
+            />
 
             <section className="glass-panel" style={{ padding: '16px 24px' }}>
                 <div style={{ display: 'flex', gap: '8px', overflowX: 'auto', paddingBottom: '4px', flexWrap: 'wrap' }}>
@@ -490,37 +523,62 @@ export default function DashboardPage() {
                 <svg style={{ height: 0, width: 0, position: 'absolute' }}>
                     <defs>
                         <linearGradient id="cal-gradient" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="#ff6b00" stopOpacity={0.8} />
-                            <stop offset="95%" stopColor="#ff2a55" stopOpacity={0} />
+                            <stop offset="5%" stopColor="var(--accent-cal)" stopOpacity={0.85} />
+                            <stop offset="95%" stopColor="var(--accent-cal)" stopOpacity={0} />
                         </linearGradient>
                         <linearGradient id="pro-gradient" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="#0ea5e9" stopOpacity={0.8} />
-                            <stop offset="95%" stopColor="#6366f1" stopOpacity={0} />
+                            <stop offset="5%" stopColor="var(--accent-pro)" stopOpacity={0.85} />
+                            <stop offset="95%" stopColor="var(--accent-pro)" stopOpacity={0} />
                         </linearGradient>
                         <linearGradient id="fat-gradient" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="#a855f7" stopOpacity={0.8} />
-                            <stop offset="95%" stopColor="#ec4899" stopOpacity={0} />
+                            <stop offset="5%" stopColor="var(--accent-fat)" stopOpacity={0.85} />
+                            <stop offset="95%" stopColor="var(--accent-fat)" stopOpacity={0} />
+                        </linearGradient>
+                        <linearGradient id="cal-danger" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%" stopColor="var(--danger)" stopOpacity={0.9} />
+                            <stop offset="95%" stopColor="var(--danger)" stopOpacity={0} />
                         </linearGradient>
                     </defs>
                 </svg>
-                <div className="glass-panel" style={{ height: '380px', gridColumn: '1 / -1' }}>
-                    <h3 style={{ marginBottom: '24px' }}>Calorie Intake vs Goal</h3>
+                <div className="glass-panel chart-panel" style={{ height: '380px', gridColumn: '1 / -1' }}>
+                    <div className="chart-header">
+                        <div>
+                            <p className="chart-eyebrow">{energyLabel}</p>
+                            <h3 className="chart-title">{calorieTitle}</h3>
+                            <p className="chart-subtitle">{avgLabel} {avgCalories} kcal/{t('unitDay')}</p>
+                        </div>
+                        <div className="chart-kpi">
+                            <span className="chart-kpi-label">{goalLabel}</span>
+                            <span className="chart-kpi-value">{goals.calories} kcal</span>
+                        </div>
+                    </div>
                     <ResponsiveContainer width="100%" height="80%">
-                        <BarChart data={chartData}>
+                        <BarChart data={chartData} barCategoryGap="22%">
                             <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
                             <XAxis dataKey="date" stroke="var(--text-secondary)" fontSize={11} tickLine={false} axisLine={false} />
                             <YAxis stroke="var(--text-secondary)" fontSize={11} tickLine={false} axisLine={false} domain={[0, (dataMax: number) => Math.max(dataMax, goals.calories) * 1.1]} />
-                            <Tooltip wrapperClassName="chart-tooltip" />
-                            <ReferenceLine y={goals.calories} stroke="var(--danger)" strokeDasharray="4 4" label={{ position: 'right', value: 'Goal', fill: 'var(--danger)', fontSize: 10, fontWeight: 700 }} />
-                            <Bar dataKey="calories" fill="url(#cal-gradient)" radius={[6, 6, 0, 0]} maxBarSize={40} />
+                            <Tooltip wrapperClassName="chart-tooltip" contentStyle={{ background: 'rgba(15, 23, 21, 0.9)', borderColor: 'rgba(255,255,255,0.15)', borderRadius: '14px' }} itemStyle={{ color: 'var(--text-primary)' }} />
+                            <ReferenceLine y={goals.calories} stroke="var(--danger)" strokeDasharray="4 4" label={{ position: 'right', value: goalLabel, fill: 'var(--danger)', fontSize: 10, fontWeight: 700 }} />
+                            {avgCalories > 0 && (
+                                <ReferenceLine y={avgCalories} stroke="rgba(255,255,255,0.25)" strokeDasharray="2 6" label={{ position: 'left', value: avgLabel, fill: 'rgba(255,255,255,0.6)', fontSize: 10, fontWeight: 700 }} />
+                            )}
+                            <Bar dataKey="calories" radius={[8, 8, 4, 4]} maxBarSize={44}>
+                                {chartData.map((entry, index) => (
+                                    <Cell key={`cell-${index}`} fill={entry.calories > goals.calories ? 'url(#cal-danger)' : 'url(#cal-gradient)'} />
+                                ))}
+                            </Bar>
                         </BarChart>
                     </ResponsiveContainer>
                 </div>
 
-                <div className="glass-panel" style={{ height: '380px', gridColumn: '1 / -1' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-                        <h3 style={{ margin: 0 }}>{macroView === 'protein' ? 'Protein Trends' : 'Fat Trends'}</h3>
-                        <div className="glass-panel" style={{ padding: '4px', borderRadius: '12px', display: 'flex', gap: '4px', border: '1px solid rgba(255,255,255,0.1)' }}>
+                <div className="glass-panel chart-panel" style={{ height: '380px', gridColumn: '1 / -1' }}>
+                    <div className="chart-header">
+                        <div>
+                            <p className="chart-eyebrow">{macroLabel}</p>
+                            <h3 className="chart-title">{macroView === 'protein' ? proteinTitle : fatTitle}</h3>
+                            <p className="chart-subtitle">{avgLabel} {macroView === 'protein' ? avgProtein : avgFat} g/{t('unitDay')}</p>
+                        </div>
+                        <div className="chart-toggle">
                             <button
                                 onClick={() => setMacroView('protein')}
                                 className={`glass-btn ${macroView === 'protein' ? 'active' : ''}`}
@@ -542,29 +600,38 @@ export default function DashboardPage() {
                             <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
                             <XAxis dataKey="date" stroke="var(--text-secondary)" fontSize={11} tickLine={false} axisLine={false} />
                             <YAxis stroke="var(--text-secondary)" fontSize={11} tickLine={false} axisLine={false} domain={[0, (dataMax: number) => Math.max(dataMax, macroView === 'protein' ? goals.protein : goals.fat) * 1.2]} />
-                            <Tooltip wrapperClassName="chart-tooltip" />
+                            <Tooltip wrapperClassName="chart-tooltip" contentStyle={{ background: 'rgba(15, 23, 21, 0.9)', borderColor: 'rgba(255,255,255,0.15)', borderRadius: '14px' }} itemStyle={{ color: 'var(--text-primary)' }} />
                             <ReferenceLine
                                 y={macroView === 'protein' ? goals.protein : goals.fat}
                                 stroke={macroView === 'protein' ? "var(--accent-pro)" : "var(--accent-fat)"}
                                 strokeDasharray="4 4"
-                                label={{ position: 'right', value: `${macroView.toUpperCase()} GOAL`, fill: macroView === 'protein' ? "var(--accent-pro)" : "var(--accent-fat)", fontSize: 10, fontWeight: 700 }}
+                                label={{ position: 'right', value: `${macroView.toUpperCase()} ${goalLabel}`, fill: macroView === 'protein' ? "var(--accent-pro)" : "var(--accent-fat)", fontSize: 10, fontWeight: 700 }}
                             />
                             <Line
                                 type="monotone"
                                 dataKey={macroView}
-                                stroke={macroView === 'protein' ? "url(#pro-gradient)" : "url(#fat-gradient)"}
+                                stroke={macroView === 'protein' ? "var(--accent-pro)" : "var(--accent-fat)"}
                                 strokeWidth={3}
-                                dot={{ fill: 'var(--bg-color)', r: 4 }}
+                                dot={{ fill: 'var(--bg-color)', r: 4, strokeWidth: 2, stroke: macroView === 'protein' ? 'var(--accent-pro)' : 'var(--accent-fat)' }}
+                                activeDot={{ r: 6, strokeWidth: 2, stroke: '#0f1715', fill: macroView === 'protein' ? 'var(--accent-pro)' : 'var(--accent-fat)' }}
                                 animationDuration={1000}
                             />
                         </LineChart>
                     </ResponsiveContainer>
                 </div>
 
-                <div className="glass-panel" style={{ height: '400px', gridColumn: '1 / -1' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px', flexWrap: 'wrap', gap: '12px' }}>
-                        <h3 style={{ margin: 0 }}>{t('measurementsTrend')}</h3>
-                        <div className="glass-panel" style={{ padding: '4px', borderRadius: '12px', display: 'flex', gap: '4px', border: '1px solid rgba(255,255,255,0.1)' }}>
+                <div className="glass-panel chart-panel" style={{ height: '400px', gridColumn: '1 / -1' }}>
+                    <div className="chart-header" style={{ flexWrap: 'wrap', gap: '12px' }}>
+                        <div>
+                            <p className="chart-eyebrow">{bodyLabel}</p>
+                            <h3 className="chart-title">{t('measurementsTrend')}</h3>
+                            <p className="chart-subtitle">
+                                {latestMeasurement
+                                    ? `${lastUpdatedLabel} ${latestMeasurement.date}`
+                                    : noDataLabel}
+                            </p>
+                        </div>
+                        <div className="chart-toggle">
                             <button
                                 onClick={() => setMeasureView('weight')}
                                 className={`glass-btn ${measureView === 'weight' ? 'active' : ''}`}
@@ -601,9 +668,10 @@ export default function DashboardPage() {
                                 type="monotone"
                                 dataKey={measureView}
                                 name={measureView === 'weight' ? `${t('weight')} (kg)` : measureView === 'waist' ? `${t('waist')} (cm)` : `${t('bodyFat')} (%)`}
-                                stroke={measureView === 'weight' ? "#32d74b" : measureView === 'waist' ? "#bf5af2" : "#ff9f0a"}
+                                stroke={measureView === 'weight' ? "var(--accent-cal)" : measureView === 'waist' ? "var(--accent-pro)" : "var(--accent-fat)"}
                                 strokeWidth={3}
-                                dot={{ fill: 'var(--bg-color)', r: 4 }}
+                                dot={{ fill: 'var(--bg-color)', r: 4, strokeWidth: 2, stroke: measureView === 'weight' ? 'var(--accent-cal)' : measureView === 'waist' ? 'var(--accent-pro)' : 'var(--accent-fat)' }}
+                                activeDot={{ r: 6, strokeWidth: 2, stroke: '#0f1715', fill: measureView === 'weight' ? 'var(--accent-cal)' : measureView === 'waist' ? 'var(--accent-pro)' : 'var(--accent-fat)' }}
                                 animationDuration={1000}
                             />
                         </LineChart>
@@ -668,6 +736,7 @@ export default function DashboardPage() {
                     Export Data (CSV)
                 </button>
             </section>
+            </div>
         </div>
     );
 }
