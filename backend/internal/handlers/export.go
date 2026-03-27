@@ -40,7 +40,7 @@ func ExportData(c echo.Context) error {
 	writer := csv.NewWriter(c.Response().Writer)
 
 	// Write Header
-	writer.Write([]string{"Date", "Name", "MealCategory", "Calories", "Protein", "Fat"})
+	writer.Write([]string{"Date", "Name", "MealCategory", "Calories", "Protein", "Carbs", "Fat"})
 
 	for _, f := range foods {
 		cat := f.MealCategory
@@ -53,6 +53,7 @@ func ExportData(c echo.Context) error {
 			cat,
 			fmt.Sprintf("%.1f", f.Calories),
 			fmt.Sprintf("%.1f", models.SafeFloat(f.Protein)),
+			fmt.Sprintf("%.1f", models.SafeFloat(f.Carbs)),
 			fmt.Sprintf("%.1f", models.SafeFloat(f.Fat)),
 		})
 	}

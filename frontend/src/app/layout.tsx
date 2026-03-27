@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { Outfit } from 'next/font/google';
+import { Suspense } from 'react';
 import './globals.css';
 
 const outfit = Outfit({
@@ -17,6 +18,14 @@ export const metadata: Metadata = {
 import { Providers } from '@/context/Providers';
 import BottomNav from '@/components/BottomNav';
 import OfflineIndicator from '@/components/OfflineIndicator';
+
+function BottomNavWrapper() {
+  return (
+    <Suspense fallback={null}>
+      <BottomNav />
+    </Suspense>
+  );
+}
 
 export default function RootLayout({
   children,
@@ -50,7 +59,7 @@ export default function RootLayout({
         <Providers>
           <OfflineIndicator />
           {children}
-          <BottomNav />
+          <BottomNavWrapper />
         </Providers>
       </body>
     </html>

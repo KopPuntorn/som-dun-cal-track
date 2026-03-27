@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 
 interface Particle {
@@ -11,6 +11,8 @@ interface Particle {
   speed: number;
   size: number;
   color: string;
+  scale: number;
+  duration: number;
 }
 
 interface ParticleBurstProps {
@@ -30,29 +32,25 @@ export default function ParticleBurst({
   colors = DEFAULT_COLORS,
   count = 12,
 }: ParticleBurstProps) {
-  const [particles, setParticles] = useState<Particle[]>([]);
+  const randomFromSeed = (seed: number) => {
+    const x = Math.sin(seed) * 10000;
+    return x - Math.floor(x);
+  };
 
-  useEffect(() => {
-    if (trigger === 0) return;
-
-    const newParticles: Particle[] = Array.from({ length: count }).map((_, i) => ({
-      id: Date.now() + i,
+  const particles = useMemo<Particle[]>(() => {
+    if (trigger === 0) return [];
+    const seedBase = trigger * 1000;
+    return Array.from({ length: count }).map((_, i) => ({
+      id: seedBase + i,
       x: 0,
       y: 0,
-      angle: Math.random() * Math.PI * 2,
-      speed: 30 + Math.random() * 50,
-      size: 4 + Math.random() * 6,
-      color: colors[Math.floor(Math.random() * colors.length)],
+      angle: randomFromSeed(seedBase + i) * Math.PI * 2,
+      speed: 30 + randomFromSeed(seedBase + i + 1) * 50,
+      size: 4 + randomFromSeed(seedBase + i + 2) * 6,
+      color: colors[Math.floor(randomFromSeed(seedBase + i + 3) * colors.length)],
+      scale: randomFromSeed(seedBase + i + 4) + 0.5,
+      duration: 0.6 + randomFromSeed(seedBase + i + 5) * 0.4,
     }));
-
-    setParticles(newParticles);
-
-    // Clean up particles after animation (approx ~800ms)
-    const timeout = setTimeout(() => {
-      setParticles([]);
-    }, 1000);
-
-    return () => clearTimeout(timeout);
   }, [trigger, count, colors]);
 
   if (particles.length === 0) return null;
@@ -81,11 +79,11 @@ export default function ParticleBurst({
                 x: destX,
                 y: destY,
                 opacity: 0,
-                scale: Math.random() + 0.5,
+                scale: p.scale,
               }}
               exit={{ opacity: 0 }}
               transition={{
-                duration: 0.6 + Math.random() * 0.4,
+                duration: p.duration,
                 ease: "easeOut",
               }}
               className="absolute rounded-full"

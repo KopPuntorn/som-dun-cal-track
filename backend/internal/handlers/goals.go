@@ -43,6 +43,7 @@ func UpdateGoals(c echo.Context) error {
 		"$set": bson.M{
 			"calories":  updateData.Calories,
 			"protein":   updateData.Protein,
+			"carbs":     updateData.Carbs,
 			"fat":       updateData.Fat,
 			"objective": updateData.Objective,
 		},

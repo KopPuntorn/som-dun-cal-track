@@ -175,6 +175,7 @@ func UpdateFood(c echo.Context) error {
 			"name":         food.Name,
 			"calories":     food.Calories,
 			"protein":      food.Protein,
+			"carbs":        food.Carbs,
 			"fat":          food.Fat,
 			"date":         food.Date,
 			"mealCategory": food.MealCategory,

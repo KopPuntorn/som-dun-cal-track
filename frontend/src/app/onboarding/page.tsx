@@ -29,6 +29,7 @@ export default function OnboardingPage() {
     const [goals, setGoals] = useState({
         calories: 2000,
         protein: 150,
+        carbs: 250,
         fat: 70,
         objective: ""
     });
@@ -127,6 +128,7 @@ export default function OnboardingPage() {
                 ...goals,
                 calories: json.calories,
                 protein: json.protein,
+                carbs: json.carbs,
                 fat: json.fat
             });
             setAiExplanation(json.explanation);
@@ -148,64 +150,58 @@ export default function OnboardingPage() {
             <div className="floating-blob floating-blob-3" />
 
             <div className="glass-panel" style={{ width: "100%", maxWidth: "540px", padding: "48px", borderRadius: '32px', zIndex: 1 }}>
-                <div style={{ textAlign: "center", marginBottom: "40px" }}>
-                    <h1 style={{ fontSize: '28px', fontWeight: 800, marginBottom: "12px", background: 'var(--accent-cal-gradient)', WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
-                        {t('welcomeName').replace('{name}', user.name)}
-                    </h1>
-                    <p style={{ color: "var(--text-secondary)", fontSize: '15px', fontWeight: 500 }}>{t('buildProfileDesc')}</p>
+                    <div style={{ textAlign: "center", marginBottom: "32px" }}>
+                        <h1 style={{ fontSize: '28px', fontWeight: 800, marginBottom: "12px", background: 'var(--accent-cal-gradient)', WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+                            {t('welcomeName').replace('{name}', user.name)}
+                        </h1>
+                        <p style={{ color: "var(--text-secondary)", fontSize: '15px', fontWeight: 500 }}>{t('buildProfileDesc')}</p>
 
-                    <div style={{ display: "flex", justifyContent: "center", gap: "12px", marginTop: "32px" }}>
-                        <div style={{ width: "60px", height: "6px", borderRadius: "3px", background: step === 0 ? "var(--accent-cal-gradient)" : "rgba(255,255,255,0.08)", transition: 'all 0.4s' }}></div>
-                        <div style={{ width: "60px", height: "6px", borderRadius: "3px", background: step === 1 ? "var(--accent-cal-gradient)" : "rgba(255,255,255,0.08)", transition: 'all 0.4s' }}></div>
-                        <div style={{ width: "60px", height: "6px", borderRadius: "3px", background: step === 2 ? "var(--accent-cal-gradient)" : "rgba(255,255,255,0.08)", transition: 'all 0.4s' }}></div>
+                        <div className="progress-dots">
+                            <div className={`progress-dot ${step === 0 ? 'active' : ''}`}></div>
+                            <div className={`progress-dot ${step === 1 ? 'active' : ''}`}></div>
+                            <div className={`progress-dot ${step === 2 ? 'active' : ''}`}></div>
+                        </div>
                     </div>
-                </div>
 
-                {step === 0 ? (
-                    <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
-                            <div className="icon-btn" style={{ background: 'rgba(255,255,255,0.05)', border: 'none', width: '36px', height: '36px', cursor: 'default' }}>
-                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent-pro)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12H3M3 12l7-7M3 12l7 7"></path></svg>
+                    {step === 0 ? (
+                        <div className="step-container">
+                            <div className="step-header">
+                                <div className="step-header-icon" style={{ background: 'rgba(255,255,255,0.05)' }}>
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--accent-pro)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12H3M3 12l7-7M3 12l7 7"></path></svg>
+                                </div>
+                                <h2 style={{ fontSize: "18px", fontWeight: 700, margin: 0 }}>{t('chooseLanguage')}</h2>
                             </div>
-                            <h2 style={{ fontSize: "18px", fontWeight: 700, margin: 0 }}>{t('chooseLanguage')}</h2>
-                        </div>
 
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
-                            <button 
-                                className="glass-btn" 
-                                onClick={() => setLanguage('en')}
-                                style={{ 
-                                    flexDirection: 'column', 
-                                    height: '120px', 
-                                    gap: '12px',
-                                    border: language === 'en' ? '2px solid var(--accent-pro)' : '1px solid var(--panel-border)',
-                                    background: language === 'en' ? 'rgba(14, 165, 233, 0.1)' : 'rgba(0,0,0,0.2)'
-                                }}
-                            >
-                                <span style={{ fontSize: '32px' }}>🇺🇸</span>
-                                <span style={{ fontWeight: 700 }}>English</span>
-                            </button>
-                            <button 
-                                className="glass-btn" 
-                                onClick={() => setLanguage('th')}
-                                style={{ 
-                                    flexDirection: 'column', 
-                                    height: '120px', 
-                                    gap: '12px',
-                                    border: language === 'th' ? '2px solid var(--accent-pro)' : '1px solid var(--panel-border)',
-                                    background: language === 'th' ? 'rgba(14, 165, 233, 0.1)' : 'rgba(0,0,0,0.2)'
-                                }}
-                            >
-                                <span style={{ fontSize: '32px' }}>🇹🇭</span>
-                                <span style={{ fontWeight: 700 }}>ภาษาไทย</span>
+                            <div className="grid-2">
+                                <button 
+                                    className={`glass-btn lang-btn ${language === 'en' ? 'active' : ''}`}
+                                    onClick={() => setLanguage('en')}
+                                    style={{ 
+                                        border: language === 'en' ? '2px solid var(--accent-pro)' : '1px solid var(--panel-border)',
+                                        background: language === 'en' ? 'rgba(14, 165, 233, 0.1)' : 'rgba(0,0,0,0.2)'
+                                    }}
+                                >
+                                    <span style={{ fontSize: '32px' }}>🇺🇸</span>
+                                    <span style={{ fontWeight: 700 }}>English</span>
+                                </button>
+                                <button 
+                                    className={`glass-btn lang-btn ${language === 'th' ? 'active' : ''}`}
+                                    onClick={() => setLanguage('th')}
+                                    style={{ 
+                                        border: language === 'th' ? '2px solid var(--accent-pro)' : '1px solid var(--panel-border)',
+                                        background: language === 'th' ? 'rgba(14, 165, 233, 0.1)' : 'rgba(0,0,0,0.2)'
+                                    }}
+                                >
+                                    <span style={{ fontSize: '32px' }}>🇹🇭</span>
+                                    <span style={{ fontWeight: 700 }}>ภาษาไทย</span>
+                                </button>
+                            </div>
+
+                            <button className="primary-btn active" onClick={() => setStep(1)} style={{ marginTop: "16px", height: '56px', borderRadius: '16px', fontWeight: 700, letterSpacing: '1px' }}>
+                                {t('startOnboarding')}
                             </button>
                         </div>
-
-                        <button className="primary-btn active" onClick={() => setStep(1)} style={{ marginTop: "16px", height: '56px', borderRadius: '16px', fontWeight: 700, letterSpacing: '1px' }}>
-                            {t('startOnboarding')}
-                        </button>
-                    </div>
-                ) : step === 1 ? (
+                    ) : step === 1 ? (
                     <div style={{ display: "flex", flexDirection: "column", gap: "24px" }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px' }}>
                             <div className="icon-btn" style={{ background: 'rgba(255,255,255,0.05)', border: 'none', width: '36px', height: '36px', cursor: 'default' }}>
@@ -366,11 +362,16 @@ export default function OnboardingPage() {
                             <span style={{ position: 'absolute', right: '16px', top: '42px', fontSize: '11px', fontWeight: 800, color: 'var(--accent-cal)' }}>{t('unitKcal')}</span>
                         </div>
 
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '20px' }}>
                             <div className="input-group" style={{ position: 'relative' }}>
                                 <label style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '8px', display: 'block' }}>{t('protein')}</label>
                                 <input type="number" value={goals.protein || ''} onChange={e => setGoals({ ...goals, protein: e.target.value === '' ? 0 : parseInt(e.target.value) })} style={{ height: '52px', borderRadius: '14px', background: 'rgba(0,0,0,0.2)', border: '1px solid var(--panel-border)', padding: '0 16px', width: '100%' }} />
                                 <span style={{ position: 'absolute', right: '16px', top: '42px', fontSize: '11px', fontWeight: 800, color: 'var(--accent-pro)' }}>{t('unitG')}</span>
+                            </div>
+                            <div className="input-group" style={{ position: 'relative' }}>
+                                <label style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '8px', display: 'block' }}>{t('carbs')}</label>
+                                <input type="number" value={goals.carbs || ''} onChange={e => setGoals({ ...goals, carbs: e.target.value === '' ? 0 : parseInt(e.target.value) })} style={{ height: '52px', borderRadius: '14px', background: 'rgba(0,0,0,0.2)', border: '1px solid var(--panel-border)', padding: '0 16px', width: '100%' }} />
+                                <span style={{ position: 'absolute', right: '16px', top: '42px', fontSize: '11px', fontWeight: 800, color: 'var(--accent-carb)' }}>{t('unitG')}</span>
                             </div>
                             <div className="input-group" style={{ position: 'relative' }}>
                                 <label style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '8px', display: 'block' }}>{t('fat')}</label>

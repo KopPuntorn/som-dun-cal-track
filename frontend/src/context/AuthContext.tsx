@@ -29,29 +29,27 @@ type AuthContextType = {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-    const [user, setUser] = useState<UserProfile | null>(null);
-    const [token, setToken] = useState<string | null>(null);
-    const [isLoading, setIsLoading] = useState(true);
+    const [user, setUser] = useState<UserProfile | null>(() => {
+        if (typeof window === "undefined") return null;
+        const storedUser = localStorage.getItem("auth_user");
+        if (!storedUser) return null;
+        try {
+            return JSON.parse(storedUser) as UserProfile;
+        } catch {
+            localStorage.removeItem("auth_token");
+            localStorage.removeItem("auth_user");
+            return null;
+        }
+    });
+    const [token, setToken] = useState<string | null>(() => {
+        if (typeof window === "undefined") return null;
+        return localStorage.getItem("auth_token");
+    });
+    const [isLoading] = useState(false);
     const router = useRouter();
     const pathname = usePathname();
 
     useEffect(() => {
-        // Check local storage for existing session
-        const storedToken = localStorage.getItem("auth_token");
-        const storedUser = localStorage.getItem("auth_user");
-
-        if (storedToken && storedUser) {
-            setToken(storedToken);
-            try {
-                setUser(JSON.parse(storedUser));
-            } catch (err) {
-                localStorage.removeItem("auth_token");
-                localStorage.removeItem("auth_user");
-            }
-        }
-
-        setIsLoading(false);
-
         // Setup global fetch interceptor
         const originalFetch = window.fetch;
         window.fetch = async (input, init) => {

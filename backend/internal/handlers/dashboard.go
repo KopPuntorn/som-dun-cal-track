@@ -25,6 +25,7 @@ type UnifiedActivity struct {
 	Date     time.Time          `json:"date"`
 	Calories float64            `json:"calories,omitempty"`
 	Protein  *float64           `json:"protein,omitempty"`
+	Carbs    *float64           `json:"carbs,omitempty"`
 	Fat      *float64           `json:"fat,omitempty"`
 	Duration float64            `json:"duration,omitempty"` // minutes or hours
 	Weight   float64            `json:"weight,omitempty"`
@@ -36,9 +37,9 @@ type DashboardSummary struct {
 	Goals          models.Goals             `json:"goals"`
 	TodayFoods     []models.Food            `json:"todayFoods"`
 	WaterToday     models.WaterIntake       `json:"waterToday"`
-	WeightRecent   []models.WeightRecord     `json:"weightRecent"`
-	Exercise       []models.ExerciseRecord   `json:"exerciseRecent"`
-	Sleep          []models.SleepRecord      `json:"sleepRecent"`
+	WeightRecent   []models.WeightRecord    `json:"weightRecent"`
+	Exercise       []models.ExerciseRecord  `json:"exerciseRecent"`
+	Sleep          []models.SleepRecord     `json:"sleepRecent"`
 	Measurements   []models.BodyMeasurement `json:"measurementsRecent"`
 	RecentFoods    []models.Food            `json:"recentFoods"`
 	UnifiedHistory []UnifiedActivity        `json:"unifiedHistory"`
@@ -78,7 +79,7 @@ func GetDashboardSummary(c echo.Context) error {
 			mu.Unlock()
 		} else {
 			mu.Lock()
-			summary.Goals = models.Goals{Calories: 2000, Protein: 150, Fat: 70}
+			summary.Goals = models.Goals{Calories: 2000, Protein: 150, Carbs: 250, Fat: 70}
 			mu.Unlock()
 		}
 	}()
@@ -297,6 +298,7 @@ func GetDashboardSummary(c echo.Context) error {
 			Date:     f.Date,
 			Calories: f.Calories,
 			Protein:  f.Protein,
+			Carbs:    f.Carbs,
 			Fat:      f.Fat,
 			Category: f.MealCategory,
 		})
@@ -343,4 +345,3 @@ func GetDashboardSummary(c echo.Context) error {
 
 	return c.JSON(http.StatusOK, summary)
 }
-

@@ -19,6 +19,12 @@ interface ChatMessage {
   content: string;
 }
 
+type SessionMessage = {
+  id?: string;
+  role?: string;
+  content?: string;
+};
+
 const MarkdownRenderer = ({ content }: { content: string }) => {
   return (
     <div className="markdown-chat">
@@ -38,7 +44,7 @@ export default function AiChatPage() {
   const [mounted, setMounted] = useState(false);
   const [chatInput, setChatInput] = useState("");
   const [isAiLoading, setIsAiLoading] = useState(false);
-  const [showQuickAdd, setShowQuickAdd] = useState<{ foodName: string; calories: number; protein?: number; fat?: number } | null>(null);
+  const [showQuickAdd, setShowQuickAdd] = useState<{ foodName: string; calories: number; protein?: number; carbs?: number; fat?: number } | null>(null);
 
   const [chatSessions, setChatSessions] = useState<{ id: string; title: string; updatedAt: string }[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
@@ -176,12 +182,17 @@ export default function AiChatPage() {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (res.ok) {
-        const data = await res.json();
-        const history: ChatMessage[] = (data.messages || []).map((msg: any) => ({
-          id: msg.id || (Date.now() + Math.random()).toString(),
-          role: msg.role === 'user' ? 'user' : 'assistant',
-          content: msg.role === 'assistant' ? msg.content.replace(/\[(ADD|FOOD_DATA):[^\]]*?\]/gi, '').trim() : msg.content
-        }));
+        const data: { messages?: SessionMessage[] } = await res.json();
+        const messages = Array.isArray(data.messages) ? data.messages : [];
+        const history: ChatMessage[] = messages.map((msg) => {
+          const content = typeof msg.content === 'string' ? msg.content : '';
+          const role = msg.role === 'user' ? 'user' : 'assistant';
+          return {
+            id: msg.id || (Date.now() + Math.random()).toString(),
+            role,
+            content: role === 'assistant' ? content.replace(/\[(ADD|FOOD_DATA):[^\]]*?\]/gi, '').trim() : content
+          };
+        });
         setChatMessages(history);
         setActiveSessionId(sessionId);
         localStorage.setItem('active_chat_session', sessionId);
@@ -305,6 +316,7 @@ export default function AiChatPage() {
           name: showQuickAdd.foodName,
           calories: showQuickAdd.calories,
           protein: showQuickAdd.protein || 0,
+          carbs: showQuickAdd.carbs || 0,
           fat: showQuickAdd.fat || 0,
           mealCategory: 'Snack',
           date: new Date().toISOString()
@@ -351,8 +363,8 @@ export default function AiChatPage() {
       });
       if (res.ok) {
         const data = await res.json();
-        let assistantContent = data.response;
-        const simpleAddRegex = /\[ADD:\s*([^|\]]+?)\s*[|｜]\s*(\d+)(?:\s*kcal)?(?:\s*[|｜]\s*([\d.]+))?(?:\s*[|｜]\s*([\d.]+))?\s*\]/gi;
+        const assistantContent = data.response;
+        const simpleAddRegex = /\[ADD:\s*([^|\]]+?)\s*[|｜]\s*(\d+)(?:\s*kcal)?(?:\s*[|｜]\s*([\d.]+))?(?:\s*[|｜]\s*([\d.]+))?(?:\s*[|｜]\s*([\d.]+))?\s*\]/gi;
         const foodDataRegex = /\[FOOD_DATA:\s*(\{[\s\S]*?\})\s*\]/gi;
 
         const simpleMatches = [...assistantContent.matchAll(simpleAddRegex)];
@@ -360,11 +372,16 @@ export default function AiChatPage() {
 
         if (simpleMatches.length > 0) {
           const m = simpleMatches[0];
+          const protein = m[3] ? parseFloat(m[3]) : undefined;
+          const hasCarbs = typeof m[5] !== 'undefined';
+          const carbs = hasCarbs ? (m[4] ? parseFloat(m[4]) : undefined) : undefined;
+          const fat = hasCarbs ? (m[5] ? parseFloat(m[5]) : undefined) : (m[4] ? parseFloat(m[4]) : undefined);
           setShowQuickAdd({
             foodName: m[1].trim(),
             calories: parseInt(m[2], 10),
-            protein: m[3] ? parseFloat(m[3]) : undefined,
-            fat: m[4] ? parseFloat(m[4]) : undefined
+            protein,
+            carbs,
+            fat
           });
         } else if (jsonDataMatches.length > 0) {
           try {
@@ -373,6 +390,7 @@ export default function AiChatPage() {
               foodName: foodObj.name,
               calories: foodObj.calories,
               protein: foodObj.protein,
+              carbs: foodObj.carbs,
               fat: foodObj.fat
             });
           } catch (e) { }
@@ -445,8 +463,8 @@ export default function AiChatPage() {
           });
           if (res.ok) {
             const data = await res.json();
-            let assistantContent = data.response;
-            const simpleAddRegex = /\[ADD:\s*([^|\]]+?)\s*[|｜]\s*(\d+)(?:\s*kcal)?(?:\s*[|｜]\s*([\d.]+))?(?:\s*[|｜]\s*([\d.]+))?\s*\]/gi;
+            const assistantContent = data.response;
+            const simpleAddRegex = /\[ADD:\s*([^|\]]+?)\s*[|｜]\s*(\d+)(?:\s*kcal)?(?:\s*[|｜]\s*([\d.]+))?(?:\s*[|｜]\s*([\d.]+))?(?:\s*[|｜]\s*([\d.]+))?\s*\]/gi;
             const foodDataRegex = /\[FOOD_DATA:\s*(\{[\s\S]*?\})\s*\]/gi;
 
             const simpleMatches = [...assistantContent.matchAll(simpleAddRegex)];
@@ -454,11 +472,15 @@ export default function AiChatPage() {
 
             if (simpleMatches.length > 0) {
               const m = simpleMatches[0];
-              setShowQuickAdd({ foodName: m[1].trim(), calories: parseInt(m[2], 10), protein: m[3] ? parseFloat(m[3]) : undefined, fat: m[4] ? parseFloat(m[4]) : undefined });
+              const protein = m[3] ? parseFloat(m[3]) : undefined;
+              const hasCarbs = typeof m[5] !== 'undefined';
+              const carbs = hasCarbs ? (m[4] ? parseFloat(m[4]) : undefined) : undefined;
+              const fat = hasCarbs ? (m[5] ? parseFloat(m[5]) : undefined) : (m[4] ? parseFloat(m[4]) : undefined);
+              setShowQuickAdd({ foodName: m[1].trim(), calories: parseInt(m[2], 10), protein, carbs, fat });
             } else if (jsonDataMatches.length > 0) {
               try {
                 const foodObj = JSON.parse(jsonDataMatches[0][1]);
-                setShowQuickAdd({ foodName: foodObj.name, calories: foodObj.calories, protein: foodObj.protein, fat: foodObj.fat });
+                setShowQuickAdd({ foodName: foodObj.name, calories: foodObj.calories, protein: foodObj.protein, carbs: foodObj.carbs, fat: foodObj.fat });
               } catch (e) { }
             }
 
@@ -725,13 +747,13 @@ export default function AiChatPage() {
           </div>
 
           <div className="ai-header-actions">
-            <button
+            {/* <button
               onClick={createNewSession}
               className="ai-header-new-btn"
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
               <span className="ai-header-new-text">{language === 'th' ? 'แชทใหม่' : 'New Chat'}</span>
-            </button>
+            </button> */}
             <button
               onClick={() => router.push('/')}
               className="hidden lg:flex items-center gap-2 px-3.5 py-2 rounded-lg transition-all text-[13px] font-bold glass-btn"
@@ -851,11 +873,18 @@ export default function AiChatPage() {
                               <span className="text-4xl font-black bg-clip-text text-transparent" style={{ backgroundImage: 'var(--accent-cal-gradient)' }}>{showQuickAdd.calories}</span>
                               <span className="text-sm font-semibold uppercase" style={{ color: 'var(--text-secondary)' }}>kcal</span>
                             </div>
-                            <div className="grid grid-cols-2 gap-3">
+                            <div className="grid grid-cols-3 gap-3">
                               <div className="p-3.5 rounded-xl border" style={{ backgroundColor: 'rgba(0,0,0,0.2)', borderColor: 'var(--panel-border)' }}>
                                 <p className="text-[11px] font-bold mb-1 uppercase tracking-wider" style={{ color: 'var(--text-secondary)' }}>Protein</p>
                                 <div className="flex items-baseline gap-1">
                                   <p className="text-lg font-bold" style={{ color: 'var(--accent-pro)' }}>{showQuickAdd.protein || 0}</p>
+                                  <span className="text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>g</span>
+                                </div>
+                              </div>
+                              <div className="p-3.5 rounded-xl border" style={{ backgroundColor: 'rgba(0,0,0,0.2)', borderColor: 'var(--panel-border)' }}>
+                                <p className="text-[11px] font-bold mb-1 uppercase tracking-wider" style={{ color: 'var(--text-secondary)' }}>Carbs</p>
+                                <div className="flex items-baseline gap-1">
+                                  <p className="text-lg font-bold" style={{ color: 'var(--accent-carb)' }}>{showQuickAdd.carbs || 0}</p>
                                   <span className="text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>g</span>
                                 </div>
                               </div>
@@ -937,7 +966,6 @@ export default function AiChatPage() {
               </button>
             </div>
             <div className="ai-chat-input-hint">
-              <span>{language === 'th' ? 'Shift+Enter เพื่อขึ้นบรรทัดใหม่' : 'Shift+Enter for a new line'}</span>
               <span>{language === 'th' ? 'Somdun อาจผิดพลาด ตรวจสอบข้อมูลสำคัญ' : 'Somdun can make mistakes. Verify important info.'}</span>
             </div>
           </div>
