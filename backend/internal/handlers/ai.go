@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/base64"
@@ -10,6 +11,8 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"regexp"
+	"strings"
 	"time"
 
 	"backend/internal/db"
@@ -31,6 +34,17 @@ type GroqChatRequest struct {
 	TopP             float64       `json:"top_p,omitempty"`
 	FrequencyPenalty float64       `json:"frequency_penalty,omitempty"`
 	PresencePenalty  float64       `json:"presence_penalty,omitempty"`
+	Stream           bool          `json:"stream,omitempty"`
+}
+
+type GroqStreamChunk struct {
+	Choices []struct {
+		Delta struct {
+			Content   string `json:"content"`
+			Reasoning string `json:"reasoning"`
+		} `json:"delta"`
+		FinishReason *string `json:"finish_reason"`
+	} `json:"choices"`
 }
 
 type GroqMessage struct {
@@ -56,12 +70,43 @@ type GroqChatResponse struct {
 	} `json:"choices"`
 }
 
+// collectStreamedContent reads SSE chunks from a streaming Groq response and
+// assembles the full content string. This is needed because openai/gpt-oss-120b
+// only returns content via streaming mode.
+func collectStreamedContent(body io.Reader) (string, error) {
+	scanner := bufio.NewScanner(body)
+	buf := make([]byte, 0, 64*1024)
+	scanner.Buffer(buf, 1024*1024)
+	var sb strings.Builder
+
+	for scanner.Scan() {
+		line := scanner.Text()
+		if !strings.HasPrefix(line, "data: ") {
+			continue
+		}
+		data := strings.TrimPrefix(line, "data: ")
+		if data == "[DONE]" {
+			break
+		}
+		var chunk GroqStreamChunk
+		if err := json.Unmarshal([]byte(data), &chunk); err != nil {
+			continue
+		}
+		if len(chunk.Choices) > 0 && chunk.Choices[0].Delta.Content != "" {
+			sb.WriteString(chunk.Choices[0].Delta.Content)
+		}
+	}
+
+	return sb.String(), scanner.Err()
+}
+
 func makeGroqCall(ctx context.Context, groqReq GroqChatRequest) (string, error) {
 	apiKey := os.Getenv("GROQ_API_KEY")
 	if apiKey == "" {
 		return "", fmt.Errorf("GROQ_API_KEY not configured")
 	}
 
+	groqReq.Stream = true
 	jsonData, err := json.Marshal(groqReq)
 	if err != nil {
 		return "", err
@@ -87,16 +132,16 @@ func makeGroqCall(ctx context.Context, groqReq GroqChatRequest) (string, error) 
 		return "", fmt.Errorf("groq api error: %d - %s", resp.StatusCode, string(body))
 	}
 
-	var groqResp GroqChatResponse
-	if err := json.NewDecoder(resp.Body).Decode(&groqResp); err != nil {
-		return "", err
+	content, err := collectStreamedContent(resp.Body)
+	if err != nil {
+		return "", fmt.Errorf("failed to read stream: %w", err)
 	}
 
-	if len(groqResp.Choices) == 0 {
-		return "", fmt.Errorf("no response from groq")
+	if content == "" {
+		return "", fmt.Errorf("no content from groq stream")
 	}
 
-	return groqResp.Choices[0].Message.Content, nil
+	return content, nil
 }
 
 // AnalyzeImage analyzes food from an uploaded image
@@ -149,11 +194,11 @@ func AnalyzeImage(c echo.Context) error {
 				Content: fmt.Sprintf("You are an elite, highly precise Culinary Nutritionist and Clinical Dietitian. Analyze the food in the image with extreme accuracy. "+
 					"Estimate portion sizes visually and calculate nutritional values based on standard USDA data or equivalent authoritative sources. "+
 					"Crucially, consider hidden calories from cooking oils, sauces, and sugars commonly used in such dishes. Be extremely realistic—Thai street food is often heavily oiled and sweetened. "+
-					"Ensure that the macronutrients mathematically align with the total calories (Calories should roughly be at least (Protein * 4) + (Fat * 9)). "+
-					"CRITICAL: Output MUST be valid JSON that can be parsed by JSON.parse. Use this exact schema and keys only: {name: string, calories: number, protein: number, fat: number}. "+
+					"Ensure that the macronutrients mathematically align with the total calories (Calories should roughly be at least (Protein * 4) + (Carbs * 4) + (Fat * 9)). "+
+					"CRITICAL: Output MUST be valid JSON that can be parsed by JSON.parse. Use this exact schema and keys only: {name: string, calories: number, protein: number, carbs: number, fat: number}. "+
 					"If multiple foods are visible, pick the primary dish name and estimate the combined macros for the plate. "+
 					"LANGUAGE CONSTRAINT: %s "+
-					"Respond ONLY with the JSON object. NO markdown, NO text before or after. Example: {\"name\": \"%s\", \"calories\": 450, \"protein\": 20, \"fat\": 15}", langName, langConstraint, exampleName),
+					"Respond ONLY with the JSON object. NO markdown, NO text before or after. Example: {\"name\": \"%s\", \"calories\": 450, \"protein\": 20, \"carbs\": 55, \"fat\": 15}", langConstraint, exampleName),
 			},
 			{
 				Role: "user",
@@ -202,27 +247,34 @@ func SuggestGoals(c echo.Context) error {
 		langConstraint = "Respond in English"
 	}
 
-	prompt := fmt.Sprintf("Act as an expert Clinical Dietitian. Suggest optimal daily nutritional goals for a %d-year-old %s weighing %.1f kg and %.1f cm tall with the health objective of '%s'. "+
-		"Calculate precise Calories, Protein (g), and Fat (g). "+
-		"CRITICAL: The response MUST be a pure raw JSON object with these exact keys: calories (number), protein (number), fat (number), explanation (string, max 50 words, in %s). "+
-		"Ensure macronutrients logically match the calories: Calories ~= (P*4) + (F*9) + (C*4). Assuming moderate carbs. "+
-		"Respond ONLY with the JSON object. NO markdown, NO text before or after.", data.Age, data.Sex, data.Weight, data.Height, data.Objective, langConstraint)
+	systemPrompt := "Act as an expert Clinical Dietitian. You suggest optimal daily nutritional goals. " +
+		"CRITICAL: The response MUST be a pure raw JSON object with these exact keys: calories (number), protein (number), carbs (number), fat (number), explanation (string, max 50 words). " +
+		"Ensure macronutrients logically match the calories: Calories ~= (P*4) + (C*4) + (F*9). " +
+		"Respond ONLY with the JSON object. NO markdown, NO text before or after."
+
+	userPrompt := fmt.Sprintf("Suggest daily nutritional goals for a %d-year-old %s weighing %.1f kg and %.1f cm tall with the health objective of '%s'. %s",
+		data.Age, data.Sex, data.Weight, data.Height, data.Objective, langConstraint)
 
 	groqReq := GroqChatRequest{
 		Model:       "openai/gpt-oss-120b",
-		Temperature: 0.2,
-		MaxTokens:   250,
+		Temperature: 0.3,
+		MaxTokens:   4096,
 		TopP:        0.9,
 		Messages: []GroqMessage{
 			{
 				Role:    "system",
-				Content: prompt,
+				Content: systemPrompt,
+			},
+			{
+				Role:    "user",
+				Content: userPrompt,
 			},
 		},
 	}
 
 	slog.Info("Suggesting goals with AI", "age", data.Age, "objective", data.Objective)
 	return callGroq(c, groqReq)
+
 }
 
 // ConsultAI provides nutritional advice based on data fetched from DB for a specific date range
@@ -377,7 +429,7 @@ func ConsultAI(c echo.Context) error {
 	groqReq := GroqChatRequest{
 		Model:       "openai/gpt-oss-120b",
 		Temperature: 0.3,
-		MaxTokens:   900,
+		MaxTokens:   4096,
 		TopP:        0.9,
 		Messages: []GroqMessage{
 			{
@@ -417,13 +469,15 @@ func ConsultAI(c echo.Context) error {
 
 func callGroq(c echo.Context, groqReq GroqChatRequest) error {
 	apiKey := os.Getenv("GROQ_API_KEY")
+
+	groqReq.Stream = true
 	jsonData, _ := json.Marshal(groqReq)
 
 	req, _ := http.NewRequest("POST", "https://api.groq.com/openai/v1/chat/completions", bytes.NewBuffer(jsonData))
 	req.Header.Set("Authorization", "Bearer "+apiKey)
 	req.Header.Set("Content-Type", "application/json")
 
-	client := &http.Client{Timeout: 30 * time.Second}
+	client := &http.Client{Timeout: 60 * time.Second}
 	resp, err := client.Do(req)
 	if err != nil {
 		slog.Error("AI service request failed", "error", err)
@@ -437,16 +491,29 @@ func callGroq(c echo.Context, groqReq GroqChatRequest) error {
 		return c.JSON(resp.StatusCode, map[string]string{"error": fmt.Sprintf("AI service error (%d): %s", resp.StatusCode, string(body))})
 	}
 
-	var groqResp GroqChatResponse
-	if err := json.NewDecoder(resp.Body).Decode(&groqResp); err != nil {
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "failed to parse AI response"})
+	content, err := collectStreamedContent(resp.Body)
+	if err != nil {
+		slog.Error("Failed to collect streamed content", "error", err)
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "failed to read AI stream"})
 	}
 
-	if len(groqResp.Choices) == 0 {
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "empty AI response"})
+	if content == "" {
+		slog.Warn("AI returned empty content after streaming")
+		return c.JSON(http.StatusBadGateway, map[string]string{"error": "AI returned no content"})
 	}
 
-	return c.String(http.StatusOK, groqResp.Choices[0].Message.Content)
+	slog.Info("AI Streamed Response Collected", "content", content)
+
+	// Clean markdown backticks if any
+	re := regexp.MustCompile("(?s)```(?:json)?\n?(.*?)\n?```")
+	if matches := re.FindStringSubmatch(content); len(matches) > 1 {
+		content = strings.TrimSpace(matches[1])
+	} else {
+		content = strings.TrimSpace(content)
+	}
+
+	// Ensure it's returned as application/json
+	return c.Blob(http.StatusOK, "application/json", []byte(content))
 }
 
 // ChatAI provides a general personal chat interface with session persistence
@@ -655,7 +722,7 @@ func ChatAI(c echo.Context) error {
 	goalsStr := "Not set"
 	objectiveStr := "Not set"
 	if err := db.GoalsCollection.FindOne(ctx, bson.M{"userId": userID}).Decode(&g); err == nil {
-		goalsStr = fmt.Sprintf("Cal:%.0f, Pro:%.1f, Fat:%.1f", g.Calories, g.Protein, g.Fat)
+		goalsStr = fmt.Sprintf("Cal:%.0f, Pro:%.1f, Carb:%.1f, Fat:%.1f", g.Calories, g.Protein, g.Carbs, g.Fat)
 		if g.Objective != "" {
 			objectiveStr = g.Objective
 		}
@@ -681,8 +748,8 @@ func ChatAI(c echo.Context) error {
 		"CRITICAL NUTRITION ACCURACY RULES: \n" +
 		"- DO NOT hallucinate health benefits. If a food is unhealthy, fatty (e.g., pork neck / คอหมูย่าง, fried foods), or sugary, state facts firmly. DO NOT call high-fat foods 'balanced fat'.\n" +
 		"- Know sports science: Cardio (running/cycling) builds endurance and burns calories, but DOES NOT build muscle. Resistance training builds muscle.\n" +
-		"- Ensure all calorie and macronutrient calculations naturally align with physics (e.g., 1g protein=4kcal, 1g fat=9kcal).\n" +
-		"CRITICAL MATH RULE: Total calories MUST logically support the sum of macros: Calories should be at least (Protein * 4) + (Fat * 9). " +
+		"- Ensure all calorie and macronutrient calculations naturally align with physics (e.g., 1g protein=4kcal, 1g carbs=4kcal, 1g fat=9kcal).\n" +
+		"CRITICAL MATH RULE: Total calories MUST logically support the sum of macros: Calories should be at least (Protein * 4) + (Carbs * 4) + (Fat * 9). " +
 		"Use the provided user data deeply to personalize every response. " +
 		"While health is your expertise, you are intelligent enough to discuss any topic with a consistent, premium persona.\n\n" +
 		"--- USER DATA ---\n" +
@@ -692,13 +759,14 @@ func ChatAI(c echo.Context) error {
 		"Weight Trend: " + weightStr + "\nExercise: " + exerciseStr + "\nSleep: " + sleepStr + "\nWater: " + waterStr + "\nMeasurements: " + measurementStr + "\n\n" +
 		"CRITICAL INSTRUCTIONS:\n" +
 		"1. Connect the dots logically (e.g., accurately assess if their meal matches their exercise).\n" +
-		"2. Provide precise and highly accurate nutritional breakdowns. Always verify that your macronutrient suggestions logically match the suggested calories based on the formula: Calories >= (P*4)+(F*9).\n" +
-		fmt.Sprintf("3. If you recommend or they mention a food, append a special tag at the VERY END: `[ADD: %s | 100 | 10 | 2]` (Format: [ADD: Name | Calories | Protein | Fat])\n", foodExampleName) +
+		"2. Provide precise and highly accurate nutritional breakdowns. Always verify that your macronutrient suggestions logically match the suggested calories based on the formula: Calories >= (P*4)+(C*4)+(F*9).\n" +
+		fmt.Sprintf("3. If you recommend or they mention a food, append a special tag at the VERY END: `[ADD: %s | 100 | 10 | 20 | 2]` (Format: [ADD: Name | Calories | Protein | Carbs | Fat])\n", foodExampleName) +
 		"4. Ensure macronutrients STRICTLY sum up realistically, and the name is in " + foodNameLang + " language.\n" +
 		"5. Use Markdown, emojis, and clear spacing. " +
 		"6. Maintain a polite, highly expert, and encouraging tone. " +
 		"7. Keep responses CONCISE and high-impact. Avoid extremely long tables or repetitive summaries unless specifically asked for a deep dive. Focus on quality over quantity. " +
-		"8. STRICT LANGUAGE LOCKDOWN: Use ONLY Thai and Latin (English) characters. ABSOLUTELY NO Chinese (e.g., 营养), Cyrillic (e.g., คาลอรี่), Japanese, or other foreign scripts. If you output 'Nutrition', it must be 'โภชนาการ'. If you output 'Calories', it must be 'แคลอรี่' or 'kcal' in Latin characters. Failure to stick to Thai/English characters will result in failure of the task."
+		"8. If the user message consists ONLY of a food name (e.g., 'ข้าวมันไก่', 'Pad Thai', 'Apple'), respond ONLY with its nutritional information in a concise format (Calories, P, C, F) and the [ADD: ...] tag. Do not include conversational filler or extra advice in this specific case.\n" +
+		"9. STRICT LANGUAGE LOCKDOWN: Use ONLY Thai and Latin (English) characters. ABSOLUTELY NO Chinese (e.g., 营养), Cyrillic (e.g., คาลอรี่), Japanese, or other foreign scripts. If you output 'Nutrition', it must be 'โภชนาการ'. If you output 'Calories', it must be 'แคลอรี่' or 'kcal' in Latin characters. Failure to stick to Thai/English characters will result in failure of the task."
 
 	systemMsg := GroqMessage{
 		Role:    "system",
@@ -711,40 +779,25 @@ func ChatAI(c echo.Context) error {
 		Model:       "openai/gpt-oss-120b",
 		Messages:    messages,
 		Temperature: 0.6,
-		MaxTokens:   900,
+		MaxTokens:   4096,
 		TopP:        0.9,
 	}
 
 	slog.Info("Chatting with AI", "model", groqReq.Model, "userID", userID, "sessionID", data.SessionID)
 
-	// Call Groq and handle response
-	apiKey = os.Getenv("GROQ_API_KEY")
-	jsonData, _ := json.Marshal(groqReq)
-	req, _ := http.NewRequest("POST", "https://api.groq.com/openai/v1/chat/completions", bytes.NewBuffer(jsonData))
-	req.Header.Set("Authorization", "Bearer "+apiKey)
-	req.Header.Set("Content-Type", "application/json")
-	client := &http.Client{Timeout: 30 * time.Second}
-	resp, err := client.Do(req)
+	replyContent, err := makeGroqCall(ctx, groqReq)
 	if err != nil {
+		slog.Error("Direct Groq call failed", "error", err)
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "failed to contact AI service"})
 	}
-	defer resp.Body.Close()
 
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return c.JSON(resp.StatusCode, map[string]string{"error": string(body)})
+	// Clean markdown backticks if any
+	re := regexp.MustCompile("(?s)```(?:json)?\n?(.*?)\n?```")
+	if matches := re.FindStringSubmatch(replyContent); len(matches) > 1 {
+		replyContent = strings.TrimSpace(matches[1])
+	} else {
+		replyContent = strings.TrimSpace(replyContent)
 	}
-
-	var groqResp GroqChatResponse
-	if err := json.NewDecoder(resp.Body).Decode(&groqResp); err != nil {
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "failed to parse AI response"})
-	}
-
-	if len(groqResp.Choices) == 0 {
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "empty AI response"})
-	}
-
-	replyContent := groqResp.Choices[0].Message.Content
 
 	if useSession {
 		replyMsg := models.ChatMessage{
@@ -784,7 +837,7 @@ func EstimateExerciseCalories(exerciseName string, durationMinutes int, user mod
 	groqReq := GroqChatRequest{
 		Model:       "openai/gpt-oss-120b",
 		Temperature: 0.1,
-		MaxTokens:   120,
+		MaxTokens:   1024,
 		TopP:        0.9,
 		Messages: []GroqMessage{
 			{Role: "system", Content: "You are a precise physical activity and kinesiology expert. Return only JSON."},

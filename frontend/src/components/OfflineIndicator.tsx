@@ -3,16 +3,17 @@
 import { useState, useEffect } from "react";
 
 export default function OfflineIndicator() {
+    const [mounted, setMounted] = useState(false);
     const [isOffline, setIsOffline] = useState(false);
 
     useEffect(() => {
+        setMounted(true);
+        if (typeof navigator !== "undefined") {
+            setIsOffline(!navigator.onLine);
+        }
+
         const goOffline = () => setIsOffline(true);
         const goOnline = () => setIsOffline(false);
-
-        // Check initial state
-        if (typeof navigator !== "undefined" && !navigator.onLine) {
-            setIsOffline(true);
-        }
 
         window.addEventListener("offline", goOffline);
         window.addEventListener("online", goOnline);
@@ -23,7 +24,7 @@ export default function OfflineIndicator() {
         };
     }, []);
 
-    if (!isOffline) return null;
+    if (!mounted || !isOffline) return null;
 
     return (
         <div style={{

@@ -1,20 +1,15 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
-import { usePathname, useRouter } from "next/navigation";
+import React from "react";
+import { usePathname, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useLanguage } from "@/context/LanguageContext";
 
 export default function BottomNav() {
     const pathname = usePathname();
+    const searchParams = useSearchParams();
     const { t } = useLanguage();
-    const [mounted, setMounted] = useState(false);
-
-    useEffect(() => {
-        setMounted(true);
-    }, []);
-
-    if (!mounted) return null;
+    const isAddActive = pathname === '/' && searchParams?.get('add') === 'true';
 
     // Hide on login/onboarding or AI chat for full screen
     if (pathname === '/login' || pathname === '/signup' || pathname === '/onboarding' || pathname === '/ai-chat') {
@@ -36,7 +31,7 @@ export default function BottomNav() {
                 <Link 
                     href="/?add=true" 
                     id="add-action-btn-mobile" 
-                    className={`nav-item main-action ${pathname === '/' && window?.location?.search?.includes('add') ? 'active' : ''}`} 
+                    className={`nav-item main-action ${isAddActive ? 'active' : ''}`} 
                     onClick={(e) => {
                         if (pathname === '/') {
                             e.preventDefault();

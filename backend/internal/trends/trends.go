@@ -18,6 +18,7 @@ type TrendSummary struct {
 	PeriodDays     int
 	AvgCalories    float64
 	AvgProtein     float64
+	AvgCarbs       float64
 	AvgFat         float64
 	WeightChange   float64
 	ExerciseCount  int
@@ -76,16 +77,28 @@ func CalculateUserTrends(userID primitive.ObjectID, days int) (string, error) {
 	hasData := false
 
 	for _, f := range foods {
-		if f.Date.Before(earliestRecord) { earliestRecord = f.Date; hasData = true }
+		if f.Date.Before(earliestRecord) {
+			earliestRecord = f.Date
+			hasData = true
+		}
 	}
 	for _, w := range weights {
-		if w.Date.Before(earliestRecord) { earliestRecord = w.Date; hasData = true }
+		if w.Date.Before(earliestRecord) {
+			earliestRecord = w.Date
+			hasData = true
+		}
 	}
 	for _, e := range exercises {
-		if e.Date.Before(earliestRecord) { earliestRecord = e.Date; hasData = true }
+		if e.Date.Before(earliestRecord) {
+			earliestRecord = e.Date
+			hasData = true
+		}
 	}
 	for _, s := range sleeps {
-		if s.Date.Before(earliestRecord) { earliestRecord = s.Date; hasData = true }
+		if s.Date.Before(earliestRecord) {
+			earliestRecord = s.Date
+			hasData = true
+		}
 	}
 
 	if hasData {
@@ -94,22 +107,26 @@ func CalculateUserTrends(userID primitive.ObjectID, days int) (string, error) {
 			divisor = float64(daysSinceStart)
 		}
 	}
-	if divisor < 1 { divisor = 1 }
+	if divisor < 1 {
+		divisor = 1
+	}
 
 	// --- Calculations ---
 	summary := TrendSummary{PeriodDays: int(divisor)} // Use actual divisor for period description if needed
 
 	if len(foods) > 0 {
-		var totalCal, totalPro, totalFat float64
+		var totalCal, totalPro, totalCarb, totalFat float64
 		loggedDays := make(map[string]bool)
 		for _, f := range foods {
 			totalCal += f.Calories
 			totalPro += models.SafeFloat(f.Protein)
+			totalCarb += models.SafeFloat(f.Carbs)
 			totalFat += models.SafeFloat(f.Fat)
 			loggedDays[f.Date.Format("2006-01-02")] = true
 		}
 		summary.AvgCalories = totalCal / divisor
 		summary.AvgProtein = totalPro / divisor
+		summary.AvgCarbs = totalCarb / divisor
 		summary.AvgFat = totalFat / divisor
 		summary.Consistency = float64(len(loggedDays)) / divisor
 	}
@@ -133,7 +150,7 @@ func CalculateUserTrends(userID primitive.ObjectID, days int) (string, error) {
 
 	// --- Format readable summary for AI ---
 	trendText := fmt.Sprintf("Health Trend Summary (Last %d days):\n", days)
-	trendText += fmt.Sprintf("- Avg Daily Intake: %.0f kcal (P:%.1fg, F:%.1fg)\n", summary.AvgCalories, summary.AvgProtein, summary.AvgFat)
+	trendText += fmt.Sprintf("- Avg Daily Intake: %.0f kcal (P:%.1fg, C:%.1fg, F:%.1fg)\n", summary.AvgCalories, summary.AvgProtein, summary.AvgCarbs, summary.AvgFat)
 	trendText += fmt.Sprintf("- Weight Change: %.1f kg\n", summary.WeightChange)
 	trendText += fmt.Sprintf("- Activity: %d sessions, %d total minutes\n", summary.ExerciseCount, summary.TotalExMinutes)
 	trendText += fmt.Sprintf("- Sleep: %.1f hours avg\n", summary.SleepAvgHours)

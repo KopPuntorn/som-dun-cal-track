@@ -27,6 +27,7 @@ type Food struct {
 	Name         string             `json:"name" bson:"name"`
 	Calories     float64            `json:"calories" bson:"calories"`
 	Protein      *float64           `json:"protein,omitempty" bson:"protein,omitempty"`
+	Carbs        *float64           `json:"carbs,omitempty" bson:"carbs,omitempty"`
 	Fat          *float64           `json:"fat,omitempty" bson:"fat,omitempty"`
 	Date         time.Time          `json:"date" bson:"date"`
 	MealCategory string             `json:"mealCategory" bson:"mealCategory"` // Breakfast, Lunch, Dinner, Snack
@@ -38,6 +39,7 @@ type Goals struct {
 	UserID    primitive.ObjectID `json:"userId" bson:"userId"`
 	Calories  float64            `json:"calories" bson:"calories"`
 	Protein   float64            `json:"protein" bson:"protein"`
+	Carbs     float64            `json:"carbs" bson:"carbs"`
 	Fat       float64            `json:"fat" bson:"fat"`
 	Objective string             `json:"objective" bson:"objective"` // lose_fat, lose_weight, gain_weight, build_muscle, maintain
 }

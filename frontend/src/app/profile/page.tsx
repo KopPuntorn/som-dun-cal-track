@@ -8,10 +8,12 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useLanguage } from "@/context/LanguageContext";
 import PageHeader from "@/components/PageHeader";
+import LoadingSkeleton from "@/components/LoadingSkeleton";
 
 type Goals = {
     calories: number;
     protein: number;
+    carbs: number;
     fat: number;
     objective: string;
 };
@@ -50,7 +52,7 @@ export default function ProfilePage() {
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
-    const [goalInputs, setGoalInputs] = useState<Goals>({ calories: 2000, protein: 150, fat: 70, objective: "" });
+    const [goalInputs, setGoalInputs] = useState<Goals>({ calories: 2000, protein: 150, carbs: 250, fat: 70, objective: "" });
     const [userInputs, setUserInputs] = useState<UserProfile>({ 
         name: "User", 
         age: 25, 
@@ -70,6 +72,7 @@ export default function ProfilePage() {
             setGoalInputs({
                 calories: goalsData.calories || 2000,
                 protein: goalsData.protein || 150,
+                carbs: goalsData.carbs || 250,
                 fat: goalsData.fat || 70,
                 objective: goalsData.objective || ""
             });
@@ -131,7 +134,7 @@ export default function ProfilePage() {
             mutate(`${API_BASE}/goals`);
             mutate(`${API_BASE}/user`);
             // Also invalidate any dashboard summary caches since goals changed
-            mutate((key: any) => typeof key === 'string' && key.includes('/dashboard/summary'), undefined, { revalidate: true });
+            mutate((key: unknown) => typeof key === 'string' && key.includes('/dashboard/summary'), undefined, { revalidate: true });
         } catch (err) {
             console.error(err);
             setError("Failed to update settings");
@@ -151,8 +154,13 @@ export default function ProfilePage() {
                 <div className="floating-blob floating-blob-1" />
                 <div className="floating-blob floating-blob-2" />
                 <div className="floating-blob floating-blob-3" />
-                <div className="app-container" style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '80vh' }}>
-                    <div className="loading-dots" style={{ fontSize: '24px' }}>Loading Profile…</div>
+                <div className="app-container" style={{ maxWidth: '600px' }}>
+                    <PageHeader
+                        title={t('profileSettings')}
+                        backHref="/"
+                        backLabel={t('back')}
+                    />
+                    <LoadingSkeleton variant="card" count={3} />
                 </div>
             </div>
         );
@@ -186,9 +194,9 @@ export default function ProfilePage() {
                 </div>
             )}
 
-            <div className="glass-panel" style={{ width: '100%', padding: '40px', borderRadius: '32px', marginBottom: '80px' }}>
-                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', marginBottom: '40px' }}>
-                    <div style={{ width: '100px', height: '100px', borderRadius: '35px', background: 'var(--accent-cal-gradient)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '40px', fontWeight: 800, color: '#fff', boxShadow: '0 15px 35px rgba(255, 107, 0, 0.25)', marginBottom: '20px' }}>
+            <div className="glass-panel" style={{ width: '100%', padding: '32px', borderRadius: '32px', marginBottom: '80px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', marginBottom: '32px' }}>
+                    <div className="profile-avatar">
                         {userInputs.name.charAt(0).toUpperCase()}
                     </div>
                     <h2 style={{ fontSize: '24px', fontWeight: 800, margin: 0 }}>{userInputs.name}</h2>
@@ -196,12 +204,12 @@ export default function ProfilePage() {
                 </div>
 
                 <form onSubmit={handleUpdateSettings}>
-                    <div style={{ marginBottom: '40px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px' }}>
-                            <div className="icon-btn" style={{ background: 'rgba(255,255,255,0.05)', border: 'none', width: '32px', height: '32px', cursor: 'default' }}>
+                    <div style={{ marginBottom: '32px' }}>
+                        <div className="section-header">
+                            <div className="section-header-icon" style={{ background: 'rgba(255,255,255,0.05)' }}>
                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent-pro)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
                             </div>
-                            <h4 style={{ margin: 0, fontSize: '14px', textTransform: 'uppercase', letterSpacing: '2px', color: 'var(--text-secondary)', fontWeight: 700 }}>{t('userProfile')}</h4>
+                            <h4>{t('userProfile')}</h4>
                         </div>
                         
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
@@ -296,12 +304,12 @@ export default function ProfilePage() {
                         </div>
                     </div>
 
-                    <div style={{ marginBottom: '40px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px' }}>
-                            <div className="icon-btn" style={{ background: 'rgba(255,255,255,0.05)', border: 'none', width: '32px', height: '32px', cursor: 'default' }}>
+                    <div style={{ marginBottom: '32px' }}>
+                        <div className="section-header">
+                            <div className="section-header-icon" style={{ background: 'rgba(255,255,255,0.05)' }}>
                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent-fat)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
                             </div>
-                            <h4 style={{ margin: 0, fontSize: '14px', textTransform: 'uppercase', letterSpacing: '2px', color: 'var(--text-secondary)', fontWeight: 700 }}>{t('healthObjective')}</h4>
+                            <h4>{t('healthObjective')}</h4>
                         </div>
                         
                         <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "12px" }}>
@@ -317,29 +325,25 @@ export default function ProfilePage() {
                                     key={opt.value}
                                     type="button"
                                     onClick={() => setGoalInputs({ ...goalInputs, objective: opt.value })}
-                                    className="glass-btn"
+                                    className={`glass-btn objective-btn ${goalInputs.objective === opt.value ? 'active' : ''}`}
                                     style={{
-                                        padding: '16px 8px',
-                                        flexDirection: 'column',
-                                        gap: '8px',
-                                        height: 'auto',
                                         border: goalInputs.objective === opt.value ? '2px solid var(--accent-pro)' : '1px solid var(--panel-border)',
                                         background: goalInputs.objective === opt.value ? 'rgba(14, 165, 233, 0.1)' : 'rgba(0,0,0,0.2)'
                                     }}
                                 >
                                     <span style={{ fontSize: '24px' }}>{opt.emoji}</span>
-                                    <span style={{ fontSize: '11px', fontWeight: 700, textTransform: 'uppercase' }}>{opt.label}</span>
+                                    <span>{opt.label}</span>
                                 </button>
                             ))}
                         </div>
                     </div>
 
-                    <div style={{ marginBottom: '40px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px' }}>
-                            <div className="icon-btn" style={{ background: 'rgba(255,255,255,0.05)', border: 'none', width: '32px', height: '32px', cursor: 'default' }}>
+                    <div style={{ marginBottom: '32px' }}>
+                        <div className="section-header">
+                            <div className="section-header-icon" style={{ background: 'rgba(255,255,255,0.05)' }}>
                                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent-cal)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
                             </div>
-                            <h4 style={{ margin: 0, fontSize: '14px', textTransform: 'uppercase', letterSpacing: '2px', color: 'var(--text-secondary)', fontWeight: 700 }}>{t('dailyGoals')}</h4>
+                            <h4>{t('dailyGoals')}</h4>
                         </div>
 
                         <div className="input-group" style={{ position: 'relative', marginBottom: '20px' }}>
@@ -355,7 +359,7 @@ export default function ProfilePage() {
                             <span style={{ position: 'absolute', right: '16px', top: '42px', fontSize: '11px', fontWeight: 800, color: 'var(--accent-cal)' }}>KCAL</span>
                         </div>
 
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '20px' }}>
                             <div className="input-group" style={{ position: 'relative' }}>
                                 <label style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '8px', display: 'block' }}>{t('protein')}</label>
                                 <input
@@ -367,6 +371,18 @@ export default function ProfilePage() {
                                     style={{ height: '52px', borderRadius: '14px', background: 'rgba(0,0,0,0.2)', border: '1px solid var(--panel-border)', padding: '0 20px', width: '100%' }}
                                 />
                                 <span style={{ position: 'absolute', right: '16px', top: '42px', fontSize: '11px', fontWeight: 800, color: 'var(--accent-pro)' }}>G</span>
+                            </div>
+                            <div className="input-group" style={{ position: 'relative' }}>
+                                <label style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '8px', display: 'block' }}>{t('carbs')}</label>
+                                <input
+                                    type="number"
+                                    required
+                                    min="10"
+                                    value={goalInputs.carbs}
+                                    onChange={e => setGoalInputs({ ...goalInputs, carbs: parseFloat(e.target.value) || 0 })}
+                                    style={{ height: '52px', borderRadius: '14px', background: 'rgba(0,0,0,0.2)', border: '1px solid var(--panel-border)', padding: '0 20px', width: '100%' }}
+                                />
+                                <span style={{ position: 'absolute', right: '16px', top: '42px', fontSize: '11px', fontWeight: 800, color: 'var(--accent-carb)' }}>G</span>
                             </div>
                             <div className="input-group" style={{ position: 'relative' }}>
                                 <label style={{ fontSize: '12px', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '8px', display: 'block' }}>{t('fat')}</label>

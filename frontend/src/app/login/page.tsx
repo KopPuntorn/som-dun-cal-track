@@ -62,7 +62,7 @@ export default function LoginPage() {
         }
     };
 
-    const handleGoogleSuccess = async (credentialResponse: any) => {
+    const handleGoogleSuccess = async (credentialResponse: { credential?: string | null }) => {
         setLoading(true);
         setError(null);
 
@@ -98,7 +98,7 @@ export default function LoginPage() {
             <div className="floating-blob floating-blob-2" />
             <div className="floating-blob floating-blob-3" />
 
-            <div className="glass-panel login-panel" style={{ width: "100%", maxWidth: "400px", zIndex: 1, display: "flex", flexDirection: "column", gap: "16px", padding: '20px 16px', borderRadius: '32px', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)', margin: 'auto' }}>
+            <div className="glass-panel login-panel" style={{ width: "100%", maxWidth: "400px", zIndex: 1, display: "flex", flexDirection: "column", gap: "16px", padding: '24px 20px', borderRadius: '32px', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5)', margin: 'auto' }}>
 
                 <div style={{ textAlign: "center", marginBottom: "0px", display: "flex", flexDirection: "column", alignItems: "center", gap: "10px" }}>
                     <div style={{ position: 'relative', width: '60px', height: '60px', borderRadius: '18px', overflow: 'hidden', background: '#fff', boxShadow: '0 8px 20px rgba(255,107,0,0.1)', padding: '2px' }}>
@@ -251,13 +251,6 @@ export default function LoginPage() {
                         text={isLogin ? "signin_with" : "signup_with"}
                         width="280"
                     />
-                </div>
-
-                {/* Helper for testing environment without Google Client ID */}
-                <div style={{ textAlign: 'center', marginTop: '8px' }}>
-                    <button type="button" onClick={handleMockGoogleLogin} style={{ background: 'none', border: 'none', color: 'var(--text-secondary)', textDecoration: 'underline', fontSize: '10px', cursor: 'pointer', opacity: 0.5 }}>
-                        (Dev Mock Login)
-                    </button>
                 </div>
 
             </div>

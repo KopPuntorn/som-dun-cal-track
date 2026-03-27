@@ -5,7 +5,10 @@ import useSWR from "swr";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { useLanguage } from "@/context/LanguageContext";
+import { TranslationKeys } from "@/translations";
 import TiltCard from "@/components/TiltCard";
+import LoadingSkeleton, { SkeletonPlayerCard } from "@/components/LoadingSkeleton";
+import PageHeader from "@/components/PageHeader";
 
 const API_BASE = (process.env.NEXT_PUBLIC_API_URL && process.env.NEXT_PUBLIC_API_URL !== "undefined")
   ? process.env.NEXT_PUBLIC_API_URL
@@ -224,8 +227,13 @@ export default function PlayerCardPage() {
         <div className="floating-blob floating-blob-1" />
         <div className="floating-blob floating-blob-2" />
         <div className="floating-blob floating-blob-3" />
-        <div className="app-container" style={{ display: "flex", justifyContent: "center", alignItems: "center", minHeight: "80vh" }}>
-          <div className="loading-dots" style={{ fontSize: "24px" }}>{t("loading")}</div>
+        <div className="app-container" style={{ maxWidth: "600px" }}>
+          <PageHeader
+            title={t("playerCard")}
+            backHref="/"
+            backLabel={t("back")}
+          />
+          <SkeletonPlayerCard />
         </div>
       </div>
     );
@@ -296,9 +304,7 @@ export default function PlayerCardPage() {
       </div>
 
       {loading ? (
-        <div style={{ display: "flex", justifyContent: "center", padding: "80px 0" }}>
-          <div className="loading-dots" style={{ fontSize: "18px" }}>{t("calculatingStats")}</div>
-        </div>
+        <SkeletonPlayerCard />
       ) : card ? (
         <>
           {/* ═══ THE CARD ═══ */}
@@ -398,7 +404,7 @@ export default function PlayerCardPage() {
                     WebkitTextFillColor: "transparent",
                     marginTop: "4px",
                   }}>
-                    {theme.emoji} {t(`rarity${card.rarity.charAt(0).toUpperCase() + card.rarity.slice(1)}` as any)}
+                    {theme.emoji} {t(`rarity${card.rarity.charAt(0).toUpperCase() + card.rarity.slice(1)}` as TranslationKeys)}
                   </div>
                 </div>
 
@@ -517,7 +523,7 @@ export default function PlayerCardPage() {
                         </span>
                         <div>
                           <div style={{ fontSize: "11px", fontWeight: 700, letterSpacing: "1px", color: "var(--text-secondary)" }}>{STAT_LABELS[key]}</div>
-                          <div style={{ fontSize: "10px", color: "rgba(255,255,255,0.3)" }}>{t(key as any)}</div>
+                          <div style={{ fontSize: "10px", color: "rgba(255,255,255,0.3)" }}>{t(key as TranslationKeys)}</div>
                         </div>
                       </div>
                     );
@@ -575,7 +581,7 @@ export default function PlayerCardPage() {
                       <span style={{ width: "28px", textAlign: "right", fontSize: "14px", fontWeight: 800, color: "var(--text-primary)" }}>{val}</span>
                     </div>
                     <div style={{ fontSize: "11px", color: "var(--text-secondary)", marginLeft: "40px", opacity: 0.8 }}>
-                      {t(`${key}Desc` as any)}
+                      {t(`${key}Desc` as TranslationKeys)}
                     </div>
                   </div>
                 );
