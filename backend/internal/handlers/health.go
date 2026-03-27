@@ -79,6 +79,11 @@ func UpdateWater(c echo.Context) error {
 		db.AddUserXP(userID, diff*50)
 	}
 
+	// Update streak if water was added
+	if req.Glasses > 0 {
+		db.UpdateUserStreak(userID)
+	}
+
 	return c.JSON(http.StatusOK, map[string]string{"message": "updated successfully"})
 }
 
@@ -315,6 +320,9 @@ func AddExercise(c echo.Context) error {
 	// Add XP
 	db.AddUserXP(record.UserID, record.DurationMinutes*10)
 
+	// Update streak
+	db.UpdateUserStreak(record.UserID)
+
 	return c.JSON(http.StatusCreated, record)
 }
 
@@ -464,6 +472,9 @@ func AddSleep(c echo.Context) error {
 
 	// Add XP
 	db.AddUserXP(record.UserID, int(record.DurationHours*100))
+
+	// Update streak
+	db.UpdateUserStreak(record.UserID)
 
 	return c.JSON(http.StatusCreated, record)
 }

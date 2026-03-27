@@ -1647,6 +1647,351 @@ body.modal-open {
 }
 
 /* ==========================================================================
+   Player Card Styles
+   ========================================================================== */
+
+.player-card-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  max-width: 400px;
+  margin: 0 auto;
+}
+
+/* Card Wrapper */
+.player-card-wrapper {
+  position: relative;
+  margin-bottom: 32px;
+  width: 100%;
+}
+
+/* Card Main */
+.player-card-main {
+  width: 100%;
+  max-width: 340px;
+  min-height: 480px;
+  border-radius: 24px;
+  background: linear-gradient(160deg, rgba(15,15,20,0.98) 0%, rgba(10,10,15,0.99) 100%);
+  padding: 0;
+  position: relative;
+  overflow: hidden;
+  margin: 0 auto;
+  transition: transform 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Shimmer Overlay */
+.player-card-shimmer {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, transparent 30%, rgba(255,255,255,0.03) 50%, transparent 70%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* Card Header Section */
+.player-card-header {
+  padding: 24px 20px 12px;
+  position: relative;
+  z-index: 1;
+}
+
+/* OVR Display */
+.player-ovr {
+  text-align: center;
+}
+
+.player-ovr-value {
+  font-size: 48px;
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: -2px;
+}
+
+.player-ovr-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 3px;
+  color: var(--text-secondary);
+  margin-top: 4px;
+}
+
+/* Position Badge */
+.player-position {
+  padding: 6px 14px;
+  border-radius: 8px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.1);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  color: var(--text-primary);
+}
+
+/* Player Name */
+.player-name {
+  margin-top: 12px;
+  font-size: 26px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: var(--text-primary);
+}
+
+/* Rarity Label */
+.player-rarity {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 3px;
+  margin-top: 4px;
+}
+
+/* Radar Chart Section */
+.player-radar {
+  display: flex;
+  justify-content: center;
+  padding: 8px 0;
+  position: relative;
+  z-index: 1;
+}
+
+/* Stats Grid */
+.player-stats-grid {
+  padding: 8px 20px 20px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  position: relative;
+  z-index: 1;
+}
+
+.player-stat-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(255,255,255,0.02);
+  border: 1px solid rgba(255,255,255,0.04);
+  transition: background 0.2s ease;
+}
+
+.player-stat-item:hover {
+  background: rgba(255,255,255,0.04);
+}
+
+.player-stat-value {
+  font-size: 22px;
+  font-weight: 800;
+  min-width: 32px;
+}
+
+.player-stat-label {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: var(--text-secondary);
+}
+
+.player-stat-full-label {
+  font-size: 9px;
+  color: rgba(255,255,255,0.3);
+  margin-top: 2px;
+}
+
+/* Card Footer */
+.player-card-footer {
+  padding: 12px 20px 16px;
+  border-top: 1px solid rgba(255,255,255,0.04);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  position: relative;
+  z-index: 1;
+}
+
+.player-card-month {
+  font-size: 10px;
+  color: var(--text-secondary);
+  letter-spacing: 2px;
+  font-weight: 600;
+}
+
+/* Month Selector */
+.month-selector {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  margin: 20px 0;
+  padding: 12px 20px;
+  border-radius: 16px;
+}
+
+.month-selector-btn {
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.month-selector-btn:active {
+  transform: scale(0.95);
+}
+
+.month-selector-label {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  min-width: 140px;
+  text-align: center;
+}
+
+/* Breakdown Section */
+.breakdown-section {
+  padding: 20px;
+  width: 100%;
+  max-width: 340px;
+  border-radius: 20px;
+}
+
+.breakdown-title {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-bottom: 16px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+}
+
+.breakdown-item {
+  margin-bottom: 14px;
+}
+
+.breakdown-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 4px;
+}
+
+.breakdown-label {
+  width: 28px;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text-secondary);
+}
+
+.breakdown-bar-bg {
+  flex: 1;
+  height: 8px;
+  border-radius: 4px;
+  background: rgba(255,255,255,0.05);
+  overflow: hidden;
+}
+
+.breakdown-bar {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 1.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.breakdown-value {
+  width: 28px;
+  text-align: right;
+  font-size: 14px;
+  font-weight: 800;
+  color: var(--text-primary);
+}
+
+.breakdown-desc {
+  font-size: 10px;
+  color: var(--text-secondary);
+  margin-left: 40px;
+  opacity: 0.7;
+}
+
+/* Empty State */
+.player-empty-state {
+  text-align: center;
+  padding: 60px 20px;
+  color: var(--text-secondary);
+}
+
+.player-empty-icon {
+  font-size: 48px;
+  margin-bottom: 16px;
+}
+
+.player-empty-text {
+  font-size: 14px;
+  margin-bottom: 4px;
+}
+
+.player-empty-subtext {
+  font-size: 12px;
+  opacity: 0.6;
+}
+
+/* Mobile Responsive */
+@media (max-width: 480px) {
+  .player-card-main {
+    max-width: 300px;
+    min-height: 440px;
+  }
+
+  .player-card-header {
+    padding: 20px 16px 10px;
+  }
+
+  .player-ovr-value {
+    font-size: 42px;
+  }
+
+  .player-name {
+    font-size: 22px;
+  }
+
+  .player-radar svg {
+    width: 190px;
+    height: 190px;
+  }
+
+  .player-stats-grid {
+    padding: 6px 16px 16px;
+    gap: 6px;
+  }
+
+  .player-stat-item {
+    padding: 8px 10px;
+  }
+
+  .player-stat-value {
+    font-size: 18px;
+  }
+
+  .month-selector {
+    gap: 12px;
+    padding: 10px 16px;
+  }
+
+  .month-selector-label {
+    font-size: 13px;
+    min-width: 120px;
+  }
+
+  .breakdown-section {
+    padding: 16px;
+  }
+}
+
+/* ==========================================================================
    Reusable Component Classes (reduce inline styles)
    ========================================================================== */
 
@@ -2424,20 +2769,35 @@ select:focus {
 /* Chart Responsiveness */
 @media (max-width: 768px) {
   .chart-panel {
-    height: 300px !important;
+    height: 260px !important;
     padding: 16px !important;
   }
 
   .chart-header {
-    margin-bottom: 12px;
+    margin-bottom: 8px;
   }
 
   .chart-title {
-    font-size: 16px;
+    font-size: 15px;
+  }
+
+  .chart-eyebrow {
+    font-size: 10px;
+    margin-bottom: 4px;
+  }
+
+  .chart-subtitle {
+    font-size: 11px;
+    margin-top: 4px;
   }
 
   .chart-kpi {
-    padding: 8px 12px;
+    padding: 6px 10px;
+    font-size: 11px;
+  }
+
+  .chart-kpi-value {
+    font-size: 12px;
   }
   
   .accordion-icon {
@@ -3456,12 +3816,13 @@ select:focus {
   }
 
   .responsive-layout {
-    gap: 20px;
+    gap: 16px;
     grid-template-columns: 1fr;
+    padding-bottom: 100px;
   }
 
   .layout-column {
-    gap: 20px;
+    gap: 16px;
   }
 
   /* Panels & Headers */

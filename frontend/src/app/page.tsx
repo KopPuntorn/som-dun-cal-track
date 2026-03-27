@@ -9,6 +9,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { useZxing } from "react-zxing";
 import { useAuth } from "@/context/AuthContext";
+import type { UserProfile } from "@/context/AuthContext";
 import { useToast } from "@/context/ToastContext";
 import { useLanguage } from "@/context/LanguageContext";
 import ConfirmModal from "@/components/ConfirmModal";
@@ -20,6 +21,8 @@ import EmptyState from "@/components/EmptyState";
 import TiltCard from "@/components/TiltCard";
 import ParticleBurst from "@/components/ParticleBurst";
 import TourOverlay from "@/components/TourOverlay";
+import StreakBadge from "@/components/StreakBadge";
+import { haptic } from "@/lib/haptics";
 import { motion } from "framer-motion";
 
 // Types
@@ -56,16 +59,6 @@ type QuickAddFood = {
   sugar?: number;
   sodium?: number;
   fiber?: number;
-};
-
-type UserProfile = {
-  name: string;
-  age: number;
-  weight: number;
-  height: number;
-  sex: string;
-  onboarded?: boolean;
-  tourCompleted?: boolean;
 };
 
 type ChatSession = {
@@ -464,6 +457,7 @@ export default function Home() {
 
   // Handlers
   const handleUpdateWater = async (increment: number) => {
+    haptic(increment > 0 ? "success" : "light");
     const newGlasses = Math.max(0, waterGlasses + increment);
     setWaterGlasses(newGlasses);
     if (increment > 0) {
@@ -1006,6 +1000,9 @@ export default function Home() {
               <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                 <h1 style={{ fontSize: '28px', margin: 0 }}>SomDun</h1>
                 <span className="level-badge">LVL {level}</span>
+                {(user?.streakDays || 0) > 0 && (
+                  <StreakBadge days={user?.streakDays || 0} size="sm" label="Streak" />
+                )}
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                 <div className="xp-bar-container" style={{ width: '120px' }}>
@@ -1036,7 +1033,7 @@ export default function Home() {
             </Link>
             <button
               id="add-action-btn"
-              onClick={() => { setLogModalTab('food'); setIsActionModalOpen(true); }}
+              onClick={() => { haptic("medium"); setLogModalTab('food'); setIsActionModalOpen(true); }}
               className="icon-btn active mobile-hidden"
               style={{ background: 'rgba(255,255,255,0.05)', border: 'none', width: '40px', height: '40px', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
               title={t('quickAdd')}
