@@ -66,6 +66,8 @@ type User struct {
 	TonePreference     string             `json:"tonePreference" bson:"tonePreference"`
 	XP                 int                `json:"xp" bson:"xp"`
 	Level              int                `json:"level" bson:"level"`
+	StreakDays         int                `json:"streakDays" bson:"streakDays"`
+	LastActiveDate     string             `json:"lastActiveDate" bson:"lastActiveDate"` // YYYY-MM-DD format
 }
 
 // WaterIntake represents amount of water consumed on a specific date

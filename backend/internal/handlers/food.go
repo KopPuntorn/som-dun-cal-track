@@ -138,6 +138,9 @@ func CreateFood(c echo.Context) error {
 		db.AddUserXP(userID, xpAmount)
 	}
 
+	// Update streak
+	db.UpdateUserStreak(userID)
+
 	return c.JSON(http.StatusCreated, food)
 }
 

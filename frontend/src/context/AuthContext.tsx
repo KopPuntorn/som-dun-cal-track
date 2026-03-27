@@ -15,6 +15,8 @@ export type UserProfile = {
     onboarded: boolean;
     xp: number;
     level: number;
+    streakDays?: number;
+    lastActiveDate?: string;
 };
 
 type AuthContextType = {
