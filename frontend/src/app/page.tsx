@@ -1493,7 +1493,7 @@ export default function Home() {
       {/* Add Action Modal */}
         {isActionModalOpen && (
           <div className="modal-overlay" onClick={() => setIsActionModalOpen(false)}>
-            <div className="glass-panel modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '500px', padding: '28px 24px 32px', borderRadius: '28px', overflow: 'visible' }}>
+            <div className="glass-panel modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '480px', padding: 'clamp(20px, 5vw, 32px)', borderRadius: '28px', overflow: 'visible' }}>
               {/* Mobile drag handle */}
               <div className="modal-drag-handle" />
 
@@ -1575,7 +1575,7 @@ export default function Home() {
                   )}
 
                   <form id="add-food-form" onSubmit={(e) => { handleAddFood(e); setIsActionModalOpen(false); }}>
-                    <div className="input-group" style={{ position: 'relative', marginBottom: '16px' }}>
+                    <div className="input-group" style={{ position: 'relative', marginBottom: '16px', width: '100%' }}>
                       <input
                         type="text"
                         required
@@ -1585,7 +1585,7 @@ export default function Home() {
                           setFoodInputs({ ...foodInputs, name: e.target.value });
                           handleSearch(e.target.value);
                         }}
-                        style={{ height: '52px', fontSize: '16px', padding: '0 20px', borderRadius: '14px' }}
+                        style={{ height: '52px', fontSize: '16px', padding: '0 20px', borderRadius: '14px', width: '100%' }}
                         onBlur={() => setTimeout(() => setSearchResults([]), 200)}
                       />
                       {searchResults.length > 0 && (
@@ -1632,7 +1632,7 @@ export default function Home() {
                       <select
                         value={foodInputs.mealCategory}
                         onChange={e => setFoodInputs({ ...foodInputs, mealCategory: e.target.value })}
-                        style={{ flex: 1, height: '52px', padding: '0 16px', borderRadius: '14px', border: '1px solid var(--panel-border)', background: 'rgba(0,0,0,0.3)', color: 'var(--text-primary)', fontWeight: 600 }}
+                        style={{ flex: 1, height: '52px', padding: '0 16px', borderRadius: '14px', border: '1px solid var(--panel-border)', background: 'rgba(0,0,0,0.3)', color: 'var(--text-primary)', fontWeight: 600, width: '100%' }}
                       >
                         <option value="Breakfast">🍳 {t('breakfast')}</option>
                         <option value="Lunch">🥗 {t('lunch')}</option>
@@ -1666,47 +1666,38 @@ export default function Home() {
                         placeholder={t('calories')}
                         value={foodInputs.calories}
                         onChange={e => setFoodInputs({ ...foodInputs, calories: e.target.value })}
-                        style={{ height: '52px', padding: '0 16px', borderRadius: '14px' }}
+                        style={{ height: '52px', padding: '0 16px', borderRadius: '14px', width: '100%' }}
                       />
                     </div>
 
-                    <div className="macro-inputs" style={{ display: 'flex', gap: '12px', marginBottom: '20px' }}>
+                    <div className="macro-inputs" style={{ display: 'flex', gap: '10px', marginBottom: '20px', flexWrap: 'wrap', width: '100%' }}>
                       <div style={{ flex: 1, position: 'relative' }}>
                         <input
                           type="number"
                           required
-                          min="0"
-                          step="0.1"
-                          placeholder={t('protein')}
                           value={foodInputs.protein}
                           onChange={e => setFoodInputs({ ...foodInputs, protein: e.target.value })}
-                          style={{ height: '52px', padding: '0 16px', borderRadius: '14px' }}
+                          style={{ height: '52px', padding: '0 16px 0 10px', borderRadius: '14px', width: '100%', fontSize: '14px' }}
                         />
-                        <span style={{ position: 'absolute', right: '14px', top: '50%', transform: 'translateY(-50%)', fontSize: '11px', color: 'var(--accent-pro)', fontWeight: 800 }}>G</span>
+                        <span style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', fontSize: '10px', color: 'var(--accent-pro)', fontWeight: 800 }}>G</span>
                       </div>
                       <div style={{ flex: 1, position: 'relative' }}>
                         <input
                           type="number"
-                          min="0"
-                          step="0.1"
-                          placeholder={t('carbs')}
                           value={foodInputs.carbs}
                           onChange={e => setFoodInputs({ ...foodInputs, carbs: e.target.value })}
-                          style={{ height: '52px', padding: '0 16px', borderRadius: '14px' }}
+                          style={{ height: '52px', padding: '0 16px 0 10px', borderRadius: '14px', width: '100%', fontSize: '14px' }}
                         />
-                        <span style={{ position: 'absolute', right: '14px', top: '50%', transform: 'translateY(-50%)', fontSize: '11px', color: 'var(--accent-carb)', fontWeight: 800 }}>G</span>
+                        <span style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', fontSize: '10px', color: 'var(--accent-carb)', fontWeight: 800 }}>G</span>
                       </div>
                       <div style={{ flex: 1, position: 'relative' }}>
                         <input
                           type="number"
-                          min="0"
-                          step="0.1"
-                          placeholder={t('fat')}
                           value={foodInputs.fat}
                           onChange={e => setFoodInputs({ ...foodInputs, fat: e.target.value })}
-                          style={{ height: '52px', padding: '0 16px', borderRadius: '14px' }}
+                          style={{ height: '52px', padding: '0 16px 0 10px', borderRadius: '14px', width: '100%', fontSize: '14px' }}
                         />
-                        <span style={{ position: 'absolute', right: '14px', top: '50%', transform: 'translateY(-50%)', fontSize: '11px', color: 'var(--accent-fat)', fontWeight: 800 }}>G</span>
+                        <span style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', fontSize: '10px', color: 'var(--accent-fat)', fontWeight: 800 }}>G</span>
                       </div>
                     </div>
 
