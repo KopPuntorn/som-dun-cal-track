@@ -18,6 +18,7 @@ export const metadata: Metadata = {
 import { Providers } from '@/context/Providers';
 import BottomNav from '@/components/BottomNav';
 import OfflineIndicator from '@/components/OfflineIndicator';
+import PaywallModal from '@/components/PaywallModal';
 
 function BottomNavWrapper() {
   return (
@@ -58,6 +59,7 @@ export default function RootLayout({
         </svg>
         <Providers>
           <OfflineIndicator />
+          <PaywallModal />
           {children}
           <BottomNavWrapper />
         </Providers>

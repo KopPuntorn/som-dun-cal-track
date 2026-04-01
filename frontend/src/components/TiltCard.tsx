@@ -77,7 +77,10 @@ export default function TiltCard({
         rotateX,
         rotateY,
         transformStyle: "preserve-3d",
-      }}
+        // Pass mouse position to children via CSS variables
+        "--x": useTransform(mouseXSpring, [-0.5, 0.5], ["0%", "100%"]),
+        "--y": useTransform(mouseYSpring, [-0.5, 0.5], ["0%", "100%"]),
+      } as any}
       className={`relative overflow-hidden ${className}`}
       // Spring bounce on tap/click
       whileHover={{ scale: 1.02 }}
@@ -96,11 +99,19 @@ export default function TiltCard({
           transition: "opacity 0.3s ease",
         }}
       />
+
+      {/* Holographic Foil Layer */}
+      <div 
+        className={`holographic-foil ${isHovered ? 'holographic-foil--active' : ''}`}
+        style={{
+          backgroundPosition: `var(--x) var(--y)`,
+        }}
+      />
       
       {/* Content wrapper with perspective translation */}
       <div 
-        style={{ transform: 'translateZ(20px)', transformStyle: "preserve-3d" }}
-        className="h-full w-full"
+        style={{ transform: 'translateZ(0px)', transformStyle: "preserve-3d" }}
+        className="h-full w-full relative z-10"
       >
         {children}
       </div>

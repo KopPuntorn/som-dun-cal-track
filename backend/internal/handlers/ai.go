@@ -157,6 +157,26 @@ func AnalyzeImage(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "image file is required"})
 	}
 
+	// 1. Check Subscription Limits
+	userID := c.Get("userID").(primitive.ObjectID)
+	var user models.User
+	if err := db.UserCollection.FindOne(c.Request().Context(), bson.M{"_id": userID}).Decode(&user); err != nil {
+		return c.JSON(http.StatusNotFound, map[string]string{"error": "user not found"})
+	}
+
+	allowed, remaining, err := CheckAndIncrementUsage(c.Request().Context(), user, "scan")
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "usage check failed"})
+	}
+	if !allowed {
+		return c.JSON(http.StatusForbidden, map[string]interface{}{
+			"error":     "Daily scan limit reached",
+			"code":      "LIMIT_REACHED",
+			"remaining": 0,
+		})
+	}
+	slog.Info("Usage incremented", "userID", userID, "action", "scan", "remaining", remaining)
+
 	// Get language and hint preference
 	lang := c.FormValue("language")
 	hint := c.FormValue("hint")

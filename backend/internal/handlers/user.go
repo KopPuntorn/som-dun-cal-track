@@ -26,7 +26,44 @@ func GetUserProfile(c echo.Context) error {
 		return c.JSON(http.StatusNotFound, map[string]string{"error": "User profile not found"})
 	}
 
-	return c.JSON(http.StatusOK, u)
+	// Get current usage limits
+	usage, _ := GetUserUsageState(ctx, u)
+
+	response := struct {
+		models.User `bson:",inline"`
+		Usage       models.UserUsage `json:"usage"`
+	}{
+		User:  u,
+		Usage: usage,
+	}
+
+	return c.JSON(http.StatusOK, response)
+}
+
+func MockUpgrade(c echo.Context) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	userID := c.Get("userID").(primitive.ObjectID)
+	_, err := db.UserCollection.UpdateOne(ctx, bson.M{"_id": userID}, bson.M{"$set": bson.M{"tier": "pro"}})
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "upgrade failed"})
+	}
+
+	return c.JSON(http.StatusOK, map[string]string{"message": "Upgraded to Pro!"})
+}
+
+func MockDowngrade(c echo.Context) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	userID := c.Get("userID").(primitive.ObjectID)
+	_, err := db.UserCollection.UpdateOne(ctx, bson.M{"_id": userID}, bson.M{"$set": bson.M{"tier": "free"}})
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "downgrade failed"})
+	}
+
+	return c.JSON(http.StatusOK, map[string]string{"message": "Downgraded to Free!"})
 }
 
 func UpdateUserProfile(c echo.Context) error {

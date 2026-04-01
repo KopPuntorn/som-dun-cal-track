@@ -100,6 +100,7 @@ func RegisterUser(c echo.Context) error {
 		PasswordHash: string(hashedPassword),
 		Name:         req.Name,
 		Level:        1,
+		Tier:         "free",
 	}
 
 	res, err := db.UserCollection.InsertOne(ctx, newUser)
@@ -193,6 +194,7 @@ func GoogleLogin(c echo.Context) error {
 			Name:     name,
 			GoogleID: payload.Subject,
 			Level:    1,
+			Tier:     "free",
 		}
 		res, err := db.UserCollection.InsertOne(ctx, user)
 		if err != nil {

@@ -22,6 +22,7 @@ var ExerciseCollection *mongo.Collection
 var SleepCollection *mongo.Collection
 var BodyMeasurementCollection *mongo.Collection
 var ChatSessionsCollection *mongo.Collection
+var UserUsageCollection *mongo.Collection
 
 func InitDB(connectionString string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -53,6 +54,7 @@ func InitDB(connectionString string) error {
 	SleepCollection = DB.Collection("sleep")
 	BodyMeasurementCollection = DB.Collection("body_measurement")
 	ChatSessionsCollection = DB.Collection("chat_sessions")
+	UserUsageCollection = DB.Collection("user_usage")
 
 	EnsureIndexes()
 
@@ -93,8 +95,8 @@ func EnsureIndexes() {
 		slog.Warn("Failed to create Foods text index", "error", err)
 	}
 
-	// Water, Weight, Exercise, Sleep, BodyMeasurement, ChatSessions - user+date indexes for fast queries
-	collections := []*mongo.Collection{WaterCollection, WeightCollection, ExerciseCollection, SleepCollection, BodyMeasurementCollection, ChatSessionsCollection}
+	// Water, Weight, Exercise, Sleep, BodyMeasurement, ChatSessions, UserUsage - user+date indexes for fast queries
+	collections := []*mongo.Collection{WaterCollection, WeightCollection, ExerciseCollection, SleepCollection, BodyMeasurementCollection, ChatSessionsCollection, UserUsageCollection}
 	for _, coll := range collections {
 		_, err = coll.Indexes().CreateOne(ctx, mongo.IndexModel{
 			Keys:    bson.D{{Key: "userId", Value: 1}, {Key: "date", Value: -1}},

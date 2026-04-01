@@ -589,7 +589,7 @@ export default function AiChatPage() {
                 {sessions.map((session) => (
                   <div
                     key={session.id}
-                    className="group relative flex items-center rounded-xl transition-all h-11 border border-transparent hover:bg-white/5"
+                    className={`group relative flex items-center rounded-xl transition-all h-11 border border-transparent hover:bg-white/5 ${activeSessionId === session.id ? 'active' : ''}`}
                     style={{
                       backgroundColor: activeSessionId === session.id ? 'rgba(255, 255, 255, 0.08)' : 'transparent',
                       borderColor: activeSessionId === session.id ? 'var(--panel-border)' : 'transparent'
@@ -630,24 +630,24 @@ export default function AiChatPage() {
                       </button>
                     )}
                     
-                    <div className={`absolute right-2 flex items-center gap-0.5 transition-all ${activeSessionId === session.id ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
+                    <div className={`absolute right-2.5 flex items-center gap-1 transition-all ${activeSessionId === session.id ? 'opacity-100 translate-x-0' : 'opacity-0 translate-x-2 group-hover:opacity-100 group-hover:translate-x-0'}`}>
                       <button
                         onClick={(e) => startRenaming(e, session)}
-                        className="p-1.5 rounded-lg hover:bg-white/10 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/30"
+                        className="p-1.5 rounded-lg hover:bg-white/10 active:scale-95 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/30"
                         style={{ color: 'var(--text-secondary)' }}
                         aria-label={language === 'th' ? 'เปลี่ยนชื่อแชท' : 'Rename chat'}
                       >
-                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden="true"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" /><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" /></svg>
                       </button>
                       <button
                         onClick={(e) => handleDeleteSession(session.id, e)}
-                        className="p-1.5 rounded-lg hover:bg-white/10 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/30"
+                        className="p-1.5 rounded-lg hover:bg-white/10 active:scale-95 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/30"
                         style={{ color: 'var(--text-secondary)' }}
                         aria-label={language === 'th' ? 'ลบแชท' : 'Delete chat'}
                         onMouseOver={(e) => e.currentTarget.style.color = 'var(--danger)'}
                         onMouseOut={(e) => e.currentTarget.style.color = 'var(--text-secondary)'}
                       >
-                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" aria-hidden="true"><polyline points="3 6 5 6 21 6" /><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" /></svg>
                       </button>
                     </div>
                   </div>

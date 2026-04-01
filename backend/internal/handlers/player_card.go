@@ -39,6 +39,13 @@ type PlayerCardResponse struct {
 // GetPlayerCard computes and returns the player card for a given month
 func GetPlayerCard(c echo.Context) error {
 	userID := c.Get("userID").(primitive.ObjectID)
+
+	// --- Fetch User Data ---
+	var user models.User
+	if err := db.UserCollection.FindOne(c.Request().Context(), bson.M{"_id": userID}).Decode(&user); err != nil {
+		return c.JSON(http.StatusNotFound, map[string]string{"error": "user not found"})
+	}
+
 	monthStr := c.QueryParam("month") // expected: "2026-03"
 
 	// Parse month or default to current
@@ -111,9 +118,7 @@ func GetPlayerCard(c echo.Context) error {
 		sleepCursor.Close(ctx)
 	}
 
-	// 6. User profile
-	var user models.User
-	db.UserCollection.FindOne(ctx, bson.M{"_id": userID}).Decode(&user)
+	// --- All data fetched, proceed to calculation ---
 
 	// ─── Calculate Stats ───
 

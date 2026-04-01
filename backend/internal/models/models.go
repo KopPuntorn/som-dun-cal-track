@@ -68,6 +68,18 @@ type User struct {
 	Level              int                `json:"level" bson:"level"`
 	StreakDays         int                `json:"streakDays" bson:"streakDays"`
 	LastActiveDate     string             `json:"lastActiveDate" bson:"lastActiveDate"` // YYYY-MM-DD format
+	Tier               string             `json:"tier" bson:"tier"` // free or pro
+	SubscriptionStatus string             `json:"subscriptionStatus,omitempty" bson:"subscriptionStatus,omitempty"`
+	StripeCustomerID   string             `json:"stripeCustomerId,omitempty" bson:"stripeCustomerId,omitempty"`
+}
+
+// UserUsage tracks daily API quotas for the Free tier
+type UserUsage struct {
+	ID          primitive.ObjectID `json:"id" bson:"_id,omitempty"`
+	UserID      primitive.ObjectID `json:"userId" bson:"userId"`
+	Date string `json:"date" bson:"date"` // YYYY-MM-DD
+	AIScanCount int `json:"aiScanCount" bson:"aiScanCount"`
+	AIChatCount int `json:"aiChatCount" bson:"aiChatCount"`
 }
 
 // WaterIntake represents amount of water consumed on a specific date
