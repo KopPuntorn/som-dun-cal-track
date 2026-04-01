@@ -157,8 +157,10 @@ func AnalyzeImage(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "image file is required"})
 	}
 
-	// Get language preference
+	// Get language and hint preference
 	lang := c.FormValue("language")
+	hint := c.FormValue("hint")
+	
 	langName := "Thai (ภาษาไทย)"
 	exampleName := "ข้าวกะเพราหมูสับไข่ดาว"
 	langConstraint := "ใช้ภาษาไทยที่เป็นธรรมชาติ ถูกต้องตามหลักภาษา และเป็นชื่อที่คนไทยเรียกทั่วไป"
@@ -182,30 +184,34 @@ func AnalyzeImage(c echo.Context) error {
 	base64Img := base64.StdEncoding.EncodeToString(imgBytes)
 	mimeType := http.DetectContentType(imgBytes)
 
-	// Prepare Groq Request
+	userText := "Analyze this image and return the nutritional data in the requested JSON format."
+	if hint != "" {
+		userText += fmt.Sprintf(" The user provided a hint for the food identity: '%s'. Please verify and prioritize your ingredient extraction based heavily on this hint, using the image primarily to estimate visual portion sizes and specific cooking methods.", hint)
+	}
+
+	// Prepare Groq Request - Single-Pass Chain of Thought (CoT) Pipeline
 	groqReq := GroqChatRequest{
 		Model:       "meta-llama/llama-4-scout-17b-16e-instruct",
-		Temperature: 0.2,
-		MaxTokens:   220,
+		Temperature: 0.1,
+		MaxTokens:   800,
 		TopP:        0.9,
 		Messages: []GroqMessage{
 			{
 				Role: "system",
 				Content: fmt.Sprintf("You are an elite, highly precise Culinary Nutritionist and Clinical Dietitian. Analyze the food in the image with extreme accuracy. "+
-					"Estimate portion sizes visually and calculate nutritional values based on standard USDA data or equivalent authoritative sources. "+
-					"Crucially, consider hidden calories from cooking oils, sauces, and sugars commonly used in such dishes. Be extremely realistic—Thai street food is often heavily oiled and sweetened. "+
-					"Ensure that the macronutrients mathematically align with the total calories (Calories should roughly be at least (Protein * 4) + (Carbs * 4) + (Fat * 9)). "+
-					"CRITICAL: Output MUST be valid JSON that can be parsed by JSON.parse. Use this exact schema and keys only: {name: string, calories: number, protein: number, carbs: number, fat: number}. "+
+					"First, you MUST write out your thought process inside a <chain_of_thought> block. In this block, identify visible ingredients, hidden oils/sugars/sauces, estimate portion sizes in grams, and perform mathematical calculations mapping ingredients to macros. "+
+					"Ensure that the final macronutrients mathematically align with the total calories (Calories >= (Protein * 4) + (Carbs * 4) + (Fat * 9)). "+
+					"CRITICAL: After the </chain_of_thought> block, you MUST output valid JSON wrapped in a markdown ```json ... ``` block. Use this exact schema and keys only: {name: string, calories: number, protein: number, carbs: number, fat: number}. "+
 					"If multiple foods are visible, pick the primary dish name and estimate the combined macros for the plate. "+
 					"LANGUAGE CONSTRAINT: %s "+
-					"Respond ONLY with the JSON object. NO markdown, NO text before or after. Example: {\"name\": \"%s\", \"calories\": 450, \"protein\": 20, \"carbs\": 55, \"fat\": 15}", langConstraint, exampleName),
+					"Example Output:\n<chain_of_thought>\nI see chicken and rice... chicken is 150g... Rice is 200g... Math is...\n</chain_of_thought>\n```json\n{\"name\": \"%s\", \"calories\": 450, \"protein\": 20, \"carbs\": 55, \"fat\": 15}\n```", langConstraint, exampleName),
 			},
 			{
 				Role: "user",
 				Content: []GroqContentPart{
 					{
 						Type: "text",
-						Text: "Analyze this image and return the nutritional data in the requested JSON format.",
+						Text: userText,
 					},
 					{
 						Type: "image_url",
@@ -218,8 +224,58 @@ func AnalyzeImage(c echo.Context) error {
 		},
 	}
 
-	slog.Info("Analyzing image with AI", "model", groqReq.Model, "language", langName, "mimeType", mimeType)
-	return callGroq(c, groqReq)
+	slog.Info("Analyzing image with CoT AI Pipeline", "model", groqReq.Model, "language", langName, "mimeType", mimeType, "hasHint", hint != "")
+	
+	ctx, cancel := context.WithTimeout(c.Request().Context(), 60*time.Second)
+	defer cancel()
+
+	replyContent, err := makeGroqCall(ctx, groqReq)
+	if err != nil {
+		slog.Error("Vision AI failed", "error", err)
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "failed to contact AI service"})
+	}
+
+	slog.Info("Raw AI Response Captured", "content_length", len(replyContent))
+
+	// Clean markdown backticks to extract JSON
+	re := regexp.MustCompile("(?s)```(?:json)?\n?(.*?)\n?```")
+	jsonStr := replyContent
+	if matches := re.FindStringSubmatch(replyContent); len(matches) > 1 {
+		jsonStr = strings.TrimSpace(matches[1])
+	} else {
+		// Attempt to extract the first { ... } if no code blocks are found
+		start := strings.Index(jsonStr, "{")
+		end := strings.LastIndex(jsonStr, "}")
+		if start != -1 && end != -1 && end > start {
+			jsonStr = jsonStr[start : end+1]
+		}
+	}
+
+	// Data Normalization / Guardrails
+	var result struct {
+		Name     string  `json:"name"`
+		Calories float64 `json:"calories"`
+		Protein  float64 `json:"protein"`
+		Carbs    float64 `json:"carbs"`
+		Fat      float64 `json:"fat"`
+	}
+
+	if err := json.Unmarshal([]byte(jsonStr), &result); err != nil {
+		slog.Error("Failed to parse reasoning AI JSON", "error", err, "raw", replyContent)
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "failed to parse AI response"})
+	}
+
+	// Math Normalization: Calories = (P*4) + (C*4) + (F*9)
+	computedCalories := (result.Protein * 4) + (result.Carbs * 4) + (result.Fat * 9)
+	
+	// If the AI's calories are wildly off (e.g. by more than 15 kcal) compared to macros, override it
+	if result.Calories < computedCalories-15 || result.Calories > computedCalories+15 {
+		slog.Warn("AI Calories mathematically misaligned, overriding", "ai_cal", result.Calories, "computed_cal", computedCalories)
+		// Usually macros are more accurate than the total calorie guess
+		result.Calories = computedCalories
+	}
+
+	return c.JSON(http.StatusOK, result)
 }
 
 // SuggestGoals suggests nutritional goals based on user biometrics
@@ -449,11 +505,12 @@ func ConsultAI(c echo.Context) error {
 					"Exercises:\n" + exerciseStr + "Total Burned: " + fmt.Sprintf("%.0f", totalExCal) + " kcal\n\n" +
 					"Sleep Patterns:\n" + sleepStr + "\n" +
 					"CRITICAL INSTRUCTIONS:\n" +
-					"1. Analyze consistency: Accurately compare their average daily intake with their goals using precise math. Are they consistent or fluctuating?\n" +
-					"2. Connect weight changes scientifically with their nutrition, energy balance, and exercise logs for this specific period.\n" +
-					"3. Provide deep, evidence-based insights into how this week's trends impact their " + objectiveStr + " goal.\n" +
-					"4. Give 3 'Level-Up' recommendations for the upcoming week based on this analysis. Ensure nutritional advice is 100% accurate, fact-checked, and scientifically sound (e.g. clearly distinguish cardio from muscle-building).\n" +
-					"Format: \n- Snapshot (1-2 sentences)\n- Key Insights (3 bullets)\n- Level-Up Plan (3 bullets)\n" +
+					"1. ALWAYS START your response with a <think> ... </think> block. Inside this block, meticulously analyze the context, ensure math aligns perfectly, and plan your response.\n" +
+					"2. Analyze consistency: Accurately compare their average daily intake with their goals using precise math. Are they consistent or fluctuating?\n" +
+					"3. Connect weight changes scientifically with their nutrition, energy balance, and exercise logs for this specific period.\n" +
+					"4. Provide deep, evidence-based insights into how this week's trends impact their " + objectiveStr + " goal.\n" +
+					"5. Give 3 'Level-Up' recommendations for the upcoming week based on this analysis. Ensure advice is 100% accurate, fact-checked, and scientifically sound.\n" +
+					"Format AFTER the <think> block: \n- Snapshot (1-2 sentences)\n- Key Insights (3 bullets)\n- Level-Up Plan (3 bullets)\n" +
 					"Keep response CONCISE (max 350 words). Tone: Expert, motivating, and polished. No generic AI fluff.",
 			},
 			{
@@ -502,14 +559,17 @@ func callGroq(c echo.Context, groqReq GroqChatRequest) error {
 		return c.JSON(http.StatusBadGateway, map[string]string{"error": "AI returned no content"})
 	}
 
-	slog.Info("AI Streamed Response Collected", "content", content)
+	slog.Info("AI Streamed Response Collected", "content_length", len(content))
+
+	// Implement Hidden Chain-of-Thought (Remove <think> ... </think> blocks cleanly)
+	thinkRe := regexp.MustCompile("(?s)<think>.*?</think>\n*")
+	content = thinkRe.ReplaceAllString(content, "")
+	content = strings.TrimSpace(content)
 
 	// Clean markdown backticks if any
-	re := regexp.MustCompile("(?s)```(?:json)?\n?(.*?)\n?```")
+	re := regexp.MustCompile("(?s)^```(?:json|markdown)?\n?(.*?)\n?```$")
 	if matches := re.FindStringSubmatch(content); len(matches) > 1 {
 		content = strings.TrimSpace(matches[1])
-	} else {
-		content = strings.TrimSpace(content)
 	}
 
 	// Ensure it's returned as application/json
@@ -758,15 +818,16 @@ func ChatAI(c echo.Context) error {
 		"\n--- RECENT FOOD HISTORY ---\n" + historyStr + "\n" +
 		"Weight Trend: " + weightStr + "\nExercise: " + exerciseStr + "\nSleep: " + sleepStr + "\nWater: " + waterStr + "\nMeasurements: " + measurementStr + "\n\n" +
 		"CRITICAL INSTRUCTIONS:\n" +
-		"1. Connect the dots logically (e.g., accurately assess if their meal matches their exercise).\n" +
-		"2. Provide precise and highly accurate nutritional breakdowns. Always verify that your macronutrient suggestions logically match the suggested calories based on the formula: Calories >= (P*4)+(C*4)+(F*9).\n" +
-		fmt.Sprintf("3. If you recommend or they mention a food, append a special tag at the VERY END: `[ADD: %s | 100 | 10 | 20 | 2]` (Format: [ADD: Name | Calories | Protein | Carbs | Fat])\n", foodExampleName) +
-		"4. Ensure macronutrients STRICTLY sum up realistically, and the name is in " + foodNameLang + " language.\n" +
-		"5. Use Markdown, emojis, and clear spacing. " +
-		"6. Maintain a polite, highly expert, and encouraging tone. " +
-		"7. Keep responses CONCISE and high-impact. Avoid extremely long tables or repetitive summaries unless specifically asked for a deep dive. Focus on quality over quantity. " +
-		"8. If the user message consists ONLY of a food name (e.g., 'ข้าวมันไก่', 'Pad Thai', 'Apple'), respond ONLY with its nutritional information in a concise format (Calories, P, C, F) and the [ADD: ...] tag. Do not include conversational filler or extra advice in this specific case.\n" +
-		"9. STRICT LANGUAGE LOCKDOWN: Use ONLY Thai and Latin (English) characters. ABSOLUTELY NO Chinese (e.g., 营养), Cyrillic (e.g., คาลอรี่), Japanese, or other foreign scripts. If you output 'Nutrition', it must be 'โภชนาการ'. If you output 'Calories', it must be 'แคลอรี่' or 'kcal' in Latin characters. Failure to stick to Thai/English characters will result in failure of the task."
+		"1. ALWAYS START your response with a <think> ... </think> block. Inside this block, meticulously analyze the context, perform step-by-step mathematical calculations for any macronutrients you will suggest, and cross-check that Calories >= (P*4)+(C*4)+(F*9).\n" +
+		"2. Connect the dots logically (e.g., accurately assess if their meal matches their exercise).\n" +
+		"3. Provide precise and highly accurate nutritional breakdowns.\n" +
+		fmt.Sprintf("4. If you recommend or they mention a food, append a special tag at the VERY END (AFTER the think block): `[ADD: %s | 100 | 10 | 20 | 2]` (Format: [ADD: Name | Calories | Protein | Carbs | Fat])\n", foodExampleName) +
+		"5. Ensure macronutrients STRICTLY sum up realistically, and the name is in " + foodNameLang + " language.\n" +
+		"6. Use Markdown, emojis, and clear spacing AFTER the think block. " +
+		"7. Maintain a polite, highly expert, and encouraging tone. " +
+		"8. Keep responses CONCISE and high-impact. Avoid extremely long tables or repetitive summaries unless specifically asked for a deep dive. Focus on quality over quantity. " +
+		"9. If the user message consists ONLY of a food name (e.g., 'ข้าวมันไก่', 'Pad Thai', 'Apple'), output your <think> block, then immediately respond ONLY with its nutritional information in a concise format (Calories, P, C, F) and the [ADD: ...] tag.\n" +
+		"10. STRICT LANGUAGE LOCKDOWN: Use ONLY Thai and Latin (English) characters. ABSOLUTELY NO Chinese (e.g., 营养), Cyrillic (e.g., คาลอรี่), Japanese, or other foreign scripts. If you output 'Nutrition', it must be 'โภชนาการ'. If you output 'Calories', it must be 'แคลอรี่' or 'kcal' in Latin characters. Failure to stick to Thai/English characters will result in failure of the task."
 
 	systemMsg := GroqMessage{
 		Role:    "system",
@@ -791,12 +852,17 @@ func ChatAI(c echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "failed to contact AI service"})
 	}
 
-	// Clean markdown backticks if any
-	re := regexp.MustCompile("(?s)```(?:json)?\n?(.*?)\n?```")
+	slog.Info("Raw AI Chat Response Captured", "content_length", len(replyContent))
+
+	// Implement Hidden Chain-of-Thought (Remove <think> ... </think> blocks cleanly)
+	thinkRe := regexp.MustCompile("(?s)<think>.*?</think>\n*")
+	replyContent = thinkRe.ReplaceAllString(replyContent, "")
+	replyContent = strings.TrimSpace(replyContent)
+
+	// Clean markdown backticks if any (sometimes AI wraps the whole output)
+	re := regexp.MustCompile("(?s)^```(?:json|markdown)?\n?(.*?)\n?```$")
 	if matches := re.FindStringSubmatch(replyContent); len(matches) > 1 {
 		replyContent = strings.TrimSpace(matches[1])
-	} else {
-		replyContent = strings.TrimSpace(replyContent)
 	}
 
 	if useSession {
