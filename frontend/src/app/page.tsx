@@ -157,6 +157,7 @@ export default function Home() {
   const [burstPos, setBurstPos] = useState({ x: '50%', y: '50%' });
   const [burstColors, setBurstColors] = useState<string[]>(['#0ea5e9', '#f43f5e', '#a855f7', '#ffffff']);
   const [openCalendar, setOpenCalendar] = useState<"food" | "exercise" | "sleep" | null>(null);
+  const [scanHint, setScanHint] = useState("");
 
   // SWR for Dashboard Summary
   const { data: dashboardData, error: dashboardError, isLoading: dashboardLoading } = useSWR(
@@ -843,6 +844,10 @@ export default function Home() {
 
     const formData = new FormData();
     formData.append("language", language);
+    if (scanHint.trim()) {
+      formData.append("hint", scanHint.trim());
+    }
+
     try {
       const compressedBlob = await compressImage(file);
       formData.append("image", compressedBlob, "image.jpg");
@@ -874,6 +879,7 @@ export default function Home() {
           mealCategory: foodInputs.mealCategory,
           date: foodInputs.date,
         });
+        setScanHint("");
       } else {
         const errData = await res.json();
         setError(errData.error || "Failed to analyze image");
@@ -1535,6 +1541,13 @@ export default function Home() {
             {logModalTab === 'food' && (
               <div className="modal-form">
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '12px' }}>
+                  <input 
+                    type="text" 
+                    placeholder={language === 'en' ? "Optional: Enter dish name before scanning" : "(ตัวเลือก) พิมพ์ชื่อเมนูอาหารก่อนสแกน"} 
+                    value={scanHint} 
+                    onChange={(e) => setScanHint(e.target.value)} 
+                    style={{ height: '36px', fontSize: '13px', padding: '0 12px', borderRadius: '10px', border: '1px solid var(--panel-border)', background: 'rgba(0,0,0,0.3)', color: 'var(--text-primary)', width: '100%' }} 
+                  />
                   <div style={{ display: 'flex', gap: '8px', width: '100%' }}>
                     <button
                       onClick={() => setIsScanning(!isScanning)}

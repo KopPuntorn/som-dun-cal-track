@@ -321,7 +321,7 @@ export default function PlayerCardPage() {
                         <div
                           className="player-ovr-value"
                           style={{
-                            background: theme.gradient,
+                            backgroundImage: theme.gradient,
                             WebkitBackgroundClip: "text",
                             WebkitTextFillColor: "transparent",
                           }}
@@ -342,7 +342,7 @@ export default function PlayerCardPage() {
                     <div
                       className="player-rarity"
                       style={{
-                        background: theme.gradient,
+                        backgroundImage: theme.gradient,
                         WebkitBackgroundClip: "text",
                         WebkitTextFillColor: "transparent",
                       }}
@@ -446,7 +446,7 @@ export default function PlayerCardPage() {
                           <span
                             className="player-stat-value"
                             style={{
-                              background: theme.gradient,
+                              backgroundImage: theme.gradient,
                               WebkitBackgroundClip: "text",
                               WebkitTextFillColor: "transparent",
                             }}
