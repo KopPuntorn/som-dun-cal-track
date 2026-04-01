@@ -1491,523 +1491,525 @@ export default function Home() {
       </div>
 
       {/* Add Action Modal */}
-        {isActionModalOpen && (
-          <div className="modal-overlay" onClick={() => setIsActionModalOpen(false)}>
-            <div className="glass-panel modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '480px', padding: 'clamp(20px, 5vw, 32px)', borderRadius: '28px', overflow: 'visible' }}>
-              {/* Mobile drag handle */}
-              <div className="modal-drag-handle" />
+      {isActionModalOpen && (
+        <div className="modal-overlay" onClick={() => setIsActionModalOpen(false)}>
+          <div className="glass-panel modal-content" onClick={e => e.stopPropagation()}>
 
-              <div className="modal-header" style={{ marginBottom: '20px', flexDirection: 'column', alignItems: 'flex-start', gap: '16px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center' }}>
-                  <h3 style={{ fontSize: '18px', fontWeight: 800 }}>
-                    {logModalTab === 'food' ? t('addFood') : logModalTab === 'exercise' ? t('logActivityTitle') : t('logActivityTitle')}
-                  </h3>
-                  <button onClick={() => setIsActionModalOpen(false)} className="icon-btn" style={{ borderRadius: '50%', width: '36px', height: '36px', background: 'rgba(255,255,255,0.05)' }}>&times;</button>
-                </div>
-
-                {/* Tab Switcher */}
-                <div className="modal-tab-switcher" style={{ display: "flex", background: "rgba(0,0,0,0.4)", borderRadius: '14px', padding: "4px", border: '1px solid var(--panel-border)', width: '100%', gap: '4px' }}>
-                  <button
-                    type="button"
-                    onClick={() => setLogModalTab('food')}
-                    className={`glass-btn ${logModalTab === 'food' ? 'active' : ''}`}
-                    style={{ flex: 1, border: 'none', borderRadius: '10px', minHeight: '40px', fontSize: '13px', fontWeight: 600, whiteSpace: 'nowrap' }}
-                  >
-                    🍎 {t('addFood')}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setLogModalTab('exercise')}
-                    className={`glass-btn ${logModalTab === 'exercise' ? 'active' : ''}`}
-                    style={{ flex: 1, border: 'none', borderRadius: '10px', minHeight: '40px', fontSize: '13px', fontWeight: 600, whiteSpace: 'nowrap' }}
-                  >
-                    🏃 {t('trainingTab')}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setLogModalTab('sleep')}
-                    className={`glass-btn ${logModalTab === 'sleep' ? 'active' : ''}`}
-                    style={{ flex: 1, border: 'none', borderRadius: '10px', minHeight: '40px', fontSize: '13px', fontWeight: 600, whiteSpace: 'nowrap' }}
-                  >
-                    🌙 {t('recoveryTab')}
-                  </button>
-                </div>
+            <div className="modal-header" style={{ marginBottom: '8px', flexDirection: 'column', alignItems: 'flex-start', gap: '8px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center' }}>
+                <h3 style={{ fontSize: '18px', fontWeight: 800 }}>
+                  {logModalTab === 'food' ? t('addFood') : logModalTab === 'exercise' ? t('logActivityTitle') : t('logActivityTitle')}
+                </h3>
+                <button onClick={() => setIsActionModalOpen(false)} className="icon-btn" style={{ borderRadius: '50%', width: '36px', height: '36px', background: 'rgba(255,255,255,0.05)' }}>&times;</button>
               </div>
 
-              {logModalTab === 'food' && (
-                <div className="modal-form">
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '20px' }}>
-                    <div style={{ display: 'flex', gap: '10px', width: '100%' }}>
-                      <button
-                        onClick={() => setIsScanning(!isScanning)}
-                        className={`glass-btn ${isScanning ? 'active' : ''}`}
-                        style={{ flex: 1, height: '48px', borderRadius: '14px', fontSize: '13px' }}
-                      >
-                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2"></path><path d="M17 3h2a2 2 0 0 1 2 2v2"></path><path d="M21 17v2a2 2 0 0 1-2 2h-2"></path><path d="M7 21H5a2 2 0 0 1-2-2v-2"></path><rect x="7" y="7" width="10" height="10" rx="1"></rect></svg>
-                        {isScanning ? t('stopBtn') : t('scanBtn')}
-                      </button>
-
-                      <div style={{ flex: 1 }}>
-                        <input
-                          type="file"
-                          accept="image/*"
-                          onChange={handleImageScan}
-                          style={{ display: 'none' }}
-                          id="ai-scan-input"
-                        />
-                        <label
-                          htmlFor="ai-scan-input"
-                          className="primary-btn"
-                          style={{ width: '100%', margin: 0, height: '48px', fontSize: '13px', background: 'var(--accent-pro-gradient)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '14px', cursor: 'pointer' }}
-                        >
-                          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '8px' }}><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
-                          {aiLoading ? '...' : t('aiScanBtn')}
-                        </label>
-                      </div>
-                    </div>
-                  </div>
-
-                  {isScanning && (
-                    <div style={{ marginBottom: '20px', borderRadius: '16px', overflow: 'hidden', border: '2px solid var(--panel-border)', background: '#000', position: 'relative', height: '200px' }}>
-                      <video ref={zxingRef} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                      <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate( -50%, -50%)', width: '160px', height: '100px', border: '2px solid var(--accent-pro)', borderRadius: '12px', boxShadow: '0 0 0 1000px rgba(0,0,0,0.5)' }}></div>
-                    </div>
-                  )}
-
-                  <form id="add-food-form" onSubmit={(e) => { handleAddFood(e); setIsActionModalOpen(false); }}>
-                    <div className="input-group" style={{ position: 'relative', marginBottom: '16px', width: '100%' }}>
-                      <input
-                        type="text"
-                        required
-                        placeholder={t('foodPlaceholder')}
-                        value={foodInputs.name}
-                        onChange={e => {
-                          setFoodInputs({ ...foodInputs, name: e.target.value });
-                          handleSearch(e.target.value);
-                        }}
-                        style={{ height: '52px', fontSize: '16px', padding: '0 20px', borderRadius: '14px', width: '100%' }}
-                        onBlur={() => setTimeout(() => setSearchResults([]), 200)}
-                      />
-                      {searchResults.length > 0 && (
-                        <div className="glass-panel" style={{
-                          position: 'absolute',
-                          top: '100%',
-                          left: 0,
-                          right: 0,
-                          zIndex: 50,
-                          marginTop: '8px',
-                          padding: '8px',
-                          maxHeight: '200px',
-                          overflowY: 'auto',
-                          borderRadius: '14px'
-                        }}>
-                          {searchResults.map((item, idx) => (
-                            <div
-                              key={idx}
-                              onClick={() => selectSearchResult(item)}
-                              className="search-result-item"
-                              style={{
-                                padding: '12px 14px',
-                                cursor: 'pointer',
-                                borderRadius: '10px',
-                                display: 'flex',
-                                justifyContent: 'space-between',
-                                alignItems: 'center',
-                              }}
-                            >
-                              <div>
-                                <div style={{ fontSize: '14px', fontWeight: 600 }}>{item.name}</div>
-                                <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '2px' }}>
-                                  P:{item.protein}g | C:{item.carbs}g | F:{item.fat}g
-                                </div>
-                              </div>
-                              <span style={{ fontSize: '13px', fontWeight: 800, color: 'var(--accent-cal)' }}>{item.calories} kcal</span>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="input-row" style={{ marginBottom: '16px' }}>
-                      <select
-                        value={foodInputs.mealCategory}
-                        onChange={e => setFoodInputs({ ...foodInputs, mealCategory: e.target.value })}
-                        style={{ flex: 1, height: '52px', padding: '0 16px', borderRadius: '14px', border: '1px solid var(--panel-border)', background: 'rgba(0,0,0,0.3)', color: 'var(--text-primary)', fontWeight: 600, width: '100%' }}
-                      >
-                        <option value="Breakfast">🍳 {t('breakfast')}</option>
-                        <option value="Lunch">🥗 {t('lunch')}</option>
-                        <option value="Dinner">🍲 {t('dinner')}</option>
-                        <option value="Snack">🍪 {t('snack')}</option>
-                      </select>
-                      <div style={{ flex: 1, position: 'relative' }}>
-                        <button
-                          type="button"
-                          onClick={() => setOpenCalendar(openCalendar === 'food' ? null : 'food')}
-                          style={{ width: '100%', height: '52px', padding: '0 16px', borderRadius: '14px', border: '1px solid var(--panel-border)', background: 'rgba(0,0,0,0.3)', color: 'var(--text-primary)', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '14px' }}
-                        >
-                          <span>📅 {foodInputs.date}</span>
-                          <span style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>▼</span>
-                        </button>
-                        {openCalendar === 'food' && (
-                          <CalendarPicker
-                            value={foodInputs.date}
-                            onChange={(d) => setFoodInputs({ ...foodInputs, date: d })}
-                            onClose={() => setOpenCalendar(null)}
-                          />
-                        )}
-                      </div>
-                    </div>
-
-                    <div className="input-row" style={{ marginBottom: '16px' }}>
-                      <input
-                        type="number"
-                        required
-                        min="0"
-                        placeholder={t('calories')}
-                        value={foodInputs.calories}
-                        onChange={e => setFoodInputs({ ...foodInputs, calories: e.target.value })}
-                        style={{ height: '52px', padding: '0 16px', borderRadius: '14px', width: '100%' }}
-                      />
-                    </div>
-
-                    <div className="macro-inputs" style={{ display: 'flex', gap: '10px', marginBottom: '20px', flexWrap: 'wrap', width: '100%' }}>
-                      <div style={{ flex: 1, position: 'relative' }}>
-                        <input
-                          type="number"
-                          required
-                          value={foodInputs.protein}
-                          onChange={e => setFoodInputs({ ...foodInputs, protein: e.target.value })}
-                          style={{ height: '52px', padding: '0 16px 0 10px', borderRadius: '14px', width: '100%', fontSize: '14px' }}
-                        />
-                        <span style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', fontSize: '10px', color: 'var(--accent-pro)', fontWeight: 800 }}>G</span>
-                      </div>
-                      <div style={{ flex: 1, position: 'relative' }}>
-                        <input
-                          type="number"
-                          value={foodInputs.carbs}
-                          onChange={e => setFoodInputs({ ...foodInputs, carbs: e.target.value })}
-                          style={{ height: '52px', padding: '0 16px 0 10px', borderRadius: '14px', width: '100%', fontSize: '14px' }}
-                        />
-                        <span style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', fontSize: '10px', color: 'var(--accent-carb)', fontWeight: 800 }}>G</span>
-                      </div>
-                      <div style={{ flex: 1, position: 'relative' }}>
-                        <input
-                          type="number"
-                          value={foodInputs.fat}
-                          onChange={e => setFoodInputs({ ...foodInputs, fat: e.target.value })}
-                          style={{ height: '52px', padding: '0 16px 0 10px', borderRadius: '14px', width: '100%', fontSize: '14px' }}
-                        />
-                        <span style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', fontSize: '10px', color: 'var(--accent-fat)', fontWeight: 800 }}>G</span>
-                      </div>
-                    </div>
-
-                    <button type="submit" className="primary-btn active" disabled={loading} style={{ width: '100%', height: '56px', borderRadius: '16px' }}>
-                      <span>{t('addFoodBtn')}</span>
-                    </button>
-                  </form>
-                </div>
-              )}
-
-              {logModalTab === 'exercise' && (
-                <div className="modal-form" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                  <div className="input-group">
-                    <input
-                      type="text"
-                      placeholder={t('activityPlaceholder')}
-                      value={exerciseInput.name}
-                      onChange={e => setExerciseInput({ ...exerciseInput, name: e.target.value })}
-                      style={{ height: '52px', borderRadius: '14px' }}
-                    />
-                  </div>
-                  <div className="input-row" style={{ display: 'flex', gap: '12px' }}>
-                    <div style={{ flex: 1, position: 'relative' }}>
-                      <button
-                        type="button"
-                        onClick={() => setOpenCalendar(openCalendar === 'exercise' ? null : 'exercise')}
-                        style={{ width: '100%', height: '52px', padding: '0 16px', borderRadius: '14px', border: '1px solid var(--panel-border)', background: 'rgba(0,0,0,0.3)', color: 'var(--text-primary)', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '14px' }}
-                      >
-                        <span>📅 {exerciseInput.date}</span>
-                        <span style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>▼</span>
-                      </button>
-                      {openCalendar === 'exercise' && (
-                        <CalendarPicker
-                          value={exerciseInput.date}
-                          onChange={(d) => setExerciseInput({ ...exerciseInput, date: d })}
-                          onClose={() => setOpenCalendar(null)}
-                        />
-                      )}
-                    </div>
-                    <div style={{ flex: 1, position: 'relative' }}>
-                      <input
-                        type="number"
-                        placeholder={t('minutes')}
-                        value={exerciseInput.durationMinutes || ''}
-                        onChange={e => setExerciseInput({ ...exerciseInput, durationMinutes: Number(e.target.value) })}
-                        style={{ height: '52px', borderRadius: '14px', paddingRight: '48px' }}
-                      />
-                      <span style={{ position: 'absolute', right: '14px', top: '50%', transform: 'translateY(-50%)', fontSize: '11px', color: 'var(--accent-pro)', fontWeight: 800 }}>{t('unitMin').toUpperCase()}</span>
-                    </div>
-                  </div>
-                  <div className="input-row" style={{ display: 'flex', gap: '12px' }}>
-                    <div style={{ flex: 1, position: 'relative' }}>
-                      <input
-                        type="number"
-                        placeholder={t('caloriesBurnedPlc')}
-                        value={exerciseInput.caloriesBurned || ''}
-                        onChange={e => setExerciseInput({ ...exerciseInput, caloriesBurned: Number(e.target.value) })}
-                        style={{ height: '52px', borderRadius: '14px', paddingRight: '54px' }}
-                      />
-                      <span style={{ position: 'absolute', right: '14px', top: '50%', transform: 'translateY(-50%)', fontSize: '11px', color: 'var(--accent-cal)', fontWeight: 800 }}>{t('unitKcal').toUpperCase()}</span>
-                    </div>
-                  </div>
-                  <button onClick={(e) => { handleLogExercise(); setIsActionModalOpen(false); }} className="primary-btn active" style={{ height: '56px', borderRadius: '16px', marginTop: '8px' }}>
-                    {t('logActivityBtn')}
-                  </button>
-                </div>
-              )}
-
-              {logModalTab === 'sleep' && (
-                <div className="modal-form" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                  <div className="input-row" style={{ display: 'flex', gap: '12px' }}>
-                    <div style={{ flex: 1, position: 'relative' }}>
-                      <input
-                        type="number"
-                        placeholder={t('hours')}
-                        value={sleepInput.durationHours || ''}
-                        onChange={e => setSleepInput({ ...sleepInput, durationHours: Number(e.target.value) })}
-                        style={{ height: '52px', borderRadius: '14px', paddingRight: '44px' }}
-                      />
-                      <span style={{ position: 'absolute', right: '14px', top: '50%', transform: 'translateY(-50%)', fontSize: '11px', color: 'var(--accent-fat)', fontWeight: 800 }}>{t('unitHr').toUpperCase()}</span>
-                    </div>
-                    <div style={{ flex: 1, position: 'relative' }}>
-                      <input
-                        type="number"
-                        placeholder={t('minutes')}
-                        value={sleepInput.durationMinutes || ''}
-                        onChange={e => setSleepInput({ ...sleepInput, durationMinutes: Number(e.target.value) })}
-                        style={{ height: '52px', borderRadius: '14px', paddingRight: '48px' }}
-                      />
-                      <span style={{ position: 'absolute', right: '14px', top: '50%', transform: 'translateY(-50%)', fontSize: '11px', color: 'var(--accent-fat)', fontWeight: 800 }}>{t('unitMin').toUpperCase()}</span>
-                    </div>
-                  </div>
-                  <div className="input-row" style={{ display: 'flex', gap: '12px' }}>
-                    <div style={{ flex: 1, position: 'relative' }}>
-                      <button
-                        type="button"
-                        onClick={() => setOpenCalendar(openCalendar === 'sleep' ? null : 'sleep')}
-                        style={{ width: '100%', height: '52px', padding: '0 16px', borderRadius: '14px', border: '1px solid var(--panel-border)', background: 'rgba(0,0,0,0.3)', color: 'var(--text-primary)', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '14px' }}
-                      >
-                        <span>📅 {sleepInput.date}</span>
-                        <span style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>▼</span>
-                      </button>
-                      {openCalendar === 'sleep' && (
-                        <CalendarPicker
-                          value={sleepInput.date}
-                          onChange={(d) => setSleepInput({ ...sleepInput, date: d })}
-                          onClose={() => setOpenCalendar(null)}
-                        />
-                      )}
-                    </div>
-                    <select
-                      value={sleepInput.quality}
-                      onChange={e => setSleepInput({ ...sleepInput, quality: e.target.value })}
-                      style={{ flex: 1, height: '52px', borderRadius: '14px', border: '1px solid var(--panel-border)', background: 'rgba(0,0,0,0.3)', color: 'var(--text-primary)', fontWeight: 600, padding: '0 16px', fontSize: '14px' }}
-                    >
-                      <option value="Good">😊 {t('goodQuality')}</option>
-                      <option value="Fair">😐 {t('fairQuality')}</option>
-                      <option value="Poor">😴 {t('poorQuality')}</option>
-                    </select>
-                  </div>
-                  <button onClick={(e) => { handleLogSleep(); setIsActionModalOpen(false); }} className="primary-btn active" style={{ height: '56px', borderRadius: '16px', marginTop: '8px' }}>
-                    {t('recordSleepBtn')}
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
-
-        {/* Details View Modal */}
-        {detailView && (
-          <div className="modal-overlay" onClick={() => setDetailView(null)}>
-            <div className="glass-panel modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '450px', padding: '24px', borderRadius: '24px' }}>
-              <div className="modal-header" style={{ marginBottom: '20px' }}>
-                <h3 style={{ fontSize: '18px', fontWeight: 800 }}>
-                  {detailView === 'training' ? t('recentHistory') : t('recentHistory')}
-                </h3>
-                <button onClick={() => setDetailView(null)} className="icon-btn" style={{ borderRadius: '50%', width: '32px', height: '32px' }}>
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+              {/* Tab Switcher */}
+              <div className="modal-tab-switcher" style={{ display: "flex", background: "rgba(0,0,0,0.4)", borderRadius: '12px', padding: "4px", border: '1px solid var(--panel-border)', width: '100%', gap: '4px' }}>
+                <button
+                  type="button"
+                  onClick={() => setLogModalTab('food')}
+                  className={`glass-btn ${logModalTab === 'food' ? 'active' : ''}`}
+                  style={{ flex: 1, border: 'none', borderRadius: '8px', minHeight: '36px', fontSize: '13px', fontWeight: 600, whiteSpace: 'nowrap' }}
+                >
+                  🍎 {t('addFood')}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setLogModalTab('exercise')}
+                  className={`glass-btn ${logModalTab === 'exercise' ? 'active' : ''}`}
+                  style={{ flex: 1, border: 'none', borderRadius: '8px', minHeight: '36px', fontSize: '13px', fontWeight: 600, whiteSpace: 'nowrap' }}
+                >
+                  🏃 {t('trainingTab')}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setLogModalTab('sleep')}
+                  className={`glass-btn ${logModalTab === 'sleep' ? 'active' : ''}`}
+                  style={{ flex: 1, border: 'none', borderRadius: '8px', minHeight: '36px', fontSize: '13px', fontWeight: 600, whiteSpace: 'nowrap' }}
+                >
+                  🌙 {t('recoveryTab')}
                 </button>
               </div>
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                {detailView === 'training' ? (
-                  exerciseRecords.length > 0 ? (
-                    exerciseRecords.map(ex => (
-                      <div key={ex.id} className="food-item" style={{ padding: '12px 16px', borderLeft: '3px solid #f43f5e' }}>
-                        <div className="food-info">
-                          <h4 style={{ fontSize: '14px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            {ex.name}
-                            <span style={{ fontSize: '10px', opacity: 0.5, fontWeight: 400 }}>
-                              {format(new Date(ex.date), 'MMM d')}
-                            </span>
-                          </h4>
-                          <div className="food-stats" style={{ marginTop: '2px', fontSize: '12px' }}>
-                            <span><strong>{ex.durationMinutes}</strong> {t('mins').toLowerCase()}</span>
-                            <span style={{ color: 'var(--accent-cal)' }}><strong>{ex.caloriesBurned}</strong> kcal</span>
-                          </div>
-                        </div>
-                        <div style={{ display: 'flex', gap: '4px' }}>
-                          <button className="icon-btn" onClick={() => setEditingExercise(ex)} style={{ width: '32px', height: '32px' }}><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg></button>
-                          <button className="icon-btn" onClick={() => handleDeleteExercise(ex.id)} style={{ width: '32px', height: '32px' }}><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></button>
-                        </div>
-                      </div>
-                    ))
-                  ) : (
-                    <p style={{ textAlign: 'center', opacity: 0.5, padding: '20px' }}>{t('noTrainingToday')}</p>
-                  )
-                ) : (
-                  sleepRecords.length > 0 ? (
-                    sleepRecords.map(sl => (
-                      <div key={sl.id} className="food-item" style={{ padding: '12px 16px', borderLeft: '3px solid var(--accent-fat)' }}>
-                        <div className="food-info">
-                          <h4 style={{ fontSize: '14px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                            {Math.round(sl.durationHours * 10) / 10} {t('hours').toLowerCase()}
-                            <span style={{ fontSize: '10px', opacity: 0.5, fontWeight: 400 }}>
-                              {format(new Date(sl.date), 'MMM d')}
-                            </span>
-                          </h4>
-                          <div className="food-stats" style={{ marginTop: '2px', fontSize: '12px' }}>
-                            <span style={{ color: 'var(--accent-fat)' }}>Quality: <strong>{sl.quality}</strong></span>
-                          </div>
-                        </div>
-                        <div style={{ display: 'flex', gap: '4px' }}>
-                          <button className="icon-btn" onClick={() => setEditingSleep(sl)} style={{ width: '32px', height: '32px' }}><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg></button>
-                          <button className="icon-btn" onClick={() => handleDeleteSleep(sl.id)} style={{ width: '32px', height: '32px' }}><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></button>
-                        </div>
-                      </div>
-                    ))
-                  ) : (
-                    <p style={{ textAlign: 'center', opacity: 0.5, padding: '20px' }}>{t('noSleepToday')}</p>
-                  )
-                )}
-              </div>
-
-              <button
-                onClick={() => {
-                  setLogModalTab(detailView === 'training' ? 'exercise' : 'sleep');
-                  setIsActionModalOpen(true);
-                  setDetailView(null);
-                }}
-                className="primary-btn active"
-                style={{ marginTop: '24px', width: '100%', height: '48px', borderRadius: '14px', fontSize: '14px' }}
-              >
-                {detailView === 'training' ? t('logNewActivity') : t('logNewSleep')}
-              </button>
             </div>
-          </div>
-        )}
 
-        {/* Edit Food Modal */}
-        {editingFood && (
-          <div className="modal-overlay" onClick={() => setEditingFood(null)}>
-            <div className="glass-panel modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '400px' }}>
-              <div className="modal-header">
-                <h3>{t('editEntry')}</h3>
-                <button onClick={() => setEditingFood(null)} className="icon-btn">&times;</button>
-              </div>
-              <form onSubmit={handleEditFoodSubmit}>
-                <div className="input-group" style={{ marginBottom: '12px' }}>
-                  <input type="text" required placeholder={t('foodPlaceholder')} value={editInputs.name} onChange={e => setEditInputs({ ...editInputs, name: e.target.value })} />
+            {logModalTab === 'food' && (
+              <div className="modal-form">
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '12px' }}>
+                  <div style={{ display: 'flex', gap: '8px', width: '100%' }}>
+                    <button
+                      onClick={() => setIsScanning(!isScanning)}
+                      className={`glass-btn ${isScanning ? 'active' : ''}`}
+                      style={{ flex: 1, height: '36px', borderRadius: '10px', fontSize: '12px' }}
+                    >
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2"></path><path d="M17 3h2a2 2 0 0 1 2 2v2"></path><path d="M21 17v2a2 2 0 0 1-2 2h-2"></path><path d="M7 21H5a2 2 0 0 1-2-2v-2"></path><rect x="7" y="7" width="10" height="10" rx="1"></rect></svg>
+                      {isScanning ? t('stopBtn') : t('scanBtn')}
+                    </button>
+
+                    <div style={{ flex: 1 }}>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={handleImageScan}
+                        style={{ display: 'none' }}
+                        id="ai-scan-input"
+                      />
+                      <label
+                        htmlFor="ai-scan-input"
+                        className="primary-btn"
+                        style={{ width: '100%', margin: 0, height: '36px', fontSize: '12px', background: 'var(--accent-pro-gradient)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '10px', cursor: 'pointer' }}
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '6px' }}><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
+                        {aiLoading ? '...' : t('aiScanBtn')}
+                      </label>
+                    </div>
+                  </div>
                 </div>
-                <div className="input-row" style={{ marginBottom: '12px' }}>
-                  <div className="input-group">
+
+                {isScanning && (
+                  <div style={{ marginBottom: '8px', borderRadius: '12px', overflow: 'hidden', border: '1px solid var(--panel-border)', background: '#000', position: 'relative', height: '140px' }}>
+                    <video ref={zxingRef} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate( -50%, -50%)', width: '120px', height: '80px', border: '2px solid var(--accent-pro)', borderRadius: '12px', boxShadow: '0 0 0 1000px rgba(0,0,0,0.5)' }}></div>
+                  </div>
+                )}
+
+                <form id="add-food-form" onSubmit={(e) => { handleAddFood(e); setIsActionModalOpen(false); }}>
+                  <div className="input-group" style={{ position: 'relative', marginBottom: '8px', width: '100%' }}>
+                    <input
+                      type="text"
+                      required
+                      placeholder={t('foodPlaceholder')}
+                      value={foodInputs.name}
+                      onChange={e => {
+                        setFoodInputs({ ...foodInputs, name: e.target.value });
+                        handleSearch(e.target.value);
+                      }}
+                      style={{ height: '40px', fontSize: '14px', padding: '0 12px', borderRadius: '12px', width: '100%' }}
+                      onBlur={() => setTimeout(() => setSearchResults([]), 200)}
+                    />
+                    {searchResults.length > 0 && (
+                      <div className="glass-panel" style={{
+                        position: 'absolute',
+                        top: '100%',
+                        left: 0,
+                        right: 0,
+                        zIndex: 50,
+                        marginTop: '4px',
+                        padding: '6px',
+                        maxHeight: '160px',
+                        overflowY: 'auto',
+                        borderRadius: '12px'
+                      }}>
+                        {searchResults.map((item, idx) => (
+                          <div
+                            key={idx}
+                            onClick={() => selectSearchResult(item)}
+                            className="search-result-item"
+                            style={{
+                              padding: '8px 10px',
+                              cursor: 'pointer',
+                              borderRadius: '8px',
+                              display: 'flex',
+                              justifyContent: 'space-between',
+                              alignItems: 'center',
+                            }}
+                          >
+                            <div>
+                              <div style={{ fontSize: '13px', fontWeight: 600 }}>{item.name}</div>
+                              <div style={{ fontSize: '10px', color: 'var(--text-secondary)', marginTop: '1px' }}>
+                                P:{item.protein}g | C:{item.carbs}g | F:{item.fat}g
+                              </div>
+                            </div>
+                            <span style={{ fontSize: '12px', fontWeight: 800, color: 'var(--accent-cal)' }}>{item.calories} kcal</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="input-row" style={{ marginBottom: '8px', gap: '8px', display: 'flex', flexDirection: 'row', flexWrap: 'nowrap', alignItems: 'center' }}>
                     <select
-                      value={editInputs.mealCategory}
-                      onChange={e => setEditInputs({ ...editInputs, mealCategory: e.target.value })}
-                      style={{ padding: '8px', borderRadius: '8px', border: '1px solid var(--panel-border)', background: 'var(--bg-color)', color: 'var(--text-primary)' }}
+                      value={foodInputs.mealCategory}
+                      onChange={e => setFoodInputs({ ...foodInputs, mealCategory: e.target.value })}
+                      style={{ flex: 1, height: '40px', padding: '0 8px', borderRadius: '12px', border: '1px solid var(--panel-border)', background: 'rgba(0,0,0,0.3)', color: 'var(--text-primary)', fontWeight: 600, fontSize: '12px' }}
                     >
                       <option value="Breakfast">🍳 {t('breakfast')}</option>
                       <option value="Lunch">🥗 {t('lunch')}</option>
                       <option value="Dinner">🍲 {t('dinner')}</option>
                       <option value="Snack">🍪 {t('snack')}</option>
                     </select>
+                    <div style={{ flex: 1, position: 'relative' }}>
+                      <button
+                        type="button"
+                        onClick={() => setOpenCalendar(openCalendar === 'food' ? null : 'food')}
+                        style={{ height: '40px', padding: '0 8px', borderRadius: '12px', border: '1px solid var(--panel-border)', background: 'rgba(0,0,0,0.3)', color: 'var(--text-primary)', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '12px' }}
+                      >
+                        <span>📅 {foodInputs.date}</span>
+                        <span style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>▼</span>
+                      </button>
+                      {openCalendar === 'food' && (
+                        <CalendarPicker
+                          value={foodInputs.date}
+                          onChange={(d) => setFoodInputs({ ...foodInputs, date: d })}
+                          onClose={() => setOpenCalendar(null)}
+                        />
+                      )}
+                    </div>
                   </div>
-                  <div className="input-group">
-                    <input type="number" required min="0" placeholder={t('calories')} value={editInputs.calories} onChange={e => setEditInputs({ ...editInputs, calories: e.target.value })} />
-                  </div>
-                </div>
-                <div className="input-row" style={{ marginBottom: '24px' }}>
-                  <div className="input-group">
-                    <input type="number" required min="0" step="0.1" placeholder={`${t('protein')} (g)`} value={editInputs.protein} onChange={e => setEditInputs({ ...editInputs, protein: e.target.value })} />
-                  </div>
-                  <div className="input-group">
-                    <input type="number" min="0" step="0.1" placeholder={`${t('carbs')} (g)`} value={editInputs.carbs} onChange={e => setEditInputs({ ...editInputs, carbs: e.target.value })} />
-                  </div>
-                  <div className="input-group">
-                    <input type="number" min="0" step="0.1" placeholder={`${t('fat')} (g)`} value={editInputs.fat} onChange={e => setEditInputs({ ...editInputs, fat: e.target.value })} />
-                  </div>
-                </div>
-                <button type="submit" className="primary-btn" style={{ width: '100%' }}>{t('saveChanges')}</button>
-              </form>
-            </div>
-          </div>
-        )}
 
-        {/* Edit Exercise Modal */}
-        {editingExercise && (
-          <div className="modal-overlay" onClick={() => setEditingExercise(null)}>
-            <div className="glass-panel modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '400px' }}>
-              <div className="modal-header">
-                <h3>{t('editExercise')}</h3>
-                <button onClick={() => setEditingExercise(null)} className="icon-btn">&times;</button>
-              </div>
-              <form onSubmit={handleEditExerciseSubmit}>
-                <div className="input-group" style={{ marginBottom: '12px' }}>
-                  <input type="text" required value={editingExercise.name} onChange={e => setEditingExercise({ ...editingExercise, name: e.target.value })} />
-                </div>
-                <div className="input-row" style={{ marginBottom: '12px' }}>
-                  <div className="input-group">
-                    <input type="number" required min="0" placeholder={t('minutes')} value={editingExercise.durationMinutes} onChange={e => setEditingExercise({ ...editingExercise, durationMinutes: Number(e.target.value) })} />
+                  <div className="input-row" style={{ marginBottom: '8px' }}>
+                    <input
+                      type="number"
+                      required
+                      min="0"
+                      placeholder={t('calories')}
+                      value={foodInputs.calories}
+                      onChange={e => setFoodInputs({ ...foodInputs, calories: e.target.value })}
+                      style={{ height: '40px', padding: '0 12px', borderRadius: '12px', width: '100%', fontSize: '14px' }}
+                    />
                   </div>
-                  <div className="input-group">
-                    <input type="number" min="0" placeholder={t('caloriesBurnedPlc')} value={editingExercise.caloriesBurned} onChange={e => setEditingExercise({ ...editingExercise, caloriesBurned: Number(e.target.value) })} title="Optional: calories burned" />
-                  </div>
-                </div>
-                <button type="submit" className="primary-btn" style={{ width: '100%' }}>{t('saveChanges')}</button>
-              </form>
-            </div>
-          </div>
-        )}
 
-        {/* Edit Sleep Modal */}
-        {editingSleep && (
-          <div className="modal-overlay" onClick={() => setEditingSleep(null)}>
-            <div className="glass-panel modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '400px' }}>
-              <div className="modal-header">
-                <h3>{t('editSleep')}</h3>
-                <button onClick={() => setEditingSleep(null)} className="icon-btn">&times;</button>
+                  <div className="macro-inputs" style={{ marginBottom: '8px', gap: '8px', display: 'flex', flexDirection: 'row', flexWrap: 'nowrap' }}>
+                    <div style={{ position: 'relative' }}>
+                      <input
+                        type="number"
+                        required
+                        value={foodInputs.protein}
+                        onChange={e => setFoodInputs({ ...foodInputs, protein: e.target.value })}
+                        style={{ height: '40px', padding: '0 12px 0 8px', borderRadius: '10px', width: '100%', fontSize: '13px' }}
+                      />
+                      <span style={{ position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)', fontSize: '9px', color: 'var(--accent-pro)', fontWeight: 800 }}>P</span>
+                    </div>
+                    <div style={{ position: 'relative' }}>
+                      <input
+                        type="number"
+                        value={foodInputs.carbs}
+                        onChange={e => setFoodInputs({ ...foodInputs, carbs: e.target.value })}
+                        style={{ height: '40px', padding: '0 12px 0 8px', borderRadius: '10px', width: '100%', fontSize: '13px' }}
+                      />
+                      <span style={{ position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)', fontSize: '9px', color: 'var(--accent-carb)', fontWeight: 800 }}>C</span>
+                    </div>
+                    <div style={{ position: 'relative' }}>
+                      <input
+                        type="number"
+                        value={foodInputs.fat}
+                        onChange={e => setFoodInputs({ ...foodInputs, fat: e.target.value })}
+                        style={{ height: '40px', padding: '0 12px 0 8px', borderRadius: '10px', width: '100%', fontSize: '13px' }}
+                      />
+                      <span style={{ position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)', fontSize: '9px', color: 'var(--accent-fat)', fontWeight: 800 }}>F</span>
+                    </div>
+                  </div>
+
+                  <button type="submit" className="primary-btn active" disabled={loading} style={{ width: '100%', height: '44px', borderRadius: '12px', fontSize: '14px' }}>
+                    <span>{t('addFoodBtn')}</span>
+                  </button>
+                </form>
               </div>
-              <form onSubmit={handleEditSleepSubmit}>
-                <div className="input-group" style={{ marginBottom: '12px' }}>
-                  <input type="number" step="0.1" required value={editingSleep.durationHours} onChange={e => setEditingSleep({ ...editingSleep, durationHours: Number(e.target.value) })} />
+            )}
+
+            {logModalTab === 'exercise' && (
+              <div className="modal-form" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <div className="input-group">
+                  <input
+                    type="text"
+                    placeholder={t('activityPlaceholder')}
+                    value={exerciseInput.name}
+                    onChange={e => setExerciseInput({ ...exerciseInput, name: e.target.value })}
+                    style={{ height: '44px', borderRadius: '12px', fontSize: '14px' }}
+                  />
                 </div>
-                <div className="input-group" style={{ marginBottom: '24px' }}>
-                  <select value={editingSleep.quality} onChange={e => setEditingSleep({ ...editingSleep, quality: e.target.value })} style={{ padding: '10px', borderRadius: '10px', border: '1px solid var(--panel-border)', background: 'var(--bg-color)', color: 'var(--text-primary)', width: '100%' }}>
-                    <option value="Good">{t('goodQuality')}</option>
-                    <option value="Fair">{t('fairQuality')}</option>
-                    <option value="Poor">{t('poorQuality')}</option>
+                <div className="input-row" style={{ display: 'flex', gap: '8px' }}>
+                  <div style={{ flex: 1, position: 'relative' }}>
+                    <button
+                      type="button"
+                      onClick={() => setOpenCalendar(openCalendar === 'exercise' ? null : 'exercise')}
+                      style={{ width: '100%', height: '44px', padding: '0 12px', borderRadius: '12px', border: '1px solid var(--panel-border)', background: 'rgba(0,0,0,0.3)', color: 'var(--text-primary)', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '13px' }}
+                    >
+                      <span>📅 {exerciseInput.date}</span>
+                      <span style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>▼</span>
+                    </button>
+                    {openCalendar === 'exercise' && (
+                      <CalendarPicker
+                        value={exerciseInput.date}
+                        onChange={(d) => setExerciseInput({ ...exerciseInput, date: d })}
+                        onClose={() => setOpenCalendar(null)}
+                      />
+                    )}
+                  </div>
+                  <div style={{ flex: 1, position: 'relative' }}>
+                    <input
+                      type="number"
+                      placeholder={t('minutes')}
+                      value={exerciseInput.durationMinutes || ''}
+                      onChange={e => setExerciseInput({ ...exerciseInput, durationMinutes: Number(e.target.value) })}
+                      style={{ height: '44px', borderRadius: '12px', paddingRight: '40px', fontSize: '14px' }}
+                    />
+                    <span style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', fontSize: '10px', color: 'var(--accent-pro)', fontWeight: 800 }}>{t('unitMin').toUpperCase()}</span>
+                  </div>
+                </div>
+                <div className="input-row" style={{ display: 'flex', gap: '8px' }}>
+                  <div style={{ flex: 1, position: 'relative' }}>
+                    <input
+                      type="number"
+                      placeholder={t('caloriesBurnedPlc')}
+                      value={exerciseInput.caloriesBurned || ''}
+                      onChange={e => setExerciseInput({ ...exerciseInput, caloriesBurned: Number(e.target.value) })}
+                      style={{ height: '44px', borderRadius: '12px', paddingRight: '44px', fontSize: '14px' }}
+                    />
+                    <span style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', fontSize: '10px', color: 'var(--accent-cal)', fontWeight: 800 }}>{t('unitKcal').toUpperCase()}</span>
+                  </div>
+                </div>
+                <button onClick={(e) => { handleLogExercise(); setIsActionModalOpen(false); }} className="primary-btn active" style={{ height: '48px', borderRadius: '12px', marginTop: '4px', fontSize: '14px' }}>
+                  {t('logActivityBtn')}
+                </button>
+              </div>
+            )}
+
+            {logModalTab === 'sleep' && (
+              <div className="modal-form" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <div className="input-row" style={{ display: 'flex', gap: '8px' }}>
+                  <div style={{ flex: 1, position: 'relative' }}>
+                    <input
+                      type="number"
+                      placeholder={t('hours')}
+                      value={sleepInput.durationHours || ''}
+                      onChange={e => setSleepInput({ ...sleepInput, durationHours: Number(e.target.value) })}
+                      style={{ height: '44px', borderRadius: '12px', paddingRight: '36px', fontSize: '14px' }}
+                    />
+                    <span style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', fontSize: '10px', color: 'var(--accent-fat)', fontWeight: 800 }}>{t('unitHr').toUpperCase()}</span>
+                  </div>
+                  <div style={{ flex: 1, position: 'relative' }}>
+                    <input
+                      type="number"
+                      placeholder={t('minutes')}
+                      value={sleepInput.durationMinutes || ''}
+                      onChange={e => setSleepInput({ ...sleepInput, durationMinutes: Number(e.target.value) })}
+                      style={{ height: '44px', borderRadius: '12px', paddingRight: '40px', fontSize: '14px' }}
+                    />
+                    <span style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', fontSize: '10px', color: 'var(--accent-fat)', fontWeight: 800 }}>{t('unitMin').toUpperCase()}</span>
+                  </div>
+                </div>
+                <div className="input-row" style={{ display: 'flex', gap: '8px' }}>
+                  <div style={{ flex: 1, position: 'relative' }}>
+                    <button
+                      type="button"
+                      onClick={() => setOpenCalendar(openCalendar === 'sleep' ? null : 'sleep')}
+                      style={{ width: '100%', height: '44px', padding: '0 12px', borderRadius: '12px', border: '1px solid var(--panel-border)', background: 'rgba(0,0,0,0.3)', color: 'var(--text-primary)', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '13px' }}
+                    >
+                      <span>📅 {sleepInput.date}</span>
+                      <span style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>▼</span>
+                    </button>
+                    {openCalendar === 'sleep' && (
+                      <CalendarPicker
+                        value={sleepInput.date}
+                        onChange={(d) => setSleepInput({ ...sleepInput, date: d })}
+                        onClose={() => setOpenCalendar(null)}
+                      />
+                    )}
+                  </div>
+                  <select
+                    value={sleepInput.quality}
+                    onChange={e => setSleepInput({ ...sleepInput, quality: e.target.value })}
+                    style={{ flex: 1, height: '44px', borderRadius: '12px', border: '1px solid var(--panel-border)', background: 'rgba(0,0,0,0.3)', color: 'var(--text-primary)', fontWeight: 600, padding: '0 12px', fontSize: '13px' }}
+                  >
+                    <option value="Good">😊 {t('goodQuality')}</option>
+                    <option value="Fair">😐 {t('fairQuality')}</option>
+                    <option value="Poor">😴 {t('poorQuality')}</option>
                   </select>
                 </div>
-                <button type="submit" className="primary-btn" style={{ width: '100%' }}>{t('saveChanges')}</button>
-              </form>
-            </div>
+                <button onClick={(e) => { handleLogSleep(); setIsActionModalOpen(false); }} className="primary-btn active" style={{ height: '48px', borderRadius: '12px', marginTop: '4px', fontSize: '14px' }}>
+                  {t('recordSleepBtn')}
+                </button>
+              </div>
+            )}
           </div>
-        )}
+        </div>
+      )}
+
+      {/* Details View Modal */}
+      {detailView && (
+        <div className="modal-overlay" onClick={() => setDetailView(null)}>
+          <div className="glass-panel modal-content" onClick={e => e.stopPropagation()}>
+            <div className="modal-drag-handle" />
+            <div className="modal-header" style={{ marginBottom: '20px' }}>
+              <h3 style={{ fontSize: '18px', fontWeight: 800 }}>
+                {detailView === 'training' ? t('recentHistory') : t('recentHistory')}
+              </h3>
+              <button onClick={() => setDetailView(null)} className="icon-btn" style={{ borderRadius: '50%', width: '32px', height: '32px' }}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+              </button>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              {detailView === 'training' ? (
+                exerciseRecords.length > 0 ? (
+                  exerciseRecords.map(ex => (
+                    <div key={ex.id} className="food-item" style={{ padding: '12px 16px', borderLeft: '3px solid #f43f5e' }}>
+                      <div className="food-info">
+                        <h4 style={{ fontSize: '14px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          {ex.name}
+                          <span style={{ fontSize: '10px', opacity: 0.5, fontWeight: 400 }}>
+                            {format(new Date(ex.date), 'MMM d')}
+                          </span>
+                        </h4>
+                        <div className="food-stats" style={{ marginTop: '2px', fontSize: '12px' }}>
+                          <span><strong>{ex.durationMinutes}</strong> {t('mins').toLowerCase()}</span>
+                          <span style={{ color: 'var(--accent-cal)' }}><strong>{ex.caloriesBurned}</strong> kcal</span>
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', gap: '4px' }}>
+                        <button className="icon-btn" onClick={() => setEditingExercise(ex)} style={{ width: '32px', height: '32px' }}><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg></button>
+                        <button className="icon-btn" onClick={() => handleDeleteExercise(ex.id)} style={{ width: '32px', height: '32px' }}><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></button>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <p style={{ textAlign: 'center', opacity: 0.5, padding: '20px' }}>{t('noTrainingToday')}</p>
+                )
+              ) : (
+                sleepRecords.length > 0 ? (
+                  sleepRecords.map(sl => (
+                    <div key={sl.id} className="food-item" style={{ padding: '12px 16px', borderLeft: '3px solid var(--accent-fat)' }}>
+                      <div className="food-info">
+                        <h4 style={{ fontSize: '14px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          {Math.round(sl.durationHours * 10) / 10} {t('hours').toLowerCase()}
+                          <span style={{ fontSize: '10px', opacity: 0.5, fontWeight: 400 }}>
+                            {format(new Date(sl.date), 'MMM d')}
+                          </span>
+                        </h4>
+                        <div className="food-stats" style={{ marginTop: '2px', fontSize: '12px' }}>
+                          <span style={{ color: 'var(--accent-fat)' }}>Quality: <strong>{sl.quality}</strong></span>
+                        </div>
+                      </div>
+                      <div style={{ display: 'flex', gap: '4px' }}>
+                        <button className="icon-btn" onClick={() => setEditingSleep(sl)} style={{ width: '32px', height: '32px' }}><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg></button>
+                        <button className="icon-btn" onClick={() => handleDeleteSleep(sl.id)} style={{ width: '32px', height: '32px' }}><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg></button>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <p style={{ textAlign: 'center', opacity: 0.5, padding: '20px' }}>{t('noSleepToday')}</p>
+                )
+              )}
+            </div>
+
+            <button
+              onClick={() => {
+                setLogModalTab(detailView === 'training' ? 'exercise' : 'sleep');
+                setIsActionModalOpen(true);
+                setDetailView(null);
+              }}
+              className="primary-btn active"
+              style={{ marginTop: '24px', width: '100%', height: '48px', borderRadius: '14px', fontSize: '14px' }}
+            >
+              {detailView === 'training' ? t('logNewActivity') : t('logNewSleep')}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Food Modal */}
+      {editingFood && (
+        <div className="modal-overlay" onClick={() => setEditingFood(null)}>
+          <div className="glass-panel modal-content" onClick={e => e.stopPropagation()}>
+            <div className="modal-drag-handle" />
+            <div className="modal-header">
+              <h3>{t('editEntry')}</h3>
+              <button onClick={() => setEditingFood(null)} className="icon-btn">&times;</button>
+            </div>
+            <form onSubmit={handleEditFoodSubmit}>
+              <div className="input-group" style={{ marginBottom: '12px' }}>
+                <input type="text" required placeholder={t('foodPlaceholder')} value={editInputs.name} onChange={e => setEditInputs({ ...editInputs, name: e.target.value })} />
+              </div>
+              <div className="input-row" style={{ marginBottom: '12px' }}>
+                <div className="input-group">
+                  <select
+                    value={editInputs.mealCategory}
+                    onChange={e => setEditInputs({ ...editInputs, mealCategory: e.target.value })}
+                    style={{ padding: '8px', borderRadius: '8px', border: '1px solid var(--panel-border)', background: 'var(--bg-color)', color: 'var(--text-primary)' }}
+                  >
+                    <option value="Breakfast">🍳 {t('breakfast')}</option>
+                    <option value="Lunch">🥗 {t('lunch')}</option>
+                    <option value="Dinner">🍲 {t('dinner')}</option>
+                    <option value="Snack">🍪 {t('snack')}</option>
+                  </select>
+                </div>
+                <div className="input-group">
+                  <input type="number" required min="0" placeholder={t('calories')} value={editInputs.calories} onChange={e => setEditInputs({ ...editInputs, calories: e.target.value })} />
+                </div>
+              </div>
+              <div className="input-row" style={{ marginBottom: '24px' }}>
+                <div className="input-group">
+                  <input type="number" required min="0" step="0.1" placeholder={`${t('protein')} (g)`} value={editInputs.protein} onChange={e => setEditInputs({ ...editInputs, protein: e.target.value })} />
+                </div>
+                <div className="input-group">
+                  <input type="number" min="0" step="0.1" placeholder={`${t('carbs')} (g)`} value={editInputs.carbs} onChange={e => setEditInputs({ ...editInputs, carbs: e.target.value })} />
+                </div>
+                <div className="input-group">
+                  <input type="number" min="0" step="0.1" placeholder={`${t('fat')} (g)`} value={editInputs.fat} onChange={e => setEditInputs({ ...editInputs, fat: e.target.value })} />
+                </div>
+              </div>
+              <button type="submit" className="primary-btn" style={{ width: '100%' }}>{t('saveChanges')}</button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Exercise Modal */}
+      {editingExercise && (
+        <div className="modal-overlay" onClick={() => setEditingExercise(null)}>
+          <div className="glass-panel modal-content" onClick={e => e.stopPropagation()}>
+            <div className="modal-drag-handle" />
+            <div className="modal-header">
+              <h3>{t('editExercise')}</h3>
+              <button onClick={() => setEditingExercise(null)} className="icon-btn">&times;</button>
+            </div>
+            <form onSubmit={handleEditExerciseSubmit}>
+              <div className="input-group" style={{ marginBottom: '12px' }}>
+                <input type="text" required value={editingExercise.name} onChange={e => setEditingExercise({ ...editingExercise, name: e.target.value })} />
+              </div>
+              <div className="input-row" style={{ marginBottom: '12px' }}>
+                <div className="input-group">
+                  <input type="number" required min="0" placeholder={t('minutes')} value={editingExercise.durationMinutes} onChange={e => setEditingExercise({ ...editingExercise, durationMinutes: Number(e.target.value) })} />
+                </div>
+                <div className="input-group">
+                  <input type="number" min="0" placeholder={t('caloriesBurnedPlc')} value={editingExercise.caloriesBurned} onChange={e => setEditingExercise({ ...editingExercise, caloriesBurned: Number(e.target.value) })} title="Optional: calories burned" />
+                </div>
+              </div>
+              <button type="submit" className="primary-btn" style={{ width: '100%' }}>{t('saveChanges')}</button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Sleep Modal */}
+      {editingSleep && (
+        <div className="modal-overlay" onClick={() => setEditingSleep(null)}>
+          <div className="glass-panel modal-content" onClick={e => e.stopPropagation()}>
+            <div className="modal-drag-handle" />
+            <div className="modal-header">
+              <h3>{t('editSleep')}</h3>
+              <button onClick={() => setEditingSleep(null)} className="icon-btn">&times;</button>
+            </div>
+            <form onSubmit={handleEditSleepSubmit}>
+              <div className="input-group" style={{ marginBottom: '12px' }}>
+                <input type="number" step="0.1" required value={editingSleep.durationHours} onChange={e => setEditingSleep({ ...editingSleep, durationHours: Number(e.target.value) })} />
+              </div>
+              <div className="input-group" style={{ marginBottom: '24px' }}>
+                <select value={editingSleep.quality} onChange={e => setEditingSleep({ ...editingSleep, quality: e.target.value })} style={{ padding: '10px', borderRadius: '10px', border: '1px solid var(--panel-border)', background: 'var(--bg-color)', color: 'var(--text-primary)', width: '100%' }}>
+                  <option value="Good">{t('goodQuality')}</option>
+                  <option value="Fair">{t('fairQuality')}</option>
+                  <option value="Poor">{t('poorQuality')}</option>
+                </select>
+              </div>
+              <button type="submit" className="primary-btn" style={{ width: '100%' }}>{t('saveChanges')}</button>
+            </form>
+          </div>
+        </div>
+      )}
 
 
-        <ParticleBurst trigger={burstTrigger} originX={burstPos.x} originY={burstPos.y} colors={burstColors} count={16} />
-        <SuccessAnimation trigger={!!successVariant} variant={successVariant || "food"} onComplete={() => setSuccessVariant(null)} />
+      <ParticleBurst trigger={burstTrigger} originX={burstPos.x} originY={burstPos.y} colors={burstColors} count={16} />
+      <SuccessAnimation trigger={!!successVariant} variant={successVariant || "food"} onComplete={() => setSuccessVariant(null)} />
     </div>
   );
 }
