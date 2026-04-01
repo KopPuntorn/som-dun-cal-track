@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
+import { motion } from "framer-motion";
 import useSWR from "swr";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
@@ -312,9 +313,10 @@ export default function PlayerCardPage() {
                 >
                   {/* Rarity shimmer overlay */}
                   <div className="player-card-shimmer" />
+                  {card.rarity === 'diamond' && <div className="diamond-shimmer" />}
 
                   {/* Top Section: OVR + Name + Position */}
-                  <div className="player-card-header">
+                  <div className="player-card-header preserve-3d depth-60">
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
                       {/* OVR Badge */}
                       <div className="player-ovr">
@@ -352,7 +354,7 @@ export default function PlayerCardPage() {
                   </div>
 
                   {/* Radar Chart */}
-                  <div className="player-radar">
+                  <div className="player-radar preserve-3d depth-40">
                     <svg width="200" height="200" viewBox="0 0 220 220">
                       {/* Grid rings */}
                       {[0.33, 0.66, 1].map((scale, i) => (
@@ -438,7 +440,7 @@ export default function PlayerCardPage() {
                   </div>
 
                   {/* Stats Grid */}
-                  <div className="player-stats-grid">
+                  <div className="player-stats-grid preserve-3d depth-20">
                     {(Object.keys(STAT_LABELS) as Array<keyof typeof STAT_LABELS>).map((key) => {
                       const val = card.stats[key as keyof CardData["stats"]];
                       return (

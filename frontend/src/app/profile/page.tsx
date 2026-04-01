@@ -43,7 +43,7 @@ const fetcher = (url: string) => fetch(url, {
 });
 
 export default function ProfilePage() {
-    const { user: authUser, logout, isLoading: authLoading } = useAuth();
+    const { user: authUser, logout, isLoading: authLoading, refreshUser } = useAuth();
     const { showToast } = useToast();
     const { t } = useLanguage();
     const router = useRouter();
@@ -51,6 +51,12 @@ export default function ProfilePage() {
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [showCelebration, setShowCelebration] = useState(false);
+
+    const triggerCelebration = () => {
+        setShowCelebration(true);
+        setTimeout(() => setShowCelebration(false), 3000);
+    };
 
     const [goalInputs, setGoalInputs] = useState<Goals>({ calories: 2000, protein: 150, carbs: 250, fat: 70, objective: "" });
     const [userInputs, setUserInputs] = useState<UserProfile>({ 
@@ -199,7 +205,24 @@ export default function ProfilePage() {
                     <div className="profile-avatar">
                         {userInputs.name.charAt(0).toUpperCase()}
                     </div>
-                    <h2 style={{ fontSize: '24px', fontWeight: 800, margin: 0 }}>{userInputs.name}</h2>
+                    <h2 style={{ fontSize: '24px', fontWeight: 800, margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        {userInputs.name}
+                        {authUser?.tier === 'pro' && (
+                            <span style={{ 
+                                background: 'linear-gradient(135deg, #FFD700, #FFA500)', 
+                                color: 'black', 
+                                fontSize: '10px', 
+                                fontWeight: 900, 
+                                padding: '2px 8px', 
+                                borderRadius: '6px',
+                                textTransform: 'uppercase',
+                                letterSpacing: '1.2px',
+                                textShadow: '0 1px 0 rgba(255,255,255,0.2)'
+                            }}>
+                                PRO
+                            </span>
+                        )}
+                    </h2>
                     <p style={{ color: 'var(--text-secondary)', fontSize: '15px', marginTop: '4px' }}>{authUser?.email}</p>
                 </div>
 
@@ -399,6 +422,114 @@ export default function ProfilePage() {
                         </div>
                     </div>
 
+                    {/* Daily AI Usage Section (Only for Free users or helpful for Pro to see activity) */}
+                    <div style={{ marginBottom: '32px' }}>
+                        <div className="section-header">
+                            <div className="section-header-icon" style={{ background: 'rgba(255,255,255,0.05)' }}>
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--accent-carb)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 12V7a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h7"></path><path d="M16 19h6"></path><path d="M19 16v6"></path></svg>
+                            </div>
+                            <h4>Daily AI Credits</h4>
+                        </div>
+                        
+                        <div className="glass-panel" style={{ padding: '24px', borderRadius: '24px', border: '1px solid var(--panel-border)', background: 'rgba(0,0,0,0.2)' }}>
+                            <div style={{ marginBottom: '20px' }}>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                                    <span style={{ fontSize: '13px', fontWeight: 600 }}>Food Scans</span>
+                                    <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
+                                        {authUser?.usage?.aiScanCount || 0} / {authUser?.tier === 'pro' ? '∞' : '3'}
+                                    </span>
+                                </div>
+                                <div style={{ height: '6px', width: '100%', background: 'rgba(255,255,255,0.05)', borderRadius: '10px', overflow: 'hidden' }}>
+                                    <div style={{ 
+                                        height: '100%', 
+                                        width: authUser?.tier === 'pro' ? '100%' : `${Math.min(100, ((authUser?.usage?.aiScanCount || 0) / 3) * 100)}%`,
+                                        background: 'var(--accent-cal)',
+                                        borderRadius: '10px',
+                                        transition: 'width 0.5s ease-out'
+                                    }} />
+                                </div>
+                            </div>
+
+                            <div>
+                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                                    <span style={{ fontSize: '13px', fontWeight: 600 }}>AI Consulting</span>
+                                    <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
+                                        {authUser?.usage?.aiChatCount || 0} / {authUser?.tier === 'pro' ? '∞' : '5'}
+                                    </span>
+                                </div>
+                                <div style={{ height: '6px', width: '100%', background: 'rgba(255,255,255,0.05)', borderRadius: '10px', overflow: 'hidden' }}>
+                                    <div style={{ 
+                                        height: '100%', 
+                                        width: authUser?.tier === 'pro' ? '100%' : `${Math.min(100, ((authUser?.usage?.aiChatCount || 0) / 5) * 100)}%`,
+                                        background: 'var(--accent-pro)',
+                                        borderRadius: '10px',
+                                        transition: 'width 0.5s ease-out'
+                                    }} />
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Subscription & Tier Section */}
+                    <div style={{ marginBottom: '32px' }}>
+                        <div className="section-header">
+                            <div className="section-header-icon" style={{ background: 'rgba(255,215,0,0.1)' }}>
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="gold" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"></path></svg>
+                            </div>
+                            <h4>Subscription & Tier</h4>
+                        </div>
+                        
+                        <div className="glass-panel" style={{ padding: '24px', background: 'rgba(255,215,0,0.05)', borderRadius: '24px', border: '1px solid rgba(255,215,0,0.15)', position: 'relative' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <div>
+                                    <p style={{ margin: 0, fontSize: '11px', fontWeight: 900, color: 'gold', textTransform: 'uppercase', letterSpacing: '1.5px', marginBottom: '4px' }}>Membership Status</p>
+                                    <h3 style={{ margin: 0, fontSize: '22px', fontWeight: 900, textTransform: 'uppercase' }}>
+                                        {authUser?.tier === 'pro' ? '🌟 Pro Member' : 'Free Plan'}
+                                    </h3>
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={async () => {
+                                        setSaving(true);
+                                        try {
+                                            const endpoint = authUser?.tier === 'pro' ? 'mock-downgrade' : 'mock-upgrade';
+                                            const token = localStorage.getItem("auth_token");
+                                            const res = await fetch(`${API_BASE}/user/${endpoint}`, {
+                                                method: "POST",
+                                                headers: { "Authorization": `Bearer ${token}` }
+                                            });
+                                            if (res.ok) {
+                                                if (endpoint === 'mock-upgrade') {
+                                                    triggerCelebration();
+                                                    showToast("🌟 WELCOME TO PRO! Enjoy unlimited access.", "success");
+                                                } else {
+                                                    showToast("Account reverted to Free tier.", "success");
+                                                }
+                                                await refreshUser?.();
+                                            }
+                                        } catch (e) {
+                                            showToast("Error", "error");
+                                        } finally {
+                                            setSaving(false);
+                                        }
+                                    }}
+                                    disabled={saving}
+                                    style={{ 
+                                        padding: '10px 18px', 
+                                        borderRadius: '14px',
+                                        fontSize: '11px', 
+                                        fontWeight: 900,
+                                        background: authUser?.tier === 'pro' ? 'rgba(255,255,255,0.05)' : 'gold',
+                                        color: authUser?.tier === 'pro' ? '#ccc' : '#000',
+                                        border: authUser?.tier === 'pro' ? '1px solid rgba(255,255,255,0.1)' : 'none',
+                                    }}
+                                >
+                                    {authUser?.tier === 'pro' ? 'DOWNGRADE' : 'UPGRADE TO PRO'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
                     <div style={{ marginBottom: '24px', padding: '16px 20px', background: 'rgba(255,255,255,0.03)', borderRadius: '16px', borderLeft: '4px solid var(--accent-pro)' }}>
                         <p style={{ fontSize: '12px', color: 'var(--text-secondary)', fontStyle: 'italic', margin: 0, lineHeight: 1.5 }}>
                             * {t('medicalDisclaimer')}
@@ -412,6 +543,21 @@ export default function ProfilePage() {
                     </button>
                 </form>
             </div>
+            {showCelebration && (
+                <div style={{ position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 10001, overflow: 'hidden' }}>
+                    {[...Array(30)].map((_, i) => (
+                        <div 
+                            key={i} 
+                            className="confetti-piece" 
+                            style={{ 
+                                left: `${Math.random() * 100}vw`, 
+                                animationDelay: `${Math.random() * 2}s`,
+                                background: ['#FFD700', '#FFA500', '#FFFFFF', '#FF6B00'][Math.floor(Math.random() * 4)]
+                            }} 
+                        />
+                    ))}
+                </div>
+            )}
             </div>
         </div>
     );

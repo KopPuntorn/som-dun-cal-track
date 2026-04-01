@@ -29,6 +29,8 @@ func SetupRoutes(e *echo.Echo) {
 
 	api.GET("/user", handlers.GetUserProfile)
 	api.PUT("/user", handlers.UpdateUserProfile)
+	api.POST("/user/mock-upgrade", handlers.MockUpgrade)
+	api.POST("/user/mock-downgrade", handlers.MockDowngrade)
 
 	// Water & Weight
 	api.GET("/water", handlers.GetWater)

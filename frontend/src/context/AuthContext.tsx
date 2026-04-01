@@ -17,6 +17,11 @@ export type UserProfile = {
     level: number;
     streakDays?: number;
     lastActiveDate?: string;
+    tier: "free" | "pro";
+    usage?: {
+        aiScanCount: number;
+        aiChatCount: number;
+    };
 };
 
 type AuthContextType = {
@@ -82,6 +87,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                     handleForceLogout();
                 }
 
+                if (response.status === 403) {
+                    const data = await response.clone().json();
+                    if (data.code === "LIMIT_REACHED" || data.code === "PRO_REQUIRED") {
+                        // Trigger global paywall UI
+                        window.dispatchEvent(new CustomEvent("trigger-paywall", { detail: data }));
+                    }
+                }
+
                 return response;
             } catch (error) {
                 console.error(`Fetch network error at ${url}:`, error);
@@ -100,7 +113,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         };
 
         return () => {
-            window.fetch = originalFetch;
+            window.fetch = originalFetch || window.fetch;
         };
     }, []);
 
@@ -140,14 +153,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const refreshUser = async () => {
         const currentToken = typeof window !== 'undefined' ? localStorage.getItem("auth_token") : null;
-        if (!currentToken || !originalFetch) return;
+        if (!currentToken) return;
 
         const API_BASE = (process.env.NEXT_PUBLIC_API_URL && process.env.NEXT_PUBLIC_API_URL !== "undefined") 
             ? process.env.NEXT_PUBLIC_API_URL 
             : "http://localhost:8080/api";
 
         try {
-            const response = await originalFetch(`${API_BASE}/user`, {
+            const response = await fetch(`${API_BASE}/user`, {
                 headers: {
                     "Authorization": `Bearer ${currentToken}`
                 }
@@ -168,8 +181,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         </AuthContext.Provider>
     );
 }
-
-const originalFetch = typeof window !== 'undefined' ? window.fetch : null;
 
 export function useAuth() {
     const context = useContext(AuthContext);
