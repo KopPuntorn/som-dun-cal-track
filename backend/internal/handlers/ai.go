@@ -13,6 +13,7 @@ import (
 	"os"
 	"regexp"
 	"strings"
+	"sync"
 	"time"
 
 	"backend/internal/db"
@@ -180,13 +181,11 @@ func AnalyzeImage(c echo.Context) error {
 	// Get language and hint preference
 	lang := c.FormValue("language")
 	hint := c.FormValue("hint")
-	
+
 	langName := "Thai (ภาษาไทย)"
-	exampleName := "ข้าวกะเพราหมูสับไข่ดาว"
 	langConstraint := "ใช้ภาษาไทยที่เป็นธรรมชาติ ถูกต้องตามหลักภาษา และเป็นชื่อที่คนไทยเรียกทั่วไป"
 	if lang == "en" {
 		langName = "English"
-		exampleName = "Basil Fried Rice with Minced Pork and Fried Egg"
 		langConstraint = "Use natural, professional English names as commonly used in a culinary context."
 	}
 
@@ -210,21 +209,45 @@ func AnalyzeImage(c echo.Context) error {
 	}
 
 	// Prepare Groq Request - Single-Pass Chain of Thought (CoT) Pipeline
+	thaiDishReference := `
+THAI FOOD REFERENCE (typical single-serving calorie ranges):
+- ข้าวมันไก่ (Khao Man Gai): 450–550 kcal | ข้าวกะเพราหมูสับไข่ดาว (Basil Pork Rice): 550–700 kcal
+- ผัดไทย (Pad Thai): 400–600 kcal | ต้มยำกุ้ง (Tom Yum Goong): 150–250 kcal
+- แกงเขียวหวาน (Green Curry): 400–550 kcal/serving | ส้มตำ (Som Tam): 100–200 kcal
+- ข้าวผัด (Fried Rice): 450–600 kcal | ผัดกระเพราไก่ (Basil Chicken): 350–500 kcal
+- ขนมจีนน้ำยา (Khanom Jeen): 300–450 kcal | มะม่วงข้าวเหนียว (Mango Sticky Rice): 350–500 kcal
+- ลาบหมู (Larb Moo): 250–400 kcal | น้ำตกหมู (Waterfall Pork): 250–400 kcal
+- ต้มข่าไก่ (Tom Kha Gai): 250–350 kcal | แกงมัสมั่น (Massaman Curry): 500–700 kcal
+- ยำวุ้นเส้น (Glass Noodle Salad): 200–350 kcal | ข้าวขาหมู (Pork Leg Rice): 550–750 kcal
+- ก๋วยเตี๋ยวเนื้อ (Beef Noodle Soup): 350–500 kcal | บะหมี่เกี้ยว (Wonton Noodle): 300–450 kcal
+`
+
 	groqReq := GroqChatRequest{
 		Model:       "meta-llama/llama-4-scout-17b-16e-instruct",
 		Temperature: 0.1,
-		MaxTokens:   800,
+		MaxTokens:   900,
 		TopP:        0.9,
 		Messages: []GroqMessage{
 			{
 				Role: "system",
-				Content: fmt.Sprintf("You are an elite, highly precise Culinary Nutritionist and Clinical Dietitian. Analyze the food in the image with extreme accuracy. "+
-					"First, you MUST write out your thought process inside a <chain_of_thought> block. In this block, identify visible ingredients, hidden oils/sugars/sauces, estimate portion sizes in grams, and perform mathematical calculations mapping ingredients to macros. "+
-					"Ensure that the final macronutrients mathematically align with the total calories (Calories >= (Protein * 4) + (Carbs * 4) + (Fat * 9)). "+
-					"CRITICAL: After the </chain_of_thought> block, you MUST output valid JSON wrapped in a markdown ```json ... ``` block. Use this exact schema and keys only: {name: string, calories: number, protein: number, carbs: number, fat: number}. "+
-					"If multiple foods are visible, pick the primary dish name and estimate the combined macros for the plate. "+
-					"LANGUAGE CONSTRAINT: %s "+
-					"Example Output:\n<chain_of_thought>\nI see chicken and rice... chicken is 150g... Rice is 200g... Math is...\n</chain_of_thought>\n```json\n{\"name\": \"%s\", \"calories\": 450, \"protein\": 20, \"carbs\": 55, \"fat\": 15}\n```", langConstraint, exampleName),
+				Content: fmt.Sprintf("You are an elite, highly precise Culinary Nutritionist and Clinical Dietitian specializing in Thai and Asian cuisine. Analyze the food in the image with extreme accuracy.\n\n"+
+					"%s\n"+
+					"STEP 1 — Write your thought process inside a <chain_of_thought> block:\n"+
+					"  a) Identify the dish name and cross-reference the Thai Food Reference table above if applicable.\n"+
+					"  b) Estimate the PORTION WEIGHT in grams by comparing visible food volume to a standard plate/bowl.\n"+
+					"  c) List each key ingredient with its estimated weight and macro contribution.\n"+
+					"  d) Account for hidden calories: cooking oil, sauces, sugar, coconut milk.\n"+
+					"  e) Compute: total_calories = (protein×4) + (carbs×4) + (fat×9). Ensure alignment.\n"+
+					"  f) Assign a confidence score 0–100 based on image clarity and food identifiability:\n"+
+					"     - 80–100: Clear image, dish clearly identifiable, macros highly reliable\n"+
+					"     - 50–79: Partially unclear, dish identifiable but some ingredients uncertain\n"+
+					"     - 0–49: Blurry, mixed dishes, or food cannot be reliably identified\n\n"+
+					"STEP 2 — Output ONLY valid JSON in a ```json block with these exact keys:\n"+
+					"  {name: string, calories: number, protein: number, carbs: number, fat: number, confidence: number (0-100)}\n\n"+
+					"If multiple foods are visible, pick the primary dish and estimate combined plate macros.\n"+
+					"LANGUAGE CONSTRAINT: %s\n\n"+
+					"Example:\n<chain_of_thought>\nI see Pad Thai... noodles ~120g, shrimp ~60g, egg ~50g, peanuts ~15g, oil ~10g...\nCalories = (12×4)+(45×4)+(18×9) = 48+180+162 = 390. Image is clear, confidence = 88.\n</chain_of_thought>\n```json\n{\"name\": \"ผัดไทยกุ้ง\", \"calories\": 390, \"protein\": 12, \"carbs\": 45, \"fat\": 18, \"confidence\": 88}\n```",
+					thaiDishReference, langConstraint),
 			},
 			{
 				Role: "user",
@@ -245,7 +268,7 @@ func AnalyzeImage(c echo.Context) error {
 	}
 
 	slog.Info("Analyzing image with CoT AI Pipeline", "model", groqReq.Model, "language", langName, "mimeType", mimeType, "hasHint", hint != "")
-	
+
 	ctx, cancel := context.WithTimeout(c.Request().Context(), 60*time.Second)
 	defer cancel()
 
@@ -273,11 +296,12 @@ func AnalyzeImage(c echo.Context) error {
 
 	// Data Normalization / Guardrails
 	var result struct {
-		Name     string  `json:"name"`
-		Calories float64 `json:"calories"`
-		Protein  float64 `json:"protein"`
-		Carbs    float64 `json:"carbs"`
-		Fat      float64 `json:"fat"`
+		Name       string  `json:"name"`
+		Calories   float64 `json:"calories"`
+		Protein    float64 `json:"protein"`
+		Carbs      float64 `json:"carbs"`
+		Fat        float64 `json:"fat"`
+		Confidence int     `json:"confidence"`
 	}
 
 	if err := json.Unmarshal([]byte(jsonStr), &result); err != nil {
@@ -287,14 +311,22 @@ func AnalyzeImage(c echo.Context) error {
 
 	// Math Normalization: Calories = (P*4) + (C*4) + (F*9)
 	computedCalories := (result.Protein * 4) + (result.Carbs * 4) + (result.Fat * 9)
-	
+
 	// If the AI's calories are wildly off (e.g. by more than 15 kcal) compared to macros, override it
 	if result.Calories < computedCalories-15 || result.Calories > computedCalories+15 {
 		slog.Warn("AI Calories mathematically misaligned, overriding", "ai_cal", result.Calories, "computed_cal", computedCalories)
-		// Usually macros are more accurate than the total calorie guess
 		result.Calories = computedCalories
 	}
 
+	// Clamp confidence to valid range; default to 70 if AI forgot to include it
+	if result.Confidence == 0 {
+		result.Confidence = 70
+	}
+	if result.Confidence > 100 {
+		result.Confidence = 100
+	}
+
+	slog.Info("Image analysis complete", "name", result.Name, "calories", result.Calories, "confidence", result.Confidence)
 	return c.JSON(http.StatusOK, result)
 }
 
@@ -415,132 +447,139 @@ func ConsultAI(c echo.Context) error {
 	defer cancel()
 
 	userID := c.Get("userID").(primitive.ObjectID)
-
-	// --- FETCH USER & TRENDS ---
-	var u models.User
-	db.UserCollection.FindOne(ctx, bson.M{"_id": userID}).Decode(&u)
-	trendSummary, _ := trends.CalculateUserTrends(userID, 30)
-
-	preferenceStr := ""
-	if u.DietaryPreferences != "" || u.Allergies != "" || u.FoodDislikes != "" || u.TonePreference != "" {
-		preferenceStr = fmt.Sprintf("Dietary preferences: %s; Allergies: %s; Dislikes: %s; Tone: %s", u.DietaryPreferences, u.Allergies, u.FoodDislikes, u.TonePreference)
-	}
-
-	// --- FETCH ALL RELEVANT DATA FOR THE RANGE ---
-
-	// 1. Fetch Food Logs & Aggregates
 	foodFilter := bson.M{"userId": userID, "date": bson.M{"$gte": startOfDay, "$lte": endOfRange}}
-	fCursor, err := db.FoodsCollection.Find(ctx, foodFilter)
-	var totalCal, totalPro, totalFat float64
-	var foodItemsCount int
-	if err == nil {
-		var foods []models.Food
-		if err := fCursor.All(ctx, &foods); err == nil {
-			foodItemsCount = len(foods)
-			for _, f := range foods {
-				totalCal += f.Calories
-				totalPro += models.SafeFloat(f.Protein)
-				totalFat += models.SafeFloat(f.Fat)
-			}
-		}
-	}
 
+	// Parallel DB fetches
+	var (
+		u         models.User
+		g         models.Goals
+		foods     []models.Food
+		weights   []models.WeightRecord
+		exercises []models.ExerciseRecord
+		sleeps    []models.SleepRecord
+		trendStr  string
+		wg        sync.WaitGroup
+	)
+
+	wg.Add(7)
+	go func() {
+		defer wg.Done()
+		db.UserCollection.FindOne(ctx, bson.M{"_id": userID}).Decode(&u)
+	}()
+	go func() {
+		defer wg.Done()
+		trendStr, _ = trends.CalculateUserTrends(userID, 30)
+	}()
+	go func() {
+		defer wg.Done()
+		db.GoalsCollection.FindOne(ctx, bson.M{"userId": userID}).Decode(&g)
+	}()
+	go func() {
+		defer wg.Done()
+		if cur, err := db.FoodsCollection.Find(ctx, foodFilter); err == nil {
+			cur.All(ctx, &foods)
+		}
+	}()
+	go func() {
+		defer wg.Done()
+		if cur, err := db.WeightCollection.Find(ctx, foodFilter, options.Find().SetSort(bson.D{{Key: "date", Value: 1}})); err == nil {
+			cur.All(ctx, &weights)
+		}
+	}()
+	go func() {
+		defer wg.Done()
+		if cur, err := db.ExerciseCollection.Find(ctx, foodFilter); err == nil {
+			cur.All(ctx, &exercises)
+		}
+	}()
+	go func() {
+		defer wg.Done()
+		if cur, err := db.SleepCollection.Find(ctx, foodFilter); err == nil {
+			cur.All(ctx, &sleeps)
+		}
+	}()
+	wg.Wait()
+
+	// Build context strings from fetched data
+	var totalCal, totalPro, totalFat float64
+	for _, f := range foods {
+		totalCal += f.Calories
+		totalPro += models.SafeFloat(f.Protein)
+		totalFat += models.SafeFloat(f.Fat)
+	}
 	avgCal := totalCal / float64(numDays)
 	avgPro := totalPro / float64(numDays)
 	avgFat := totalFat / float64(numDays)
 
-	summaryStr := fmt.Sprintf("ช่วงเวลาที่วิเคราะห์: %s ถึง %s (%d วัน)\n", startStr, endStr, numDays)
-	summaryStr += fmt.Sprintf("สถิติเฉลี่ยต่อวัน:\n- พลังงาน: %.0f kcal\n- โปรตีน: %.1fg\n- ไขมัน: %.1fg\n", avgCal, avgPro, avgFat)
-	summaryStr += fmt.Sprintf("จำนวนรายการอาหารที่บันทึกทั้งหมด: %d รายการ\n", foodItemsCount)
+	summaryStr := fmt.Sprintf("Period: %s to %s (%d days)\n", startStr, endStr, numDays)
+	summaryStr += fmt.Sprintf("Daily avg: %.0f kcal, P:%.1fg, F:%.1fg\n", avgCal, avgPro, avgFat)
+	summaryStr += fmt.Sprintf("Food logs: %d items\n", len(foods))
 
-	// 2. Fetch Weight Records in range
 	var weightStr string
-	wCursor, err := db.WeightCollection.Find(ctx, foodFilter, options.Find().SetSort(bson.D{{Key: "date", Value: 1}}))
-	if err == nil {
-		var weights []models.WeightRecord
-		if err := wCursor.All(ctx, &weights); err == nil {
-			for _, w := range weights {
-				weightStr += fmt.Sprintf("%s: %.1fkg\n", w.Date.Format("2006-01-02"), w.Weight)
-			}
-		}
+	for _, w := range weights {
+		weightStr += fmt.Sprintf("%s: %.1fkg\n", w.Date.Format("2006-01-02"), w.Weight)
 	}
 
-	// 3. Fetch Exercise Records in range
 	var exerciseStr string
 	var totalExCal float64
-	eCursor, err := db.ExerciseCollection.Find(ctx, foodFilter)
-	if err == nil {
-		var exercises []models.ExerciseRecord
-		if err := eCursor.All(ctx, &exercises); err == nil {
-			for _, ex := range exercises {
-				exerciseStr += fmt.Sprintf("- %s: %d min (%.0f kcal)\n", ex.Name, ex.DurationMinutes, models.SafeFloat(ex.CaloriesBurned))
-				totalExCal += models.SafeFloat(ex.CaloriesBurned)
-			}
-		}
+	for _, ex := range exercises {
+		exerciseStr += fmt.Sprintf("- %s: %dmin (%.0fkcal)\n", ex.Name, ex.DurationMinutes, models.SafeFloat(ex.CaloriesBurned))
+		totalExCal += models.SafeFloat(ex.CaloriesBurned)
 	}
 
-	// 4. Fetch Sleep Records in range
 	var sleepStr string
-	var totalSleep float64
-	sCursor, err := db.SleepCollection.Find(ctx, foodFilter)
-	if err == nil {
-		var sleeps []models.SleepRecord
-		if err := sCursor.All(ctx, &sleeps); err == nil {
-			for _, sl := range sleeps {
-				sleepStr += fmt.Sprintf("- %s: %.1fh (%s)\n", sl.Date.Format("2006-01-02"), sl.DurationHours, models.SafeString(sl.Quality))
-				totalSleep += sl.DurationHours
-			}
-		}
+	for _, sl := range sleeps {
+		sleepStr += fmt.Sprintf("- %s: %.1fh (%s)\n", sl.Date.Format("2006-01-02"), sl.DurationHours, models.SafeString(sl.Quality))
 	}
 
-	// 5. Fetch Goals
-	var g models.Goals
 	goalsStr := "Not set"
 	objectiveStr := "Not set"
-	if err := db.GoalsCollection.FindOne(ctx, bson.M{"userId": userID}).Decode(&g); err == nil {
+	if g.Calories > 0 {
 		objectiveStr = g.Objective
 		goalsStr = fmt.Sprintf("Cal:%.0f, Pro:%.1f, Fat:%.1f", g.Calories, g.Protein, g.Fat)
+	}
+
+	preferenceStr := ""
+	if u.DietaryPreferences != "" || u.Allergies != "" || u.FoodDislikes != "" || u.TonePreference != "" {
+		preferenceStr = fmt.Sprintf("Prefs:%s; Allergies:%s; Dislikes:%s; Tone:%s", u.DietaryPreferences, u.Allergies, u.FoodDislikes, u.TonePreference)
 	}
 
 	groqReq := GroqChatRequest{
 		Model:       "openai/gpt-oss-120b",
 		Temperature: 0.3,
-		MaxTokens:   4096,
+		MaxTokens:   2048,
 		TopP:        0.9,
 		Messages: []GroqMessage{
 			{
 				Role: "system",
 				Content: "Persona: Elite Clinical Dietitian & Performance Consultant. " +
 					langInstruction +
-					"TASK: Perform a highly accurate, evidence-based Trend Analysis for the period " + startStr + " to " + endStr + ".\n\n" +
-					"--- LONG-TERM CONTEXT ---\n" + u.LongTermContext + "\n\n" +
-					"--- 30-DAY TREND DATA ---\n" + trendSummary + "\n\n" +
-					"--- DATA SUMMARY FOR REQUESTED PERIOD ---\n" + summaryStr + "\n" +
-					"User Profile: " + fmt.Sprintf("W:%.1fkg, H:%.1fcm, Age:%d", u.Weight, u.Height, u.Age) + "\n" +
-					"User Preferences: " + preferenceStr + "\n" +
-					"Daily Goals: " + goalsStr + "\n" +
-					"Objective: " + objectiveStr + "\n\n" +
-					"--- ACTIVITY LOGS IN THIS PERIOD ---\n" +
-					"Weight Changes:\n" + weightStr + "\n" +
-					"Exercises:\n" + exerciseStr + "Total Burned: " + fmt.Sprintf("%.0f", totalExCal) + " kcal\n\n" +
-					"Sleep Patterns:\n" + sleepStr + "\n" +
-					"CRITICAL INSTRUCTIONS:\n" +
-					"1. ALWAYS START your response with a <think> ... </think> block. Inside this block, meticulously analyze the context, ensure math aligns perfectly, and plan your response.\n" +
-					"2. Analyze consistency: Accurately compare their average daily intake with their goals using precise math. Are they consistent or fluctuating?\n" +
-					"3. Connect weight changes scientifically with their nutrition, energy balance, and exercise logs for this specific period.\n" +
-					"4. Provide deep, evidence-based insights into how this week's trends impact their " + objectiveStr + " goal.\n" +
-					"5. Give 3 'Level-Up' recommendations for the upcoming week based on this analysis. Ensure advice is 100% accurate, fact-checked, and scientifically sound.\n" +
-					"Format AFTER the <think> block: \n- Snapshot (1-2 sentences)\n- Key Insights (3 bullets)\n- Level-Up Plan (3 bullets)\n" +
-					"Keep response CONCISE (max 350 words). Tone: Expert, motivating, and polished. No generic AI fluff.",
+					"Analyze trends for " + startStr + " to " + endStr + ".\n\n" +
+					"--- 30-DAY TRENDS ---\n" + trendStr + "\n" +
+					"--- PERIOD SUMMARY ---\n" + summaryStr + "\n" +
+					"Profile: " + fmt.Sprintf("W:%.1fkg H:%.1fcm Age:%d", u.Weight, u.Height, u.Age) + "\n" +
+					"Prefs: " + preferenceStr + "\n" +
+					"Goals: " + goalsStr + " | Obj: " + objectiveStr + "\n\n" +
+					"--- LOGS ---\n" +
+					"Weight:\n" + weightStr + "\n" +
+					"Exercise (burned " + fmt.Sprintf("%.0f", totalExCal) + " kcal total):\n" + exerciseStr + "\n" +
+					"Sleep:\n" + sleepStr + "\n" +
+					"INSTRUCTIONS:\n" +
+					"1. Use <think> to plan internally (hidden from user).\n" +
+					"2. Compare daily intake vs goals with precise math.\n" +
+					"3. Connect weight changes with energy balance and exercise.\n" +
+					"4. Give 3 'Level-Up' recommendations.\n" +
+					"After <think>: Snapshot(1-2 sentences), Key Insights(3 bullets), Level-Up Plan(3 bullets).\n" +
+					"Max 350 words. Tone: Expert, motivating, no fluff.",
 			},
 			{
 				Role:    "user",
-				Content: "ช่วยวิเคราะห์แนวโน้มสุขภาพของผมในช่วงวันที่ " + startStr + " ถึง " + endStr + " อย่างละเอียดหน่อยครับ",
+				Content: "Analyze my health trends for " + startStr + " to " + endStr + ".",
 			},
 		},
 	}
 
-	slog.Info("Consulting AI (Range Analysis)", "model", groqReq.Model, "userID", userID, "range", startStr+" to "+endStr)
+	slog.Info("Consulting AI", "model", groqReq.Model, "userID", userID, "range", startStr+" to "+endStr, "foods", len(foods), "weights", len(weights), "exercises", len(exercises), "sleeps", len(sleeps))
 	return callGroq(c, groqReq)
 }
 

@@ -17,7 +17,9 @@ import {
     LineChart,
     Line,
     ReferenceLine,
-    Cell
+    Cell,
+    PieChart,
+    Pie,
 } from 'recharts';
 import { format, subDays, startOfDay, endOfDay, isBefore, eachDayOfInterval } from 'date-fns';
 import { useAuth } from "@/context/AuthContext";
@@ -108,18 +110,12 @@ export default function DashboardPage() {
     const [error, setError] = useState<string | null>(null);
 
     const [weights, setWeights] = useState<WeightRecord[]>([]);
-    const [weightInput, setWeightInput] = useState<string>('');
 
     const [measurements, setMeasurements] = useState<BodyMeasurement[]>([]);
-    const [measurementInput, setMeasurementInput] = useState({ weight: '', waist: '', bodyFat: '' });
-    const [uploadingPhoto, setUploadingPhoto] = useState(false);
-    const [photoUrl, setPhotoUrl] = useState('');
 
     const [exercises, setExercises] = useState<ExerciseRecord[]>([]);
-    const [exerciseInput, setExerciseInput] = useState({ name: '', durationMinutes: 30, caloriesBurned: 0 });
 
     const [sleeps, setSleeps] = useState<SleepRecord[]>([]);
-    const [sleepInput, setSleepInput] = useState({ durationHours: 8, durationMinutes: 0, quality: 'Good' });
 
     const [customStart, setCustomStart] = useState<string>(format(subDays(new Date(), 7), 'yyyy-MM-dd'));
     const [customEnd, setCustomEnd] = useState<string>(format(new Date(), 'yyyy-MM-dd'));
@@ -129,11 +125,6 @@ export default function DashboardPage() {
     const [macroView, setMacroView] = useState<'protein' | 'carbs' | 'fat'>('protein');
     const [measureView, setMeasureView] = useState<'weight' | 'waist' | 'bodyFat'>('weight');
     const [healthView, setHealthView] = useState<'exercise' | 'sleep'>('exercise');
-    const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
-        measurements: false,
-        exercise: false,
-        sleep: false
-    });
 
     const dashboardKey = useMemo(() => {
         if (authLoading) return null;
@@ -190,6 +181,9 @@ export default function DashboardPage() {
                 startStr = format(subDays(now, 6), 'yyyy-MM-dd');
         }
 
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 15000);
+
         try {
             const res = await fetch(`${API_BASE}/consult`, {
                 method: "POST",
@@ -199,6 +193,7 @@ export default function DashboardPage() {
                     endDate: endStr,
                     language
                 }),
+                signal: controller.signal,
             });
 
             if (res.ok) {
@@ -207,156 +202,16 @@ export default function DashboardPage() {
             } else {
                 setError("Failed to get AI advice");
             }
-        } catch (err) {
-            console.error(err);
-            setError("AI Consultant unavailable");
+        } catch (err: any) {
+            if (err?.name === 'AbortError') {
+                setError("Request timed out. Try a shorter date range.");
+            } else {
+                console.error(err);
+                setError("AI Consultant unavailable");
+            }
         } finally {
+            clearTimeout(timeout);
             setAiLoading(false);
-        }
-    };
-
-    const handleLogWeight = async () => {
-        const w = parseFloat(weightInput);
-        if (isNaN(w) || w <= 0) return;
-
-        try {
-            const res = await fetch(`${API_BASE}/weight`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    weight: w,
-                    date: new Date().toISOString()
-                })
-            });
-
-            if (res.ok) {
-                setWeightInput('');
-                mutate(dashboardKey);
-                mutate(`${API_BASE}/dashboard/summary?lang=${language}`);
-            }
-        } catch (err) {
-            console.error(err);
-        }
-    };
-
-    const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-        const file = e.target.files?.[0];
-        if (!file) return;
-
-        setUploadingPhoto(true);
-        const formData = new FormData();
-        formData.append("image", file);
-
-        try {
-            const res = await fetch(`${API_BASE}/upload`, {
-                method: "POST",
-                body: formData,
-            });
-            if (res.ok) {
-                const data = await res.json();
-                setPhotoUrl(data.url);
-            } else {
-                setError("Failed to upload photo");
-            }
-        } catch (err) {
-            console.error(err);
-            setError("Error uploading photo");
-        } finally {
-            setUploadingPhoto(false);
-        }
-    };
-
-    const handleLogMeasurement = async () => {
-        const w = parseFloat(measurementInput.weight);
-        const waist = parseFloat(measurementInput.waist);
-        const bf = parseFloat(measurementInput.bodyFat);
-
-        if (isNaN(w) || w <= 0) {
-            setError("Please enter a valid weight");
-            return;
-        }
-
-        try {
-            const res = await fetch(`${API_BASE}/measurements`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    weight: w,
-                    waistCircumference: isNaN(waist) ? 0 : waist,
-                    bodyFatPercentage: isNaN(bf) ? 0 : bf,
-                    progressPhotoUrl: photoUrl,
-                    date: new Date().toISOString()
-                })
-            });
-
-            if (res.ok) {
-                setMeasurementInput({ weight: '', waist: '', bodyFat: '' });
-                setPhotoUrl('');
-                mutate(dashboardKey);
-                mutate(`${API_BASE}/dashboard/summary?lang=${language}`);
-            }
-        } catch (err) {
-            console.error(err);
-        }
-    };
-
-    const handleLogExercise = async () => {
-        if (!exerciseInput.name) {
-            setError("Please enter an activity name.");
-            return;
-        }
-        if (!exerciseInput.durationMinutes || exerciseInput.durationMinutes <= 0 || isNaN(exerciseInput.durationMinutes)) {
-            setError("Please enter a valid duration.");
-            return;
-        }
-        try {
-            setError(null);
-            const res = await fetch(`${API_BASE}/exercise`, {
-                method: 'POST',
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(exerciseInput)
-            });
-            if (res.ok) {
-                mutate(dashboardKey);
-                mutate(`${API_BASE}/dashboard/summary?lang=${language}`);
-                setExerciseInput({ name: '', durationMinutes: 30, caloriesBurned: 0 });
-            } else {
-                setError("Failed to save activity.");
-            }
-        } catch (err) {
-            console.error(err);
-            setError("Error saving activity.");
-        }
-    };
-
-    const handleLogSleep = async () => {
-        if (!sleepInput.durationHours || sleepInput.durationHours <= 0 || isNaN(sleepInput.durationHours)) {
-            setError("Please enter valid sleep hours.");
-            return;
-        }
-        try {
-            setError(null);
-            const yesterday = subDays(new Date(), 1).toISOString();
-            const totalHours = Number(sleepInput.durationHours) + (Number(sleepInput.durationMinutes) / 60);
-            const res = await fetch(`${API_BASE}/sleep`, {
-                method: 'POST',
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                    durationHours: totalHours,
-                    quality: sleepInput.quality,
-                    date: yesterday
-                })
-            });
-            if (res.ok) {
-                mutate(dashboardKey);
-                mutate(`${API_BASE}/dashboard/summary?lang=${language}`);
-                setSleepInput({ durationHours: 8, durationMinutes: 0, quality: 'Good' });
-            } else {
-                setError("Failed to save sleep data.");
-            }
-        } catch (err) {
-            console.error(err);
-            setError("Error saving sleep data.");
         }
     };
 
@@ -508,10 +363,6 @@ export default function DashboardPage() {
         : 0;
     const latestMeasurement = chartDataMeasurements.length ? chartDataMeasurements[chartDataMeasurements.length - 1] : null;
 
-    const toggleSection = (section: string) => {
-        setExpandedSections(prev => ({ ...prev, [section]: !prev[section] }));
-    };
-    
     const lastUpdatedLabel = t('chartLastUpdated');
     const noDataLabel = t('chartNoData');
     const energyLabel = t('chartEnergy');
@@ -857,207 +708,6 @@ export default function DashboardPage() {
                                 />
                             </LineChart>
                         </ResponsiveContainer>
-                    </div>
-
-                    <div className="glass-panel logging-section" style={{ padding: '24px', gridColumn: '1 / -1' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '24px' }}>
-                            <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 700 }}>{t('logMeasurements')}</h2>
-                            <div style={{ display: 'flex', gap: '8px' }}>
-                                <button
-                                    onClick={() => setExpandedSections({ measurements: true, exercise: true, sleep: true })}
-                                    className="glass-btn"
-                                    style={{ padding: '8px 16px', fontSize: '12px' }}
-                                >
-                                    Expand All
-                                </button>
-                                <button
-                                    onClick={() => setExpandedSections({ measurements: false, exercise: false, sleep: false })}
-                                    className="glass-btn"
-                                    style={{ padding: '8px 16px', fontSize: '12px' }}
-                                >
-                                    Collapse All
-                                </button>
-                            </div>
-                        </div>
-
-                        <div className="accordion-container">
-                            {/* Measurements Accordion */}
-                            <div className="accordion-item">
-                                <button
-                                    onClick={() => toggleSection('measurements')}
-                                    className={`accordion-header ${expandedSections.measurements ? 'active' : ''}`}
-                                >
-                                    <div className="accordion-header-content">
-                                        <div className="accordion-icon" style={{ background: 'var(--accent-cal-gradient)' }}>
-                                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2"><path d="M12 2v20M2 12h20M7 7l10 10M17 7L7 17"/></svg>
-                                        </div>
-                                        <div>
-                                            <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 600 }}>{t('logMeasurements')}</h3>
-                                            <p style={{ margin: 0, fontSize: '12px', color: 'var(--text-secondary)', marginTop: '2px' }}>
-                                                {measurements.length > 0 ? `${measurements.length} records` : t('chartNoData')}
-                                            </p>
-                                        </div>
-                                    </div>
-                                    <svg
-                                        className={`accordion-chevron ${expandedSections.measurements ? 'rotated' : ''}`}
-                                        width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
-                                    >
-                                        <polyline points="6 9 12 15 18 9"></polyline>
-                                    </svg>
-                                </button>
-
-                                <div className={`accordion-content ${expandedSections.measurements ? 'expanded' : ''}`}>
-                                    <div className="accordion-content-inner">
-                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '16px' }}>
-                                            <div className="input-with-unit">
-                                                <label>{t('weight')}</label>
-                                                <input type="number" placeholder="0.0" value={measurementInput.weight} onChange={e => setMeasurementInput({ ...measurementInput, weight: e.target.value })} />
-                                                <span className="unit">KG</span>
-                                            </div>
-                                            <div className="input-with-unit">
-                                                <label>{t('waist')}</label>
-                                                <input type="number" placeholder="0.0" value={measurementInput.waist} onChange={e => setMeasurementInput({ ...measurementInput, waist: e.target.value })} />
-                                                <span className="unit">CM</span>
-                                            </div>
-                                        </div>
-                                        <div className="input-with-unit" style={{ marginBottom: '16px' }}>
-                                            <label>{t('bodyFat')}</label>
-                                            <input type="number" placeholder="0.0" value={measurementInput.bodyFat} onChange={e => setMeasurementInput({ ...measurementInput, bodyFat: e.target.value })} />
-                                            <span className="unit">%</span>
-                                        </div>
-                                        <button onClick={handleLogMeasurement} className="primary-btn active compact-btn">{t('saveMeasurements')}</button>
-
-                                        <div className="mini-history">
-                                            <h4>{t('recentHistory')}</h4>
-                                            {measurements.slice(0, 2).map((m, idx) => (
-                                                <div key={idx} className="mini-history-item">
-                                                    <span className="mini-date">{format(new Date(m.date), 'MMM dd')}</span>
-                                                    <span className="mini-value">{m.weight} kg</span>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Exercise Accordion */}
-                            <div className="accordion-item">
-                                <button
-                                    onClick={() => toggleSection('exercise')}
-                                    className={`accordion-header ${expandedSections.exercise ? 'active' : ''}`}
-                                >
-                                    <div className="accordion-header-content">
-                                        <div className="accordion-icon" style={{ background: 'var(--accent-pro-gradient)' }}>
-                                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2"><path d="M18 8h1a4 4 0 0 1 0 8h-1M2 8h16v9a4 4 0 0 1-4 4H6a4 4 0 0 1-4-4V8z"/><line x1="6" y1="1" x2="6" y2="4"/><line x1="10" y1="1" x2="10" y2="4"/><line x1="14" y1="1" x2="14" y2="4"/></svg>
-                                        </div>
-                                        <div>
-                                            <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 600 }}>{t('logExercise')}</h3>
-                                            <p style={{ margin: 0, fontSize: '12px', color: 'var(--text-secondary)', marginTop: '2px' }}>
-                                                {exercises.length > 0 ? `${exercises.length} activities` : t('chartNoData')}
-                                            </p>
-                                        </div>
-                                    </div>
-                                    <svg
-                                        className={`accordion-chevron ${expandedSections.exercise ? 'rotated' : ''}`}
-                                        width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
-                                    >
-                                        <polyline points="6 9 12 15 18 9"></polyline>
-                                    </svg>
-                                </button>
-
-                                <div className={`accordion-content ${expandedSections.exercise ? 'expanded' : ''}`}>
-                                    <div className="accordion-content-inner">
-                                        <div style={{ marginBottom: '16px' }}>
-                                            <label>{t('activity')}</label>
-                                            <input type="text" placeholder={t('activityPlaceholder')} value={exerciseInput.name} onChange={e => setExerciseInput({ ...exerciseInput, name: e.target.value })} />
-                                        </div>
-                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '16px' }}>
-                                            <div>
-                                                <label>{t('minutes')}</label>
-                                                <input type="number" placeholder="0" value={exerciseInput.durationMinutes} onChange={e => setExerciseInput({ ...exerciseInput, durationMinutes: parseInt(e.target.value) || 0 })} />
-                                            </div>
-                                            <div>
-                                                <label>{t('calories')}</label>
-                                                <input type="number" placeholder="0" value={exerciseInput.caloriesBurned} onChange={e => setExerciseInput({ ...exerciseInput, caloriesBurned: parseInt(e.target.value) || 0 })} />
-                                            </div>
-                                        </div>
-                                        <button onClick={handleLogExercise} className="primary-btn active compact-btn">{t('logActivityBtn')}</button>
-
-                                        <div className="mini-history">
-                                            <h4>{t('exerciseHistory')}</h4>
-                                            {exercises.slice(0, 2).map((ex, idx) => (
-                                                <div key={idx} className="mini-history-item">
-                                                    <span className="mini-date">{format(new Date(ex.date), 'MMM dd')}</span>
-                                                    <span className="mini-value">{ex.name}</span>
-                                                    <span className="mini-duration">{ex.durationMinutes}min</span>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Sleep Accordion */}
-                            <div className="accordion-item">
-                                <button
-                                    onClick={() => toggleSection('sleep')}
-                                    className={`accordion-header ${expandedSections.sleep ? 'active' : ''}`}
-                                >
-                                    <div className="accordion-header-content">
-                                        <div className="accordion-icon" style={{ background: 'var(--accent-fat-gradient)' }}>
-                                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
-                                        </div>
-                                        <div>
-                                            <h3 style={{ margin: 0, fontSize: '15px', fontWeight: 600 }}>{t('logSleep')}</h3>
-                                            <p style={{ margin: 0, fontSize: '12px', color: 'var(--text-secondary)', marginTop: '2px' }}>
-                                                {sleeps.length > 0 ? `${sleeps.length} records` : t('chartNoData')}
-                                            </p>
-                                        </div>
-                                    </div>
-                                    <svg
-                                        className={`accordion-chevron ${expandedSections.sleep ? 'rotated' : ''}`}
-                                        width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
-                                    >
-                                        <polyline points="6 9 12 15 18 9"></polyline>
-                                    </svg>
-                                </button>
-
-                                <div className={`accordion-content ${expandedSections.sleep ? 'expanded' : ''}`}>
-                                    <div className="accordion-content-inner">
-                                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', marginBottom: '16px' }}>
-                                            <div>
-                                                <label>{t('hours')}</label>
-                                                <input type="number" placeholder="0" value={sleepInput.durationHours} onChange={e => setSleepInput({ ...sleepInput, durationHours: parseInt(e.target.value) || 0 })} />
-                                            </div>
-                                            <div>
-                                                <label>{t('minutes')}</label>
-                                                <input type="number" placeholder="0" value={sleepInput.durationMinutes} onChange={e => setSleepInput({ ...sleepInput, durationMinutes: parseInt(e.target.value) || 0 })} />
-                                            </div>
-                                        </div>
-                                        <div style={{ marginBottom: '16px' }}>
-                                            <label>{t('quality')}</label>
-                                            <select value={sleepInput.quality} onChange={e => setSleepInput({ ...sleepInput, quality: e.target.value })}>
-                                                <option value="Good">{t('goodQuality')}</option>
-                                                <option value="Fair">{t('fairQuality')}</option>
-                                                <option value="Poor">{t('poorQuality')}</option>
-                                            </select>
-                                        </div>
-                                        <button onClick={handleLogSleep} className="primary-btn active compact-btn">{t('recordSleepBtn')}</button>
-
-                                        <div className="mini-history">
-                                            <h4>{t('sleepHistory')}</h4>
-                                            {sleeps.slice(0, 2).map((sl, idx) => (
-                                                <div key={idx} className="mini-history-item">
-                                                    <span className="mini-date">{format(new Date(sl.date), 'MMM dd')}</span>
-                                                    <span className="mini-value">{sl.durationHours} hrs</span>
-                                                    <span className={`mini-quality ${sl.quality.toLowerCase()}`}>{sl.quality}</span>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
                     </div>
                 </div>
 

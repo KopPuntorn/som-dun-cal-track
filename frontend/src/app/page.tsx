@@ -16,7 +16,7 @@ import ConfirmModal from "@/components/ConfirmModal";
 import ErrorState from "@/components/ErrorState";
 import SuccessAnimation from "@/components/SuccessAnimation";
 import CalendarPicker from "@/components/CalendarPicker";
-import LoadingSkeleton from "@/components/LoadingSkeleton";
+import LoadingSkeleton, { SkeletonFoodCard } from "@/components/LoadingSkeleton";
 import EmptyState from "@/components/EmptyState";
 import TiltCard from "@/components/TiltCard";
 import ParticleBurst from "@/components/ParticleBurst";
@@ -125,6 +125,8 @@ export default function Home() {
   const [foodInputs, setFoodInputs] = useState({ name: "", calories: "", protein: "", carbs: "", fat: "", sugar: "", sodium: "", fiber: "", mealCategory: "Breakfast", date: format(new Date(), 'yyyy-MM-dd') });
   const [loading, setLoading] = useState(true);
   const [aiLoading, setAiLoading] = useState(false);
+  const [aiStage, setAiStage] = useState<'idle' | 'compressing' | 'analyzing' | 'done'>('idle');
+  const [aiConfidence, setAiConfidence] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [searchResults, setSearchResults] = useState<Food[]>([]);
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -147,7 +149,7 @@ export default function Home() {
   const [editInputs, setEditInputs] = useState({ name: "", calories: "", protein: "", carbs: "", fat: "", sugar: "", sodium: "", fiber: "", mealCategory: "Breakfast" });
   const [isActionModalOpen, setIsActionModalOpen] = useState(false);
   const [mounted, setMounted] = useState(false);
-  const [logModalTab, setLogModalTab] = useState<'food' | 'exercise' | 'sleep'>('food');
+  const [logModalTab, setLogModalTab] = useState<'food' | 'exercise' | 'sleep' | 'measurements'>('food');
   const [detailView, setDetailView] = useState<'training' | 'recovery' | null>(null);
   const [tourStep, setTourStep] = useState(0);
   const [showTour, setShowTour] = useState(false);
@@ -158,6 +160,9 @@ export default function Home() {
   const [burstColors, setBurstColors] = useState<string[]>(['#0ea5e9', '#f43f5e', '#a855f7', '#ffffff']);
   const [openCalendar, setOpenCalendar] = useState<"food" | "exercise" | "sleep" | null>(null);
   const [scanHint, setScanHint] = useState("");
+  const [measurementInput, setMeasurementInput] = useState({ weight: '', waist: '', bodyFat: '' });
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [photoUrl, setPhotoUrl] = useState('');
 
   // SWR for Dashboard Summary
   const { data: dashboardData, error: dashboardError, isLoading: dashboardLoading } = useSWR(
@@ -226,6 +231,12 @@ export default function Home() {
 
   // Scanner State
   const [isScanning, setIsScanning] = useState(false);
+  const [barcodePreview, setBarcodePreview] = useState<{
+    name: string; brand: string; kcalPer100g: number;
+    proteinPer100g: number; carbsPer100g: number; fatPer100g: number;
+    servingSize: number; imageUrl?: string;
+  } | null>(null);
+  const [barcodeServing, setBarcodeServing] = useState(100);
   const { ref: zxingRef } = useZxing({
     constraints: { video: { facingMode: 'environment' } },
     onDecodeResult(result) {
@@ -247,28 +258,27 @@ export default function Home() {
           if (data.status === 1 && data.product) {
             const p = data.product;
             const nutris = p.nutriments || {};
-
-            setFoodInputs(prev => ({
-              ...prev,
-              name: p.product_name || `Scanned (${text.substring(0, 6)})`,
-              calories: String(Math.round(nutris['energy-kcal_serving'] || nutris['energy-kcal_100g'] || 0)),
-              protein: String(Math.round(nutris['proteins_serving'] || nutris['proteins_100g'] || 0)),
-              carbs: String(Math.round(nutris['carbohydrates_serving'] || nutris['carbohydrates_100g'] || 0)),
-              fat: String(Math.round(nutris['fat_serving'] || nutris['fat_100g'] || 0)),
-              sugar: String(Math.round(nutris['sugars_serving'] || nutris['sugars_100g'] || 0)),
-              sodium: String(Math.round((nutris['sodium_serving'] || nutris['sodium_100g'] || 0) * 1000)),
-              fiber: String(Math.round(nutris['fiber_serving'] || nutris['fiber_100g'] || 0))
-            }));
-
-            showToast(`Loaded: ${p.product_name || 'Product'}`, "success");
+            const servingG = nutris['serving_size'] ? parseFloat(nutris['serving_size']) : 100;
+            const preview = {
+              name: p.product_name || `Barcode ${text.substring(0, 8)}`,
+              brand: p.brands || '',
+              kcalPer100g: Math.round(nutris['energy-kcal_100g'] || 0),
+              proteinPer100g: Math.round((nutris['proteins_100g'] || 0) * 10) / 10,
+              carbsPer100g: Math.round((nutris['carbohydrates_100g'] || 0) * 10) / 10,
+              fatPer100g: Math.round((nutris['fat_100g'] || 0) * 10) / 10,
+              servingSize: isNaN(servingG) || servingG <= 0 ? 100 : Math.round(servingG),
+              imageUrl: p.image_small_url || p.image_url || undefined,
+            };
+            setBarcodePreview(preview);
+            setBarcodeServing(preview.servingSize);
           } else {
-            showToast("Product not found", "error");
-            setError(`Not found: ${text}`);
+            showToast(language === 'en' ? 'Product not found in database' : 'ไม่พบสินค้าในฐานข้อมูล', "error");
+            setError(language === 'en' ? `Barcode not found: ${text}` : `ไม่พบบาร์โค้ด: ${text}`);
           }
         })
         .catch(err => {
           console.error("Scanner Error:", err);
-          showToast("Failed to fetch product data", "error");
+          showToast(language === 'en' ? 'Failed to fetch product data' : 'ดึงข้อมูลสินค้าไม่สำเร็จ', "error");
         })
         .finally(() => {
           setAiLoading(false);
@@ -555,6 +565,99 @@ export default function Home() {
     }
   };
 
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploadingPhoto(true);
+    const formData = new FormData();
+    formData.append("image", file);
+    try {
+      const res = await fetch(`${API_BASE}/upload`, { method: "POST", body: formData });
+      if (res.ok) {
+        const data = await res.json();
+        setPhotoUrl(data.url);
+      } else {
+        showToast("Failed to upload photo", "error");
+      }
+    } catch (err) {
+      console.error(err);
+      showToast("Error uploading photo", "error");
+    } finally {
+      setUploadingPhoto(false);
+    }
+  };
+
+  const handleLogMeasurement = async () => {
+    const w = parseFloat(measurementInput.weight);
+    if (isNaN(w) || w <= 0) {
+      showToast("Please enter a valid weight", "error");
+      return;
+    }
+    const waist = parseFloat(measurementInput.waist);
+    const bf = parseFloat(measurementInput.bodyFat);
+    try {
+      const res = await fetch(`${API_BASE}/measurements`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          weight: w,
+          waistCircumference: isNaN(waist) ? 0 : waist,
+          bodyFatPercentage: isNaN(bf) ? 0 : bf,
+          progressPhotoUrl: photoUrl,
+          date: new Date().toISOString(),
+        }),
+      });
+      if (res.ok) {
+        setMeasurementInput({ weight: '', waist: '', bodyFat: '' });
+        setPhotoUrl('');
+        showToast("Measurement saved!", "success");
+        setSuccessVariant("food");
+        setBurstPos({ x: '50%', y: '50%' });
+        setBurstColors(['#82a67d', '#5b8266', '#a855f7']);
+        setBurstTrigger(prev => prev + 1);
+        setTimeout(() => setSuccessVariant(null), 1600);
+        mutate(`${API_BASE}/dashboard/summary?lang=${language}`);
+        refreshUser();
+      }
+    } catch (err) {
+      console.error(err);
+      showToast("Error saving measurement", "error");
+    }
+  };
+
+  const confirmBarcodePreview = () => {
+    if (!barcodePreview) return;
+    const ratio = barcodeServing / 100;
+    setFoodInputs(prev => ({
+      ...prev,
+      name: barcodePreview.name,
+      calories: String(Math.round(barcodePreview.kcalPer100g * ratio)),
+      protein: String(Math.round(barcodePreview.proteinPer100g * ratio * 10) / 10),
+      carbs: String(Math.round(barcodePreview.carbsPer100g * ratio * 10) / 10),
+      fat: String(Math.round(barcodePreview.fatPer100g * ratio * 10) / 10),
+    }));
+    setBarcodePreview(null);
+  };
+
+  const handleReLogFood = (food: Food) => {
+    setFoodInputs({
+      name: food.name,
+      calories: String(food.calories),
+      protein: String(food.protein),
+      carbs: String(food.carbs || ''),
+      fat: String(food.fat || ''),
+      sugar: String((food as any).sugar || ''),
+      sodium: String((food as any).sodium || ''),
+      fiber: String((food as any).fiber || ''),
+      mealCategory: food.mealCategory || 'Breakfast',
+      date: format(new Date(), 'yyyy-MM-dd'),
+    });
+    setAiConfidence(null);
+    setAiStage('idle');
+    setLogModalTab('food');
+    setIsActionModalOpen(true);
+  };
+
   const openEditModal = (food: Food) => {
     setEditingFood(food);
     setEditInputs({
@@ -656,6 +759,26 @@ export default function Home() {
 
     if (!name || isNaN(cal) || isNaN(pro)) return;
 
+    // Optimistic: add a temporary entry immediately
+    const tempId = `temp-${Date.now()}`;
+    const optimisticFood: Food = {
+      id: tempId,
+      name,
+      calories: cal,
+      protein: pro,
+      carbs: crb,
+      fat: ft,
+      sugar: sgr,
+      sodium: sdm,
+      fiber: fbr,
+      mealCategory: foodInputs.mealCategory,
+      date: getCompositeDate(foodInputs.date),
+    };
+    setFoods(prev => [optimisticFood, ...prev]);
+    setFoodInputs({ name: "", calories: "", protein: "", carbs: "", fat: "", sugar: "", sodium: "", fiber: "", mealCategory: "Breakfast", date: format(new Date(), 'yyyy-MM-dd') });
+    setAiConfidence(null);
+    setAiStage('idle');
+
     try {
       const res = await fetch(`${API_BASE}/foods`, {
         method: "POST",
@@ -669,15 +792,15 @@ export default function Home() {
           sugar: sgr,
           sodium: sdm,
           fiber: fbr,
-          mealCategory: foodInputs.mealCategory,
-          date: getCompositeDate(foodInputs.date)
+          mealCategory: optimisticFood.mealCategory,
+          date: optimisticFood.date,
         })
       });
 
       if (res.ok) {
         const newFood = await res.json();
-        setFoods([newFood, ...foods]); // Add to top matching our DB sort
-        setFoodInputs({ name: "", calories: "", protein: "", carbs: "", fat: "", sugar: "", sodium: "", fiber: "", mealCategory: "Breakfast", date: format(new Date(), 'yyyy-MM-dd') });
+        // Replace the optimistic entry with the real one from server
+        setFoods(prev => prev.map(f => f.id === tempId ? newFood : f));
         showToast(`Added ${name}!`, "success");
         setSuccessVariant("food");
         setBurstPos({ x: '50%', y: '85%' });
@@ -686,9 +809,15 @@ export default function Home() {
         setTimeout(() => setSuccessVariant(null), 1600);
         mutate(`${API_BASE}/dashboard/summary?lang=${language}`);
         refreshUser();
+      } else {
+        // Rollback on server error
+        setFoods(prev => prev.filter(f => f.id !== tempId));
+        showToast(language === 'en' ? 'Failed to save food' : 'บันทึกไม่สำเร็จ', "error");
       }
     } catch (err) {
       console.error(err);
+      setFoods(prev => prev.filter(f => f.id !== tempId));
+      showToast(language === 'en' ? 'Network error — food not saved' : 'เกิดข้อผิดพลาด — ไม่ได้บันทึก', "error");
     }
   };
 
@@ -840,6 +969,8 @@ export default function Home() {
     if (!file) return;
 
     setAiLoading(true);
+    setAiStage('compressing');
+    setAiConfidence(null);
     setError(null);
 
     const formData = new FormData();
@@ -856,6 +987,8 @@ export default function Home() {
       formData.append("image", file);
     }
 
+    setAiStage('analyzing');
+
     try {
       const res = await fetch(`${API_BASE}/analyze-image`, {
         method: "POST",
@@ -863,10 +996,9 @@ export default function Home() {
       });
 
       if (res.ok) {
-        const text = await res.text();
-        // The AI might return JSON inside backticks sometimes, let's clean it
-        const jsonStr = text.replace(/```json/g, "").replace(/```/g, "").trim();
-        const data = JSON.parse(jsonStr);
+        const data = await res.json();
+        setAiStage('done');
+        setAiConfidence(data.confidence ?? null);
         setFoodInputs({
           name: data.name || "",
           calories: String(data.calories || ""),
@@ -881,15 +1013,21 @@ export default function Home() {
         });
         setScanHint("");
       } else {
-        const errData = await res.json();
-        setError(errData.error || "Failed to analyze image");
+        const errData = await res.json().catch(() => ({}));
+        setAiStage('idle');
+        if (errData.code === 'LIMIT_REACHED') {
+          setError(language === 'en' ? 'Daily AI scan limit reached. Upgrade to Pro for unlimited scans.' : 'ใช้ AI สแกนครบโควต้าประจำวันแล้ว อัพเกรดเป็น Pro เพื่อสแกนไม่จำกัด');
+        } else {
+          setError(errData.error || (language === 'en' ? 'Failed to analyze image' : 'วิเคราะห์รูปภาพไม่สำเร็จ'));
+        }
       }
     } catch (err) {
       console.error(err);
-      setError("AI Service unavailable or invalid response");
+      setAiStage('idle');
+      setError(language === 'en' ? 'AI service unavailable. Please try again.' : 'AI ไม่พร้อมใช้งาน กรุณาลองใหม่');
     } finally {
       setAiLoading(false);
-      if (e.target) e.target.value = ""; // Reset input
+      if (e.target) e.target.value = "";
     }
   };
 
@@ -985,9 +1123,22 @@ export default function Home() {
         />
         {error && (
           <ErrorState
+            title={
+              error.includes('AI') || error.includes('analyze') || error.includes('วิเคราะห์')
+                ? (language === 'en' ? 'AI Analysis Failed' : 'วิเคราะห์ไม่สำเร็จ')
+                : error.includes('limit') || error.includes('โควต้า')
+                ? (language === 'en' ? 'Daily Limit Reached' : 'ถึงขีดจำกัดประจำวัน')
+                : (language === 'en' ? 'Something went wrong' : 'เกิดข้อผิดพลาด')
+            }
             message={error}
             onRetry={() => { setError(null); mutate(`${API_BASE}/dashboard/summary?lang=${language}`); }}
             retryLabel={t('retry')}
+            onSecondaryAction={
+              (error.includes('AI') || error.includes('analyze') || error.includes('วิเคราะห์'))
+                ? () => { setError(null); setLogModalTab('food'); setIsActionModalOpen(true); }
+                : undefined
+            }
+            secondaryLabel={language === 'en' ? 'Enter Manually' : 'กรอกเอง'}
           />
         )}
 
@@ -1293,7 +1444,7 @@ export default function Home() {
                   {loading ? (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                       {[1, 2, 3].map(i => (
-                        <div key={i} className="food-item skeleton" style={{ height: '72px', border: 'none' }}></div>
+                        <SkeletonFoodCard key={i} />
                       ))}
                     </div>
                   ) : (unifiedHistory.length === 0) ? (
@@ -1369,6 +1520,19 @@ export default function Home() {
                               </div>
                             </div>
                             <div style={{ display: 'flex', gap: '4px', marginLeft: '12px' }}>
+                              {item.type === 'food' && (
+                                <button
+                                  className="icon-btn"
+                                  title={language === 'en' ? 'Log again' : 'บันทึกซ้ำ'}
+                                  onClick={() => {
+                                    const foodItem = foods.find(f => f.id === item.id);
+                                    if (foodItem) handleReLogFood(foodItem);
+                                  }}
+                                  style={{ width: '32px', height: '32px' }}
+                                >
+                                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                                </button>
+                              )}
                               {canEdit && (
                                 <button className="icon-btn" onClick={() => {
                                   if (item.type === 'food') {
@@ -1501,40 +1665,65 @@ export default function Home() {
         <div className="modal-overlay" onClick={() => setIsActionModalOpen(false)}>
           <div className="glass-panel modal-content" onClick={e => e.stopPropagation()}>
 
-            <div className="modal-header" style={{ marginBottom: '8px', flexDirection: 'column', alignItems: 'flex-start', gap: '8px' }}>
+            <div className="modal-header" style={{ marginBottom: '4px', flexDirection: 'column', alignItems: 'flex-start', gap: '10px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center' }}>
                 <h3 style={{ fontSize: '18px', fontWeight: 800 }}>
-                  {logModalTab === 'food' ? t('addFood') : logModalTab === 'exercise' ? t('logActivityTitle') : t('logActivityTitle')}
+                  {logModalTab === 'food' ? t('addFood') : logModalTab === 'exercise' ? t('logActivityTitle') : logModalTab === 'sleep' ? t('logSleep') : t('logMeasurements')}
                 </h3>
                 <button onClick={() => setIsActionModalOpen(false)} className="icon-btn" style={{ borderRadius: '50%', width: '36px', height: '36px', background: 'rgba(255,255,255,0.05)' }}>&times;</button>
               </div>
 
-              {/* Tab Switcher */}
-              <div className="modal-tab-switcher" style={{ display: "flex", background: "rgba(0,0,0,0.4)", borderRadius: '12px', padding: "4px", border: '1px solid var(--panel-border)', width: '100%', gap: '4px' }}>
-                <button
-                  type="button"
-                  onClick={() => setLogModalTab('food')}
-                  className={`glass-btn ${logModalTab === 'food' ? 'active' : ''}`}
-                  style={{ flex: 1, border: 'none', borderRadius: '8px', minHeight: '36px', fontSize: '13px', fontWeight: 600, whiteSpace: 'nowrap' }}
-                >
-                  🍎 {t('addFood')}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setLogModalTab('exercise')}
-                  className={`glass-btn ${logModalTab === 'exercise' ? 'active' : ''}`}
-                  style={{ flex: 1, border: 'none', borderRadius: '8px', minHeight: '36px', fontSize: '13px', fontWeight: 600, whiteSpace: 'nowrap' }}
-                >
-                  🏃 {t('trainingTab')}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setLogModalTab('sleep')}
-                  className={`glass-btn ${logModalTab === 'sleep' ? 'active' : ''}`}
-                  style={{ flex: 1, border: 'none', borderRadius: '8px', minHeight: '36px', fontSize: '13px', fontWeight: 600, whiteSpace: 'nowrap' }}
-                >
-                  🌙 {t('recoveryTab')}
-                </button>
+              {/* Icon Tab Switcher */}
+              <div className="modal-tab-switcher" style={{ display: "flex", width: '100%', gap: '4px' }}>
+                {([
+                  { key: 'food' as const, icon: '🍎', label: t('addFood') },
+                  { key: 'exercise' as const, icon: '🏃', label: t('trainingTab') },
+                  { key: 'sleep' as const, icon: '🌙', label: t('recoveryTab') },
+                  { key: 'measurements' as const, icon: '📏', label: t('logMeasurements') },
+                ]).map(tab => (
+                  <button
+                    key={tab.key}
+                    type="button"
+                    onClick={() => setLogModalTab(tab.key)}
+                    style={{
+                      flex: 1,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      alignItems: 'center',
+                      gap: '2px',
+                      padding: '8px 0',
+                      borderRadius: '10px',
+                      border: 'none',
+                      background: logModalTab === tab.key ? 'rgba(255,255,255,0.08)' : 'transparent',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease',
+                      position: 'relative',
+                    }}
+                  >
+                    <span style={{ fontSize: '20px', lineHeight: 1 }}>{tab.icon}</span>
+                    <span style={{
+                      fontSize: '9px',
+                      fontWeight: logModalTab === tab.key ? 800 : 600,
+                      color: logModalTab === tab.key ? 'var(--text-primary)' : 'var(--text-secondary)',
+                      letterSpacing: '0.5px',
+                      textTransform: 'uppercase',
+                      whiteSpace: 'nowrap',
+                      opacity: logModalTab === tab.key ? 1 : 0.6,
+                      transition: 'opacity 0.2s ease',
+                    }}>{tab.label}</span>
+                    {logModalTab === tab.key && (
+                      <div style={{
+                        position: 'absolute',
+                        bottom: '2px',
+                        left: '25%',
+                        width: '50%',
+                        height: '2px',
+                        borderRadius: '1px',
+                        background: 'var(--accent-cal)',
+                      }} />
+                    )}
+                  </button>
+                ))}
               </div>
             </div>
 
@@ -1572,11 +1761,109 @@ export default function Home() {
                         style={{ width: '100%', margin: 0, height: '36px', fontSize: '12px', background: 'var(--accent-pro-gradient)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '10px', cursor: 'pointer' }}
                       >
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '6px' }}><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
-                        {aiLoading ? '...' : t('aiScanBtn')}
+                        {aiLoading
+                          ? aiStage === 'compressing' ? '⏳ ' + (language === 'en' ? 'Compressing...' : 'กำลังบีบอัด...')
+                          : '🔍 ' + (language === 'en' ? 'Analyzing...' : 'กำลังวิเคราะห์...')
+                          : t('aiScanBtn')}
                       </label>
                     </div>
                   </div>
                 </div>
+
+                {/* AI Progress Indicator */}
+                {aiLoading && (
+                  <div style={{ marginBottom: '8px', padding: '10px 14px', background: 'rgba(255,255,255,0.04)', borderRadius: '12px', border: '1px solid var(--panel-border)' }}>
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                      {(['compressing', 'analyzing', 'done'] as const).map((stage, i) => {
+                        const stageIdx = ['compressing', 'analyzing', 'done'].indexOf(aiStage);
+                        const isDone = i < stageIdx;
+                        const isActive = i === stageIdx;
+                        const labels = language === 'en'
+                          ? ['Compressing', 'Analyzing', 'Done']
+                          : ['บีบอัดรูป', 'วิเคราะห์', 'เสร็จแล้ว'];
+                        return (
+                          <div key={stage} style={{ display: 'flex', alignItems: 'center', gap: '4px', flex: 1 }}>
+                            <div style={{
+                              width: '100%', height: '4px', borderRadius: '4px',
+                              background: isDone ? 'var(--accent-cal)' : isActive ? 'var(--accent-pro)' : 'rgba(255,255,255,0.1)',
+                              transition: 'background 0.4s ease'
+                            }} />
+                            {i === 2 && <span style={{ fontSize: '10px', color: 'var(--text-secondary)', whiteSpace: 'nowrap', marginLeft: '4px' }}>{labels[i]}</span>}
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '6px' }}>
+                      {aiStage === 'compressing' ? (language === 'en' ? 'Compressing image for faster upload...' : 'กำลังบีบอัดรูปภาพ...') : (language === 'en' ? 'AI is analyzing nutritional content...' : 'AI กำลังวิเคราะห์คุณค่าทางโภชนาการ...')}
+                    </div>
+                  </div>
+                )}
+
+                {/* AI Confidence Badge */}
+                {!aiLoading && aiConfidence !== null && foodInputs.name && (
+                  <div style={{
+                    display: 'flex', alignItems: 'center', gap: '8px',
+                    padding: '8px 12px', borderRadius: '10px', marginBottom: '8px',
+                    background: aiConfidence >= 80 ? 'rgba(130,166,125,0.12)' : aiConfidence >= 50 ? 'rgba(251,191,36,0.10)' : 'rgba(249,115,22,0.10)',
+                    border: `1px solid ${aiConfidence >= 80 ? 'rgba(130,166,125,0.3)' : aiConfidence >= 50 ? 'rgba(251,191,36,0.3)' : 'rgba(249,115,22,0.3)'}`,
+                  }}>
+                    <div style={{ fontSize: '16px' }}>{aiConfidence >= 80 ? '✅' : aiConfidence >= 50 ? '⚠️' : '🔶'}</div>
+                    <div>
+                      <div style={{ fontSize: '12px', fontWeight: 700, color: aiConfidence >= 80 ? 'var(--accent-cal)' : aiConfidence >= 50 ? '#fbbf24' : '#f97316' }}>
+                        {aiConfidence >= 80
+                          ? (language === 'en' ? 'High confidence' : 'มั่นใจสูง')
+                          : aiConfidence >= 50
+                          ? (language === 'en' ? 'Review recommended' : 'แนะนำให้ตรวจสอบ')
+                          : (language === 'en' ? 'Low confidence — please verify' : 'ความมั่นใจต่ำ — กรุณาตรวจสอบ')}
+                      </div>
+                      <div style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>
+                        {language === 'en' ? `AI confidence: ${aiConfidence}%` : `ความมั่นใจ AI: ${aiConfidence}%`}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Barcode Preview Card */}
+                {barcodePreview && (
+                  <div style={{ marginBottom: '10px', padding: '14px', background: 'rgba(255,255,255,0.04)', borderRadius: '14px', border: '1px solid var(--panel-border)' }}>
+                    <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-start', marginBottom: '10px' }}>
+                      {barcodePreview.imageUrl && (
+                        <img src={barcodePreview.imageUrl} alt={barcodePreview.name} style={{ width: '48px', height: '48px', objectFit: 'contain', borderRadius: '8px', background: '#fff', padding: '2px', flexShrink: 0 }} />
+                      )}
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ fontSize: '13px', fontWeight: 700, lineHeight: 1.3, marginBottom: '2px' }}>{barcodePreview.name}</div>
+                        {barcodePreview.brand && <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>{barcodePreview.brand}</div>}
+                        <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '4px' }}>
+                          {barcodePreview.kcalPer100g} kcal / 100g &nbsp;|&nbsp; P:{barcodePreview.proteinPer100g}g &nbsp;C:{barcodePreview.carbsPer100g}g &nbsp;F:{barcodePreview.fatPer100g}g
+                        </div>
+                      </div>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
+                      <label style={{ fontSize: '12px', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
+                        {language === 'en' ? 'Serving (g):' : 'ปริมาณ (ก.):'}
+                      </label>
+                      <input
+                        type="number"
+                        min={1}
+                        max={2000}
+                        value={barcodeServing}
+                        onChange={e => setBarcodeServing(Math.max(1, parseInt(e.target.value) || 1))}
+                        style={{ flex: 1, height: '34px', borderRadius: '8px', border: '1px solid var(--panel-border)', background: 'rgba(0,0,0,0.3)', color: 'var(--text-primary)', padding: '0 8px', fontSize: '13px' }}
+                      />
+                      <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--accent-cal)', whiteSpace: 'nowrap' }}>
+                        = {Math.round(barcodePreview.kcalPer100g * barcodeServing / 100)} kcal
+                      </span>
+                    </div>
+                    <div style={{ display: 'flex', gap: '8px' }}>
+                      <button onClick={() => setBarcodePreview(null)} className="glass-btn" style={{ flex: 1, height: '36px', borderRadius: '10px', fontSize: '12px' }}>
+                        {language === 'en' ? 'Cancel' : 'ยกเลิก'}
+                      </button>
+                      <button onClick={confirmBarcodePreview} className="primary-btn active" style={{ flex: 2, height: '36px', borderRadius: '10px', fontSize: '12px', margin: 0 }}>
+                        {language === 'en' ? 'Confirm & Fill Form' : 'ยืนยัน & กรอกฟอร์ม'}
+                      </button>
+                    </div>
+                  </div>
+                )}
 
                 {isScanning && (
                   <div style={{ marginBottom: '8px', borderRadius: '12px', overflow: 'hidden', border: '1px solid var(--panel-border)', background: '#000', position: 'relative', height: '140px' }}>
@@ -1831,6 +2118,66 @@ export default function Home() {
                 </div>
                 <button onClick={(e) => { handleLogSleep(); setIsActionModalOpen(false); }} className="primary-btn active" style={{ height: '48px', borderRadius: '12px', marginTop: '4px', fontSize: '14px' }}>
                   {t('recordSleepBtn')}
+                </button>
+              </div>
+            )}
+
+            {logModalTab === 'measurements' && (
+              <div className="modal-form" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                <div className="input-row" style={{ display: 'flex', gap: '8px' }}>
+                  <div style={{ flex: 1, position: 'relative' }}>
+                    <input
+                      type="number"
+                      placeholder="0.0"
+                      value={measurementInput.weight}
+                      onChange={e => setMeasurementInput({ ...measurementInput, weight: e.target.value })}
+                      style={{ height: '44px', borderRadius: '12px', paddingRight: '36px', fontSize: '14px' }}
+                    />
+                    <span style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', fontSize: '10px', color: 'var(--accent-cal)', fontWeight: 800 }}>KG</span>
+                  </div>
+                  <div style={{ flex: 1, position: 'relative' }}>
+                    <input
+                      type="number"
+                      placeholder="0.0"
+                      value={measurementInput.waist}
+                      onChange={e => setMeasurementInput({ ...measurementInput, waist: e.target.value })}
+                      style={{ height: '44px', borderRadius: '12px', paddingRight: '36px', fontSize: '14px' }}
+                    />
+                    <span style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', fontSize: '10px', color: 'var(--accent-pro)', fontWeight: 800 }}>CM</span>
+                  </div>
+                </div>
+                <div style={{ position: 'relative' }}>
+                  <input
+                    type="number"
+                    placeholder="0.0"
+                    value={measurementInput.bodyFat}
+                    onChange={e => setMeasurementInput({ ...measurementInput, bodyFat: e.target.value })}
+                    style={{ height: '44px', borderRadius: '12px', width: '100%', paddingRight: '36px', fontSize: '14px' }}
+                  />
+                  <span style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', fontSize: '10px', color: 'var(--accent-fat)', fontWeight: 800 }}>%</span>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-secondary)', letterSpacing: '0.5px' }}>
+                    {language === 'en' ? 'Progress Photo (optional)' : 'รูปภาพ (ตัวเลือก)'}
+                  </label>
+                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                    <label
+                      htmlFor="measurement-photo-input"
+                      style={{ flex: 1, height: '44px', borderRadius: '12px', border: '1px dashed var(--panel-border)', background: 'rgba(0,0,0,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: '13px', color: 'var(--text-secondary)', gap: '6px' }}
+                    >
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+                      {uploadingPhoto ? (language === 'en' ? 'Uploading...' : 'กำลังอัปโหลด...') : photoUrl ? (language === 'en' ? 'Photo attached' : 'แนบรูปแล้ว') : (language === 'en' ? 'Upload photo' : 'อัปโหลดรูป')}
+                    </label>
+                    <input type="file" id="measurement-photo-input" accept="image/*" onChange={handlePhotoUpload} style={{ display: 'none' }} />
+                    {photoUrl && (
+                      <button onClick={() => setPhotoUrl('')} className="icon-btn" style={{ width: '44px', height: '44px', borderRadius: '12px', background: 'rgba(255,255,255,0.05)' }}>
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                      </button>
+                    )}
+                  </div>
+                </div>
+                <button onClick={() => { handleLogMeasurement(); setIsActionModalOpen(false); }} className="primary-btn active" style={{ height: '48px', borderRadius: '12px', marginTop: '4px', fontSize: '14px' }}>
+                  {t('saveMeasurements')}
                 </button>
               </div>
             )}
