@@ -109,6 +109,58 @@ export function SkeletonChart() {
     );
 }
 
+export function SkeletonFoodCard() {
+    return (
+        <div style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            padding: "12px 20px",
+            background: "rgba(20, 20, 20, 0.4)",
+            border: "1px solid var(--panel-border)",
+            borderRadius: "20px",
+            borderLeft: "4px solid rgba(255,255,255,0.08)",
+        }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "14px", flex: 1 }}>
+                <ShimmerBlock width="32px" height="32px" borderRadius="10px" />
+                <div style={{ flex: 1 }}>
+                    <ShimmerBlock width="55%" height="14px" style={{ marginBottom: "6px" }} />
+                    <ShimmerBlock width="75%" height="11px" />
+                </div>
+                <ShimmerBlock width="28px" height="10px" style={{ opacity: 0.4 }} />
+            </div>
+            <div style={{ display: "flex", gap: "4px", marginLeft: "12px" }}>
+                <ShimmerBlock width="32px" height="32px" borderRadius="8px" />
+                <ShimmerBlock width="32px" height="32px" borderRadius="8px" />
+            </div>
+        </div>
+    );
+}
+
+export function SkeletonChatMessage({ isUser = false }: { isUser?: boolean }) {
+    return (
+        <div style={{
+            display: "flex",
+            justifyContent: isUser ? "flex-end" : "flex-start",
+            padding: "4px 0",
+        }}>
+            <div style={{
+                maxWidth: "75%",
+                padding: "12px 16px",
+                borderRadius: isUser ? "18px 18px 4px 18px" : "18px 18px 18px 4px",
+                background: "rgba(255,255,255,0.04)",
+                border: "1px solid var(--panel-border)",
+                display: "flex",
+                flexDirection: "column",
+                gap: "6px",
+            }}>
+                <ShimmerBlock width={isUser ? "80px" : "160px"} height="12px" />
+                {!isUser && <ShimmerBlock width="120px" height="12px" />}
+            </div>
+        </div>
+    );
+}
+
 export function SkeletonPlayerCard() {
     return (
         <div className="glass-panel" style={{ padding: '40px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '24px' }}>

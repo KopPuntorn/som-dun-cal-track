@@ -3,6 +3,7 @@ package trends
 import (
 	"context"
 	"fmt"
+	"sync"
 	"time"
 
 	"backend/internal/db"
@@ -40,35 +41,43 @@ func CalculateUserTrends(userID primitive.ObjectID, days int) (string, error) {
 		"userId": userID,
 		"date":   bson.M{"$gte": startTime, "$lte": endTime},
 	}
-
-	// 1. Fetch Food Logs
-	var foods []models.Food
-	cursor, err := db.FoodsCollection.Find(ctx, filter)
-	if err == nil {
-		cursor.All(ctx, &foods)
-	}
-
-	// 2. Fetch Weight Records (Sort by date to get change)
-	var weights []models.WeightRecord
 	wOpts := options.Find().SetSort(bson.D{{Key: "date", Value: 1}})
-	wCursor, err := db.WeightCollection.Find(ctx, filter, wOpts)
-	if err == nil {
-		wCursor.All(ctx, &weights)
-	}
 
-	// 3. Fetch Exercises
-	var exercises []models.ExerciseRecord
-	eCursor, err := db.ExerciseCollection.Find(ctx, filter)
-	if err == nil {
-		eCursor.All(ctx, &exercises)
-	}
+	// Parallel DB fetches
+	var (
+		foods     []models.Food
+		weights   []models.WeightRecord
+		exercises []models.ExerciseRecord
+		sleeps    []models.SleepRecord
+		wg        sync.WaitGroup
+	)
 
-	// 4. Fetch Sleep
-	var sleeps []models.SleepRecord
-	sCursor, err := db.SleepCollection.Find(ctx, filter)
-	if err == nil {
-		sCursor.All(ctx, &sleeps)
-	}
+	wg.Add(4)
+	go func() {
+		defer wg.Done()
+		if cur, err := db.FoodsCollection.Find(ctx, filter); err == nil {
+			cur.All(ctx, &foods)
+		}
+	}()
+	go func() {
+		defer wg.Done()
+		if cur, err := db.WeightCollection.Find(ctx, filter, wOpts); err == nil {
+			cur.All(ctx, &weights)
+		}
+	}()
+	go func() {
+		defer wg.Done()
+		if cur, err := db.ExerciseCollection.Find(ctx, filter); err == nil {
+			cur.All(ctx, &exercises)
+		}
+	}()
+	go func() {
+		defer wg.Done()
+		if cur, err := db.SleepCollection.Find(ctx, filter); err == nil {
+			cur.All(ctx, &sleeps)
+		}
+	}()
+	wg.Wait()
 
 	// --- Dynamic Period Normalization ---
 	// If the user hasn't used the app for the full 'days', we should divide by the actual elapsed days

@@ -42,36 +42,41 @@ type CardData = {
   daysTracked: number;
 };
 
-const RARITY_THEMES: Record<string, { gradient: string; glow: string; label: string; emoji: string }> = {
+const RARITY_THEMES: Record<string, { gradient: string; glow: string; label: string; emoji: string; primary: string }> = {
   diamond: {
     gradient: "linear-gradient(135deg, #0ff5f5, #00b4d8, #7b2ff7)",
-    glow: "0 0 60px rgba(0, 255, 255, 0.4), 0 0 120px rgba(0, 255, 255, 0.1)",
+    glow: "0 0 28px rgba(0, 255, 255, 0.55), 0 0 60px rgba(0, 255, 255, 0.15)",
     label: "DIAMOND",
     emoji: "💎",
+    primary: "#0ff5f5",
   },
   gold: {
     gradient: "linear-gradient(135deg, #ffd700, #ff8c00, #ff6b00)",
-    glow: "0 0 60px rgba(255, 215, 0, 0.4), 0 0 120px rgba(255, 165, 0, 0.1)",
+    glow: "0 0 28px rgba(255, 215, 0, 0.55), 0 0 60px rgba(255, 165, 0, 0.15)",
     label: "GOLD",
-    emoji: "🟡",
+    emoji: "🥇",
+    primary: "#ffd700",
   },
   emerald: {
     gradient: "linear-gradient(135deg, #10b981, #059669, #34d399)",
-    glow: "0 0 60px rgba(16, 185, 129, 0.4), 0 0 120px rgba(16, 185, 129, 0.1)",
+    glow: "0 0 28px rgba(16, 185, 129, 0.55), 0 0 60px rgba(16, 185, 129, 0.15)",
     label: "EMERALD",
-    emoji: "🟢",
+    emoji: "💚",
+    primary: "#10b981",
   },
   silver: {
     gradient: "linear-gradient(135deg, #94a3b8, #64748b, #cbd5e1)",
-    glow: "0 0 60px rgba(148, 163, 184, 0.3), 0 0 120px rgba(148, 163, 184, 0.1)",
+    glow: "0 0 20px rgba(148, 163, 184, 0.4), 0 0 40px rgba(148, 163, 184, 0.1)",
     label: "SILVER",
-    emoji: "🔵",
+    emoji: "🔘",
+    primary: "#cbd5e1",
   },
   bronze: {
     gradient: "linear-gradient(135deg, #b45309, #92400e, #d97706)",
-    glow: "0 0 60px rgba(180, 83, 9, 0.3), 0 0 120px rgba(180, 83, 9, 0.1)",
+    glow: "0 0 20px rgba(180, 83, 9, 0.4), 0 0 40px rgba(180, 83, 9, 0.1)",
     label: "BRONZE",
-    emoji: "⚪",
+    emoji: "🔶",
+    primary: "#d97706",
   },
 };
 
@@ -300,49 +305,30 @@ export default function PlayerCardPage() {
         ) : card ? (
           <div className="player-card-container">
             {/* ═══ THE CARD ═══ */}
-            <TiltCard maxTilt={12} intensity={300} glareOpacity={0.25}>
+            <TiltCard maxTilt={10} intensity={280} glareOpacity={0.2}>
               <div ref={cardRef} className="player-card-wrapper">
-                <div
-                  className="player-card-main depth-card-3d"
-                  style={{
-                    border: `2px solid`,
-                    borderImageSlice: 1,
-                    borderImageSource: theme.gradient,
-                    boxShadow: theme.glow,
-                  }}
-                >
-                  {/* Rarity shimmer overlay */}
+
+                {/* Animated spinning border */}
+                <div className={`card-spin-border card-spin-border--${card.rarity}`} />
+
+                {/* Card face */}
+                <div className="player-card-main">
+                  {/* Texture overlays */}
+                  <div className="card-scanlines" />
+                  <div className="card-grid-dots" />
                   <div className="player-card-shimmer" />
-                  {card.rarity === 'diamond' && <div className="diamond-shimmer" />}
+                  {card.rarity === "diamond" && <div className="diamond-shimmer" />}
 
-                  {/* Top Section: OVR + Name + Position */}
-                  <div className="player-card-header preserve-3d depth-60">
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start" }}>
-                      {/* OVR Badge */}
-                      <div className="player-ovr">
-                        <div
-                          className="player-ovr-value"
-                          style={{
-                            backgroundImage: theme.gradient,
-                            WebkitBackgroundClip: "text",
-                            WebkitTextFillColor: "transparent",
-                          }}
-                        >
-                          {card.ovr}
-                        </div>
-                        <div className="player-ovr-label">OVR</div>
-                      </div>
+                  {/* Corner brackets */}
+                  <div className="card-corner card-corner--tl" style={{ borderColor: theme.primary }} />
+                  <div className="card-corner card-corner--tr" style={{ borderColor: theme.primary }} />
+                  <div className="card-corner card-corner--bl" style={{ borderColor: theme.primary }} />
+                  <div className="card-corner card-corner--br" style={{ borderColor: theme.primary }} />
 
-                      {/* Position Badge */}
-                      <div className="player-position">{card.position}</div>
-                    </div>
-
-                    {/* Player Name */}
-                    <div className="player-name">{card.name}</div>
-
-                    {/* Rarity Label */}
-                    <div
-                      className="player-rarity"
+                  {/* Rarity Banner */}
+                  <div className="card-rarity-banner">
+                    <span
+                      className="card-rarity-tag"
                       style={{
                         backgroundImage: theme.gradient,
                         WebkitBackgroundClip: "text",
@@ -350,12 +336,64 @@ export default function PlayerCardPage() {
                       }}
                     >
                       {theme.emoji} {t(`rarity${card.rarity.charAt(0).toUpperCase() + card.rarity.slice(1)}` as TranslationKeys)}
+                    </span>
+                    <span className="card-position-tag">{card.position}</span>
+                  </div>
+
+                  {/* Hero Row: OVR | Avatar | Days */}
+                  <div className="card-hero-row">
+                    {/* OVR */}
+                    <div className="card-ovr-block">
+                      <div
+                        className="card-ovr-num"
+                        style={{
+                          backgroundImage: theme.gradient,
+                          WebkitBackgroundClip: "text",
+                          WebkitTextFillColor: "transparent",
+                          filter: `drop-shadow(0 0 12px ${theme.primary}80)`,
+                        }}
+                      >
+                        {card.ovr}
+                      </div>
+                      <div className="card-ovr-label">OVR</div>
+                    </div>
+
+                    {/* Avatar */}
+                    <div className="card-avatar-wrap">
+                      <div
+                        className="card-avatar"
+                        style={{ boxShadow: theme.glow }}
+                      >
+                        {card.name.charAt(0).toUpperCase()}
+                      </div>
+                      <div className="card-player-name">{card.name}</div>
+                    </div>
+
+                    {/* Days Tracked */}
+                    <div className="card-days-block">
+                      <div className="card-days-num">{card.daysTracked}</div>
+                      <div className="card-days-label">{language === "en" ? "DAYS" : "วัน"}</div>
                     </div>
                   </div>
 
                   {/* Radar Chart */}
-                  <div className="player-radar preserve-3d depth-40">
-                    <svg width="200" height="200" viewBox="0 0 220 220">
+                  <div className="player-radar">
+                    <svg width="180" height="180" viewBox="0 0 220 220">
+                      <defs>
+                        <linearGradient id="radarGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                          <stop offset="0%" stopColor={theme.primary} stopOpacity="0.3" />
+                          <stop offset="100%" stopColor={theme.primary} stopOpacity="0.06" />
+                        </linearGradient>
+                        <linearGradient id="radarStroke" x1="0%" y1="0%" x2="100%" y2="100%">
+                          <stop offset="0%" stopColor={theme.primary} stopOpacity="0.9" />
+                          <stop offset="100%" stopColor={theme.primary} stopOpacity="0.4" />
+                        </linearGradient>
+                        <filter id="radarGlow">
+                          <feGaussianBlur stdDeviation="2" result="blur" />
+                          <feMerge><feMergeNode in="blur" /><feMergeNode in="SourceGraphic" /></feMerge>
+                        </filter>
+                      </defs>
+
                       {/* Grid rings */}
                       {[0.33, 0.66, 1].map((scale, i) => (
                         <polygon
@@ -365,8 +403,8 @@ export default function PlayerCardPage() {
                             110, 110, 70
                           )}
                           fill="none"
-                          stroke="rgba(255,255,255,0.06)"
-                          strokeWidth="1"
+                          stroke={i === 2 ? `${theme.primary}18` : "rgba(255,255,255,0.04)"}
+                          strokeWidth={i === 2 ? "1.5" : "1"}
                         />
                       ))}
 
@@ -374,8 +412,7 @@ export default function PlayerCardPage() {
                       {radarLabelPositions(110, 110, 70).map(({ x, y }, i) => (
                         <line
                           key={i}
-                          x1="110"
-                          y1="110"
+                          x1="110" y1="110"
                           x2={110 + (x - 110) * (70 / (70 + 22))}
                           y2={110 + (y - 110) * (70 / (70 + 22))}
                           stroke="rgba(255,255,255,0.05)"
@@ -389,33 +426,20 @@ export default function PlayerCardPage() {
                         fill="url(#radarGrad)"
                         stroke="url(#radarStroke)"
                         strokeWidth="2"
-                        opacity="0.85"
+                        filter="url(#radarGlow)"
                       />
-
-                      {/* Gradient defs */}
-                      <defs>
-                        <linearGradient id="radarGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-                          <stop offset="0%" stopColor={card.rarity === "diamond" ? "#0ff5f5" : card.rarity === "gold" ? "#ffd700" : "#10b981"} stopOpacity="0.25" />
-                          <stop offset="100%" stopColor={card.rarity === "diamond" ? "#7b2ff7" : card.rarity === "gold" ? "#ff6b00" : "#059669"} stopOpacity="0.1" />
-                        </linearGradient>
-                        <linearGradient id="radarStroke" x1="0%" y1="0%" x2="100%" y2="100%">
-                          <stop offset="0%" stopColor={card.rarity === "diamond" ? "#0ff5f5" : card.rarity === "gold" ? "#ffd700" : "#10b981"} />
-                          <stop offset="100%" stopColor={card.rarity === "diamond" ? "#7b2ff7" : card.rarity === "gold" ? "#ff6b00" : "#059669"} />
-                        </linearGradient>
-                      </defs>
 
                       {/* Labels */}
                       {radarLabelPositions(110, 110, 70).map(({ key, x, y }) => (
                         <text
                           key={key}
-                          x={x}
-                          y={y}
+                          x={x} y={y}
                           textAnchor="middle"
                           dominantBaseline="middle"
-                          fill="var(--text-secondary)"
-                          fontSize="10"
-                          fontWeight="700"
-                          letterSpacing="1"
+                          fill={`${theme.primary}80`}
+                          fontSize="9"
+                          fontWeight="800"
+                          letterSpacing="1.5"
                         >
                           {STAT_LABELS[key]}
                         </text>
@@ -432,73 +456,71 @@ export default function PlayerCardPage() {
                           const x = 110 + Math.cos(angle) * 70 * val;
                           const y = 110 + Math.sin(angle) * 70 * val;
                           return (
-                            <circle key={key} cx={x} cy={y} r="3" fill="white" opacity="0.9" />
+                            <circle key={key} cx={x} cy={y} r="3" fill={theme.primary} opacity="0.9"
+                              style={{ filter: `drop-shadow(0 0 4px ${theme.primary})` }} />
                           );
                         });
                       })()}
                     </svg>
                   </div>
 
-                  {/* Stats Grid */}
-                  <div className="player-stats-grid preserve-3d depth-20">
-                    {(Object.keys(STAT_LABELS) as Array<keyof typeof STAT_LABELS>).map((key) => {
-                      const val = card.stats[key as keyof CardData["stats"]];
+                  {/* Horizontal Stat Bars */}
+                  <div className="card-stat-bars">
+                    {(Object.keys(STAT_LABELS) as Array<keyof CardData["stats"]>).map((key) => {
+                      const val = card.stats[key];
                       return (
-                        <div key={key} className="player-stat-item">
-                          <span
-                            className="player-stat-value"
-                            style={{
-                              backgroundImage: theme.gradient,
-                              WebkitBackgroundClip: "text",
-                              WebkitTextFillColor: "transparent",
-                            }}
-                          >
-                            {val}
-                          </span>
-                          <div>
-                            <div className="player-stat-label">{STAT_LABELS[key]}</div>
-                            <div className="player-stat-full-label">{t(key as TranslationKeys)}</div>
+                        <div key={key} className="card-stat-bar-row">
+                          <span className="card-bar-label">{STAT_LABELS[key]}</span>
+                          <div className="card-bar-track">
+                            <div
+                              className="card-bar-fill"
+                              style={{
+                                width: `${(val / 99) * 100}%`,
+                                background: theme.gradient,
+                                boxShadow: `0 0 8px ${theme.primary}60`,
+                              }}
+                            />
                           </div>
+                          <span className="card-bar-value">{val}</span>
                         </div>
                       );
                     })}
                   </div>
 
                   {/* Footer */}
-                  <div className="player-card-footer">
-                    <span className="player-card-month">{monthLabel.toUpperCase()}</span>
+                  <div className="card-footer-bar">
+                    <span className="card-footer-brand">SOMDUN</span>
+                    <span className="card-footer-month">{monthLabel.toUpperCase()}</span>
                   </div>
                 </div>
               </div>
             </TiltCard>
 
-            {/* Breakdown Stats */}
+            {/* Breakdown Panel */}
             <div className="glass-panel breakdown-section">
               <div className="breakdown-title">{t("breakdown")}</div>
-              <div style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
-                {(Object.keys(STAT_LABELS) as Array<keyof typeof STAT_LABELS>).map((key) => {
-                  const val = card.stats[key as keyof CardData["stats"]];
-                  return (
-                    <div key={key} className="breakdown-item">
-                      <div className="breakdown-header">
-                        <span className="breakdown-label">{STAT_LABELS[key]}</span>
-                        <div className="breakdown-bar-bg">
-                          <div
-                            className="breakdown-bar"
-                            style={{
-                              width: `${(val / 99) * 100}%`,
-                              background: theme.gradient,
-                              boxShadow: `0 0 10px ${card.rarity === 'diamond' ? 'rgba(0, 255, 255, 0.3)' : 'rgba(255, 107, 0, 0.3)'}`,
-                            }}
-                          />
-                        </div>
-                        <span className="breakdown-value">{val}</span>
+              {(Object.keys(STAT_LABELS) as Array<keyof CardData["stats"]>).map((key) => {
+                const val = card.stats[key];
+                return (
+                  <div key={key} className="breakdown-item">
+                    <div className="breakdown-header">
+                      <span className="breakdown-label">{STAT_LABELS[key]}</span>
+                      <div className="breakdown-bar-bg">
+                        <div
+                          className="breakdown-bar"
+                          style={{
+                            width: `${(val / 99) * 100}%`,
+                            background: theme.gradient,
+                            boxShadow: `0 0 8px ${theme.primary}50`,
+                          }}
+                        />
                       </div>
-                      <div className="breakdown-desc">{t(`${key}Desc` as TranslationKeys)}</div>
+                      <span className="breakdown-value">{val}</span>
                     </div>
-                  );
-                })}
-              </div>
+                    <div className="breakdown-desc">{t(`${key}Desc` as TranslationKeys)}</div>
+                  </div>
+                );
+              })}
             </div>
 
             <div style={{ height: "80px" }} />
