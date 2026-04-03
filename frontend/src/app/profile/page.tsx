@@ -184,10 +184,10 @@ export default function ProfilePage() {
                 backLabel={t('back')}
                 actions={
                     <>
-                        <Link href="/player-card" className="icon-btn" title="Player Card" aria-label="Player Card">
+                        <Link href="/player-card" className="icon-btn mobile-hidden" title="Player Card" aria-label="Player Card">
                             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>
                         </Link>
-                        <button onClick={handleLogout} className="icon-btn" title={t('logout')} style={{ color: "var(--danger)" }} aria-label={t('logout')}>
+                        <button onClick={handleLogout} className="icon-btn mobile-hidden" title={t('logout')} style={{ color: "var(--danger)" }} aria-label={t('logout')}>
                             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>
                         </button>
                     </>

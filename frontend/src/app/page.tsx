@@ -2,8 +2,6 @@
 
 import { useState, useEffect, useRef } from "react";
 import useSWR, { mutate } from "swr";
-import Link from "next/link";
-import Image from "next/image";
 import { startOfDay, endOfDay, format, subDays } from 'date-fns';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
@@ -18,10 +16,15 @@ import SuccessAnimation from "@/components/SuccessAnimation";
 import CalendarPicker from "@/components/CalendarPicker";
 import LoadingSkeleton, { SkeletonFoodCard } from "@/components/LoadingSkeleton";
 import EmptyState from "@/components/EmptyState";
-import TiltCard from "@/components/TiltCard";
 import ParticleBurst from "@/components/ParticleBurst";
 import TourOverlay from "@/components/TourOverlay";
-import StreakBadge from "@/components/StreakBadge";
+import HydrationCard from "@/components/home/HydrationCard";
+import QuickActionsRow from "@/components/home/QuickActionsRow";
+import QuickAddSection from "@/components/home/QuickAddSection";
+import TodayFeedSection from "@/components/home/TodayFeedSection";
+import HomeHeader from "@/components/home/HomeHeader";
+import PerformanceRingsCard from "@/components/home/PerformanceRingsCard";
+import GoalsDashboard from "@/components/home/GoalsDashboard";
 import { haptic } from "@/lib/haptics";
 import { motion } from "framer-motion";
 
@@ -116,7 +119,7 @@ const fetcher = (url: string) => fetch(url, {
 });
 
 export default function Home() {
-  const { user, logout, refreshUser, isLoading: authLoading } = useAuth();
+  const { user, refreshUser, isLoading: authLoading } = useAuth();
   const { showToast, showUndoToast } = useToast();
   const { language, setLanguage, t } = useLanguage();
   const [foods, setFoods] = useState<Food[]>([]);
@@ -287,7 +290,11 @@ export default function Home() {
     paused: !isScanning,
   });
 
-  const currentDate = new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
+  const currentDate = new Date().toLocaleDateString(language === 'en' ? 'en-US' : 'th-TH', {
+    weekday: 'long',
+    month: 'short',
+    day: 'numeric'
+  });
 
   // Sync SWR data to state for UI consistency (or use data directly in render)
   useEffect(() => {
@@ -1071,14 +1078,17 @@ export default function Home() {
   const calPercent = Math.min(100, Math.max(0, (calTotal / adjustedCalGoal) * 100));
   const calOffset = circumference - (calPercent / 100) * circumference;
   const isOverCal = calTotal > adjustedCalGoal;
+  const exercisePercent = Math.min(100, Math.max(0, (exerciseToday / 30) * 100));
+  const sleepPercent = Math.min(100, Math.max(0, (sleepToday / 8) * 100));
 
   // Bar Calculations
   const proPercent = Math.min(100, Math.max(0, (proTotal / goals.protein) * 100));
   const carbPercent = Math.min(100, Math.max(0, (carbTotal / goals.carbs) * 100));
   const fatPercent = Math.min(100, Math.max(0, (fatTotal / goals.fat) * 100));
+  const hydrationGoal = 8;
+  const waterPercent = Math.min(100, Math.max(0, (waterGlasses / hydrationGoal) * 100));
+  const waterRemaining = Math.max(0, hydrationGoal - waterGlasses);
 
-  const isGoalPro = proTotal >= goals.protein;
-  const isGoalCarb = carbTotal >= goals.carbs;
   const isGoalFat = fatTotal >= goals.fat;
 
   // Gamification Logic (Synced with Backend)
@@ -1143,301 +1153,114 @@ export default function Home() {
         )}
 
 
-        <header className="glass-panel main-header" style={{ borderRadius: '28px', padding: '20px 28px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-            <div style={{ position: 'relative', width: '44px', height: '44px', borderRadius: '12px', overflow: 'hidden', background: '#fff', boxShadow: '0 4px 20px rgba(255,255,255,0.1)' }}>
-              <Image
-                src="/logo.png"
-                alt="SomDun Logo"
-                fill
-                style={{ objectFit: 'contain', padding: '4px' }}
-              />
-            </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                <h1 style={{ fontSize: '28px', margin: 0 }}>SomDun</h1>
-                <span className="level-badge">LVL {level}</span>
-                {(user?.streakDays || 0) > 0 && (
-                  <StreakBadge days={user?.streakDays || 0} size="sm" label="Streak" />
-                )}
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <div className="xp-bar-container" style={{ width: '120px' }}>
-                  <div className="xp-bar-fill" style={{ width: `${xpProgress}%` }}></div>
-                </div>
-                <span style={{ fontSize: '10px', fontWeight: 800, color: 'var(--text-secondary)', opacity: 0.8 }}>{currentLevelXP} / 1000 XP</span>
-              </div>
-            </div>
-          </div>
-          <div className="header-actions" style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-            <Link
-              href="/ai-chat"
-              className="icon-btn active"
-              style={{
-                background: 'var(--accent-cal-gradient)',
-                border: 'none',
-                width: '40px',
-                height: '40px',
-                borderRadius: '12px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                boxShadow: '0 0 15px rgba(244, 63, 94, 0.3)'
-              }}
-              title="Ask AI"
-            >
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path><path d="M9 10l2 2 4-4"></path></svg>
-            </Link>
-            <button
-              id="add-action-btn"
-              onClick={() => { haptic("medium"); setLogModalTab('food'); setIsActionModalOpen(true); }}
-              className="icon-btn active mobile-hidden"
-              style={{ background: 'rgba(255,255,255,0.05)', border: 'none', width: '40px', height: '40px', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-              title={t('quickAdd')}
-            >
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-            </button>
-            <button
-              onClick={() => setLanguage(language === 'en' ? 'th' : 'en')}
-              className="icon-btn"
-              style={{ fontSize: '14px', fontWeight: '800' }}
-              title={language === 'en' ? 'เปลี่ยนเป็นภาษาไทย' : 'Switch to English'}
-            >
-              {language === 'en' ? 'TH' : 'EN'}
-            </button>
-            <Link id="player-card-section" href="/player-card" className="icon-btn" title="Player Card">
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>
-            </Link>
-            <Link id="analytics-section" href="/dashboard" className="icon-btn" title={t('analyticsTitle')}>
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
-            </Link>
-            <Link href="/profile" className="icon-btn mobile-hidden" title={t('profileSettings')}>
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
-            </Link>
-          </div>
-        </header>
+        <HomeHeader
+          currentDate={currentDate}
+          level={level}
+          streakDays={user?.streakDays || 0}
+          currentLevelXP={currentLevelXP}
+          xpProgress={xpProgress}
+          languageLabel={language === 'en' ? 'TH' : 'EN'}
+          languageToggleTitle={language === 'en' ? 'เปลี่ยนเป็นภาษาไทย' : 'Switch to English'}
+          quickAddTitle={t('quickAdd')}
+          aiAssistantTitle={t('navAiAssistant')}
+          analyticsTitle={t('analyticsTitle')}
+          playerCardTitle={t('playerCard')}
+          profileSettingsTitle={t('profileSettings')}
+          onToggleLanguage={() => setLanguage(language === 'en' ? 'th' : 'en')}
+          onQuickAdd={() => {
+            haptic("medium");
+            setLogModalTab('food');
+            setIsActionModalOpen(true);
+          }}
+        />
 
-        <div className="responsive-layout">
+        <div className="responsive-layout home-layout">
           <motion.div
-            className="layout-column"
+            className="layout-column home-overview"
             initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
           >
+            <PerformanceRingsCard
+              title={t('performanceRings')}
+              subtitle={currentDate}
+              metrics={[
+                {
+                  label: t('nut'),
+                  percent: Math.round(calPercent),
+                  value: `${calTotal}/${adjustedCalGoal} kcal`,
+                  tone: 'nutrition',
+                },
+                {
+                  label: t('hyd'),
+                  percent: Math.round(waterPercent),
+                  value: `${waterGlasses}/${hydrationGoal} ${t('glasses')}`,
+                  tone: 'hydration',
+                },
+                {
+                  label: t('fit'),
+                  percent: Math.round(exercisePercent),
+                  value: `${exerciseToday}/30 ${t('unitMin')}`,
+                  tone: 'fitness',
+                },
+                {
+                  label: t('rec'),
+                  percent: Math.round(sleepPercent),
+                  value: `${Math.round(sleepToday * 10) / 10}/8 ${t('unitHr')}`,
+                  tone: 'recovery',
+                },
+              ]}
+            />
 
-
-            {/* Performance Rings */}
-            <div className="glass-panel depth-card-3d" style={{ padding: '24px', borderRadius: '28px', display: 'flex', flexWrap: 'wrap', gap: '32px', alignItems: 'center', justifyContent: 'center' }}>
-              <div style={{ position: 'relative', width: '140px', height: '140px' }}>
-                {/* Concentric Rings - SVG */}
-                <svg width="140" height="140" viewBox="0 0 140 140">
-                  {/* Backgrounds */}
-                  <circle cx="70" cy="70" r="62" fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="12" />
-                  <circle cx="70" cy="70" r="48" fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="12" />
-                  <circle cx="70" cy="70" r="34" fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="12" />
-                  <circle cx="70" cy="70" r="20" fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth="12" />
-
-                  {/* Progress Rings */}
-                  {/* Nutrition (Outer) */}
-                  <circle className="grow-cal" cx="70" cy="70" r="62" fill="none" stroke="var(--accent-cal)" strokeWidth="12" strokeLinecap="round"
-                    strokeDasharray={`${Math.min(100, (foods.reduce((sum, f) => sum + f.calories, 0) / goals.calories) * 100) * 3.89} 389`}
-                    transform="rotate(-90 70 70)"
-                    style={{ transition: 'stroke-dasharray 1s ease-out', filter: 'drop-shadow(0 0 5px var(--accent-cal))' }}
-                  />
-                  {/* Hydration */}
-                  <circle className="glow-pro" cx="70" cy="70" r="48" fill="none" stroke="#38bdf8" strokeWidth="12" strokeLinecap="round"
-                    strokeDasharray={`${Math.min(100, (waterGlasses / 8) * 100) * 3.01} 301`}
-                    transform="rotate(-90 70 70)"
-                    style={{ transition: 'stroke-dasharray 1s ease-out', transitionDelay: '0.2s', filter: 'drop-shadow(0 0 5px #38bdf8)' }}
-                  />
-                  {/* Fitness */}
-                  <circle className="glow-pro" cx="70" cy="70" r="34" fill="none" stroke="var(--accent-pro)" strokeWidth="12" strokeLinecap="round"
-                    strokeDasharray={`${Math.min(100, (exerciseToday / 30) * 100) * 2.13} 213`}
-                    transform="rotate(-90 70 70)"
-                    style={{ transition: 'stroke-dasharray 1s ease-out', transitionDelay: '0.4s', filter: 'drop-shadow(0 0 5px var(--accent-pro))' }}
-                  />
-                  {/* Recovery (Inner) */}
-                  <circle className="glow-fat" cx="70" cy="70" r="20" fill="none" stroke="var(--accent-fat)" strokeWidth="12" strokeLinecap="round"
-                    strokeDasharray={`${Math.min(100, (sleepToday / 8) * 100) * 1.25} 125`}
-                    transform="rotate(-90 70 70)"
-                    style={{ transition: 'stroke-dasharray 1s ease-out', transitionDelay: '0.6s', filter: 'drop-shadow(0 0 5px var(--accent-fat))' }}
-                  />
-                </svg>
-                <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  <div style={{ background: 'rgba(255,255,255,0.05)', padding: '6px', borderRadius: '50%' }}>
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-secondary)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"></path></svg>
-                  </div>
-                </div>
-              </div>
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'var(--accent-cal)' }}></div>
-                  <span style={{ fontSize: '13px', fontWeight: 600 }}>{t('nut')}</span>
-                  <span style={{ fontSize: '11px', color: 'var(--text-secondary)', marginLeft: 'auto' }}>
-                    {Math.round((calTotal / adjustedCalGoal) * 100)}%
-                  </span>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: '#38bdf8' }}></div>
-                  <span style={{ fontSize: '13px', fontWeight: 600 }}>{t('hyd')}</span>
-                  <span style={{ fontSize: '11px', color: 'var(--text-secondary)', marginLeft: 'auto' }}>{Math.round((waterGlasses / 8) * 100)}%</span>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'var(--accent-pro)' }}></div>
-                  <span style={{ fontSize: '13px', fontWeight: 600 }}>{t('fit')}</span>
-                  <span style={{ fontSize: '11px', color: 'var(--text-secondary)', marginLeft: 'auto' }}>{Math.round((exerciseToday / 30) * 100)}%</span>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'var(--accent-fat)' }}></div>
-                  <span style={{ fontSize: '13px', fontWeight: 600 }}>{t('rec')}</span>
-                  <span style={{ fontSize: '11px', color: 'var(--text-secondary)', marginLeft: 'auto' }}>{Math.round((sleepToday / 8) * 100)}%</span>
-                </div>
-              </div>
-            </div>
-
-            {/* Goals Dashboard */}
-            <section className="dashboard">
-              {/* Calories Card */}
-              <div id="analytics-section" className="glass-panel cal-card depth-card-3d" style={{ padding: '32px' }}>
-                <h2 style={{ fontSize: '18px', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '2px', marginBottom: '16px' }}>Calories</h2>
-                <div className="ring-container">
-                  <svg className="progress-ring" viewBox="0 0 160 160" style={{ width: '100%', height: '100%' }}>
-                    <circle className="ring-bg" strokeWidth="12" fill="transparent" r={radius} cx="80" cy="80" />
-                    <circle
-                      className="ring-progress"
-                      strokeWidth="12"
-                      fill="transparent"
-                      r={radius}
-                      cx="80"
-                      cy="80"
-                      style={{
-                        strokeDasharray: `${circumference} ${circumference}`,
-                        strokeDashoffset: loading ? circumference : calOffset,
-                        stroke: isOverCal ? 'var(--danger)' : 'url(#cal-gradient)'
-                      }}
-                    />
-                  </svg>
-                  <div className="ring-content">
-                    <span className="consumed" style={isOverCal ? {
-                      color: 'var(--danger)',
-                      background: 'none',
-                      WebkitTextFillColor: 'var(--danger)'
-                    } : {
-                      background: 'var(--accent-cal-gradient)',
-                      WebkitBackgroundClip: 'text',
-                      WebkitTextFillColor: 'transparent'
-                    }}>
-                      {calTotal}
-                    </span>
-                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '2px' }}>
-                      <span className="label" style={{ opacity: 0.6 }}>/ {adjustedCalGoal} kcal</span>
-                      {burnedToday > 0 && (
-                        <span style={{ fontSize: '10px', color: 'var(--accent-pro)', fontWeight: 800, display: 'flex', alignItems: 'center', gap: '2px' }}>
-                          🔥 +{burnedToday}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </div>
-                <div className="cal-stats" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', marginTop: '24px' }}>
-                  <div className="stat" style={{ textAlign: 'center' }}>
-                    <span className="stat-value" style={{ fontSize: '16px', fontWeight: 800 }}>{goals.calories}</span>
-                    <span className="stat-label" style={{ fontWeight: 700, fontSize: '10px', opacity: 0.6, textTransform: 'uppercase' }}>
-                      {t('target')}
-                    </span>
-                  </div>
-                  <div className="stat" style={{ textAlign: 'center', borderLeft: '1px solid rgba(255,255,255,0.1)', borderRight: '1px solid rgba(255,255,255,0.1)' }}>
-                    <span className="stat-value" style={{ fontSize: '16px', fontWeight: 800, color: 'var(--accent-pro)' }}>+{burnedToday}</span>
-                    <span className="stat-label" style={{ fontWeight: 700, fontSize: '10px', opacity: 0.6, textTransform: 'uppercase' }}>
-                      {t('activeBonus')}
-                    </span>
-                  </div>
-                  <div className="stat" style={{ textAlign: 'center' }}>
-                    <span className="stat-value" style={isOverCal ? { color: 'var(--danger)', fontSize: '16px', fontWeight: 800 } : { fontSize: '16px', fontWeight: 800 }}>
-                      {calRemaining}
-                    </span>
-                    <span className="stat-label" style={{ fontWeight: 700, fontSize: '10px', opacity: 0.6, textTransform: 'uppercase' }}>
-                      {isOverCal ? t('over') : t('remaining')}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              {/* Macros Progress */}
-              <div className="glass-panel depth-card-3d" style={{ display: 'flex', flexDirection: 'column', gap: '24px', padding: '32px' }}>
-                {/* Protein Bar */}
-                <div className="pro-card" style={{ background: 'none', border: 'none', padding: 0 }}>
-                  <div className="pro-header">
-                    <h2 style={{ fontSize: '14px', textTransform: 'uppercase', letterSpacing: '1px' }}>{t('protein')}</h2>
-                    <div className="pro-values">
-                      <span className="consumed">{proTotal}</span>
-                      <span className="label" style={{ opacity: 0.5 }}>/ {goals.protein}g</span>
-                    </div>
-                  </div>
-                  <div className="progress-bar-bg" style={{ height: '10px' }}>
-                    <div
-                      className="progress-bar-fill"
-                      style={{
-                        width: `${proPercent}%`,
-                        background: isGoalPro ? 'var(--success)' : 'var(--accent-pro-gradient)',
-                        boxShadow: isGoalPro ? '0 0 12px rgba(16, 185, 129, 0.3)' : '0 0 12px rgba(14, 165, 233, 0.3)'
-                      }}
-                    ></div>
-                  </div>
-                  <p className="pro-remaining" style={{ fontSize: '12px', opacity: 0.7 }}><span>{proRemaining}</span>g left</p>
-                </div>
-
-                {/* Carb Bar */}
-                <div className="pro-card" style={{ background: 'none', border: 'none', padding: 0 }}>
-                  <div className="pro-header">
-                    <h2 style={{ fontSize: '14px', textTransform: 'uppercase', letterSpacing: '1px' }}>{t('carbs')}</h2>
-                    <div className="pro-values">
-                      <span className="consumed" style={{ background: 'var(--accent-carb-gradient)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>{carbTotal}</span>
-                      <span className="label" style={{ opacity: 0.5 }}>/ {goals.carbs}g</span>
-                    </div>
-                  </div>
-                  <div className="progress-bar-bg" style={{ height: '10px' }}>
-                    <div
-                      className="progress-bar-fill"
-                      style={{
-                        width: `${carbPercent}%`,
-                        background: isGoalCarb ? 'var(--success)' : 'var(--accent-carb-gradient)',
-                        boxShadow: isGoalCarb ? '0 0 12px rgba(16, 185, 129, 0.3)' : '0 0 12px rgba(196, 180, 148, 0.3)'
-                      }}
-                    ></div>
-                  </div>
-                  <p className="pro-remaining" style={{ fontSize: '12px', opacity: 0.7 }}><span>{carbRemaining}</span>g left</p>
-                </div>
-
-
-
-                {/* Fat Bar */}
-                <div className="pro-card" style={{ background: 'none', border: 'none', padding: 0 }}>
-                  <div className="pro-header">
-                    <h2 style={{ fontSize: '14px', textTransform: 'uppercase', letterSpacing: '1px' }}>{t('fat')}</h2>
-                    <div className="pro-values">
-                      <span className="consumed" style={{ background: 'var(--accent-fat-gradient)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>{fatTotal}</span>
-                      <span className="label" style={{ opacity: 0.5 }}>/ {goals.fat}g</span>
-                    </div>
-                  </div>
-                  <div className="progress-bar-bg" style={{ height: '10px' }}>
-                    <div
-                      className="progress-bar-fill"
-                      style={{
-                        width: `${fatPercent}%`,
-                        background: 'var(--accent-fat-gradient)',
-                        boxShadow: '0 0 12px rgba(168, 85, 247, 0.3)'
-                      }}
-                    ></div>
-                  </div>
-                  <p className="pro-remaining" style={{ fontSize: '12px', opacity: 0.7 }}><span>{fatRemaining}</span>g left</p>
-                </div>
-              </div>
-            </section>
+            <GoalsDashboard
+              dailyTargetsLabel={t('dailyTargets')}
+              dailyGoalsLabel={t('dailyGoals')}
+              caloriesLabel={t('calories')}
+              targetLabel={t('target')}
+              activeBonusLabel={t('activeBonus')}
+              remainingLabel={t('remaining')}
+              overLabel={t('over')}
+              onTargetLabel={t('onTarget')}
+              caloriesTarget={goals.calories}
+              adjustedCalGoal={adjustedCalGoal}
+              calTotal={calTotal}
+              calRemaining={calRemaining}
+              burnedToday={burnedToday}
+              isOverCal={isOverCal}
+              loading={loading}
+              macros={[
+                {
+                  tone: 'protein',
+                  label: t('protein'),
+                  consumed: proTotal,
+                  goal: goals.protein,
+                  percent: proPercent,
+                  remaining: proRemaining,
+                  isComplete: proTotal >= goals.protein,
+                },
+                {
+                  tone: 'carbs',
+                  label: t('carbs'),
+                  consumed: carbTotal,
+                  goal: goals.carbs,
+                  percent: carbPercent,
+                  remaining: carbRemaining,
+                  isComplete: carbTotal >= goals.carbs,
+                },
+                {
+                  tone: 'fat',
+                  label: t('fat'),
+                  consumed: fatTotal,
+                  goal: goals.fat,
+                  percent: fatPercent,
+                  remaining: fatRemaining,
+                  isComplete: isGoalFat,
+                },
+              ]}
+            />
 
             {/* Unified Activity Feed */}
-            <div className="dashboard-logs" style={{ display: 'flex', flexDirection: 'column', gap: '24px', marginTop: '16px' }}>
+            <div className="dashboard-logs desktop-feed-only" style={{ display: 'flex', flexDirection: 'column', gap: '24px', marginTop: '16px' }}>
               <section className="foods-list-section">
                 <h3 className="section-title" style={{ fontSize: '16px', marginBottom: '16px' }}>{t('todayFeed')}</h3>
                 <div className="foods-list">
@@ -1568,93 +1391,78 @@ export default function Home() {
           </motion.div>
 
           <motion.div
-            className="layout-column"
+            className="layout-column home-sidebar"
             initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1], delay: 0.15 }}
           >
-            {/* Quick Stats Summary */}
-            <TiltCard intensity={300} maxTilt={15} glareOpacity={0.2} style={{ borderRadius: '24px' }}>
-              <section className="glass-panel depth-card-3d" style={{ padding: '24px', display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                <h3 style={{ fontSize: '13px', fontWeight: 700, margin: 0, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '1px' }}>{t('dailyProgress')}</h3>
+            <HydrationCard
+              title={t('hyd')}
+              goalLabel={t('hydrationGoal')}
+              glassesLabel={t('glasses')}
+              remainingLabel={t('remaining')}
+              waterGlasses={waterGlasses}
+              hydrationGoal={hydrationGoal}
+              waterPercent={waterPercent}
+              waterRemaining={waterRemaining}
+              decrementAriaLabel={language === 'en' ? 'Remove water' : 'ลดน้ำ'}
+              incrementAriaLabel={language === 'en' ? 'Add water' : 'เพิ่มน้ำ'}
+              onDecrement={() => handleUpdateWater(-1)}
+              onIncrement={() => handleUpdateWater(1)}
+            />
 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                  {/* Water Summary */}
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                      <div className="icon-btn" style={{ width: '32px', height: '32px', background: 'rgba(14, 165, 233, 0.1)', border: 'none', color: 'var(--accent-pro)' }}>
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M12 2.69l5.66 5.66a8 8 0 1 1-11.31 0z"></path></svg>
-                      </div>
-                      <div>
-                        <div style={{ fontSize: '14px', fontWeight: 700 }}>{waterGlasses} {t('glasses')}</div>
-                        <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>{t('hydrationGoal')}: 8</div>
-                      </div>
-                    </div>
-                    <div style={{ display: 'flex', gap: '4px' }}>
-                      <button onClick={() => handleUpdateWater(-1)} className="glass-btn" style={{ width: '28px', height: '28px', padding: 0, borderRadius: '6px', minHeight: '28px' }}>-</button>
-                      <button onClick={() => handleUpdateWater(1)} className="glass-btn active" style={{ width: '28px', height: '28px', padding: 0, borderRadius: '6px', minHeight: '28px' }}>+</button>
-                    </div>
-                  </div>
+            <QuickActionsRow
+              title={t('quickActions')}
+              addFoodLabel={t('addFood')}
+              logActivityLabel={t('logActivity')}
+              onAddFood={() => {
+                haptic("medium");
+                setLogModalTab('food');
+                setIsActionModalOpen(true);
+              }}
+              onLogActivity={() => {
+                haptic("medium");
+                setLogModalTab('exercise');
+                setIsActionModalOpen(true);
+              }}
+            />
 
-                  {/* Activity Summary */}
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div
-                      onClick={() => setDetailView('training')}
-                      className="interactive-card"
-                      style={{ display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer', flex: 1, padding: '8px', borderRadius: '12px', transition: 'all 0.2s ease', margin: '-8px' }}
-                    >
-                      <div className="icon-btn" style={{ width: '32px', height: '32px', background: 'rgba(244, 63, 94, 0.1)', border: 'none', color: '#f43f5e' }}>
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"></polygon></svg>
-                      </div>
-                      <div>
-                        <div style={{ fontSize: '14px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
-                          {exerciseToday} {t('mins')}
-                          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" style={{ opacity: 0.5 }}><polyline points="9 18 15 12 9 6"></polyline></svg>
-                        </div>
-                        <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>{t('totalTraining')}</div>
-                      </div>
-                    </div>
-                  </div>
+            <QuickAddSection
+              title={t('quickAdd')}
+              foods={recentFoods}
+              onQuickAdd={handleQuickAdd}
+            />
+          </motion.div>
 
-                  {/* Sleep Summary */}
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div
-                      onClick={() => setDetailView('recovery')}
-                      className="interactive-card"
-                      style={{ display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer', flex: 1, padding: '8px', borderRadius: '12px', transition: 'all 0.2s ease', margin: '-8px' }}
-                    >
-                      <div className="icon-btn" style={{ width: '32px', height: '32px', background: 'rgba(168, 85, 247, 0.1)', border: 'none', color: 'var(--accent-fat)' }}>
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
-                      </div>
-                      <div>
-                        <div style={{ fontSize: '14px', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '4px' }}>
-                          {Math.round(sleepToday * 10) / 10} {t('hours')}
-                          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" style={{ opacity: 0.5 }}><polyline points="9 18 15 12 9 6"></polyline></svg>
-                        </div>
-                        <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>{t('restRecovery')}</div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </section>
-            </TiltCard>
+          <motion.div
+            className="layout-column home-feed mobile-feed-only"
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1], delay: 0.2 }}
+          >
+            <TodayFeedSection
+              title={t('todayFeed')}
+              loading={loading}
+              items={unifiedHistory}
+              foods={foods}
+              exerciseRecords={exerciseRecords}
+              sleepRecords={sleepRecords}
+              noItemsTitle={t('noFoodLogged')}
+              noItemsMessage={t('tapFoodButton')}
+              sleepLabel={t('sleep')}
+              goodQualityLabel={t('goodQuality')}
+              fairQualityLabel={t('fairQuality')}
+              poorQualityLabel={t('poorQuality')}
+              relogTitle={language === 'en' ? 'Log again' : 'บันทึกซ้ำ'}
+              onRelogFood={handleReLogFood}
+              onEditFood={openEditModal}
+              onEditExercise={setEditingExercise}
+              onEditSleep={setEditingSleep}
+              onDeleteFood={handleDeleteFood}
+              onDeleteExercise={handleDeleteExercise}
+              onDeleteSleep={handleDeleteSleep}
+            />
 
-
-            {/* Recent Foods */}
-            {recentFoods.length > 0 && (
-              <section className="glass-panel" style={{ padding: '24px' }}>
-                <h3 style={{ fontSize: '13px', fontWeight: 700, marginBottom: '16px', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '1px' }}>{t('quickAdd')}</h3>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '10px' }}>
-                  {recentFoods.slice(0, 6).map((f, i) => (
-                    <button key={i} onClick={() => handleQuickAdd(f)} className="glass-btn" style={{ padding: '8px 14px', fontSize: '13px' }}>
-                      <span style={{ color: 'var(--accent-pro)', fontWeight: 800 }}>+</span> {f.name}
-                    </button>
-                  ))}
-                </div>
-              </section>
-            )}
-
-            {/* Spacer for bottom nav */}
             <div className="bottom-nav-spacer" style={{ height: '80px' }} />
           </motion.div>
         </div>
@@ -1663,68 +1471,43 @@ export default function Home() {
       {/* Add Action Modal */}
       {isActionModalOpen && (
         <div className="modal-overlay" onClick={() => setIsActionModalOpen(false)}>
-          <div className="glass-panel modal-content" onClick={e => e.stopPropagation()}>
+          <div className="glass-panel modal-content add-log-modal" onClick={e => e.stopPropagation()}>
 
-            <div className="modal-header" style={{ marginBottom: '4px', flexDirection: 'column', alignItems: 'flex-start', gap: '10px' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center' }}>
-                <h3 style={{ fontSize: '18px', fontWeight: 800 }}>
-                  {logModalTab === 'food' ? t('addFood') : logModalTab === 'exercise' ? t('logActivityTitle') : logModalTab === 'sleep' ? t('logSleep') : t('logMeasurements')}
-                </h3>
-                <button onClick={() => setIsActionModalOpen(false)} className="icon-btn" style={{ borderRadius: '50%', width: '36px', height: '36px', background: 'rgba(255,255,255,0.05)' }}>&times;</button>
-              </div>
-
-              {/* Icon Tab Switcher */}
-              <div className="modal-tab-switcher" style={{ display: "flex", width: '100%', gap: '4px' }}>
+            <div className="add-log-modal-header">
+              <div className="add-log-modal-tabs">
                 {([
-                  { key: 'food' as const, icon: '🍎', label: t('addFood') },
-                  { key: 'exercise' as const, icon: '🏃', label: t('trainingTab') },
-                  { key: 'sleep' as const, icon: '🌙', label: t('recoveryTab') },
-                  { key: 'measurements' as const, icon: '📏', label: t('logMeasurements') },
-                ]).map(tab => (
+                  { key: 'food' as const, label: t('addFood'), color: '#10b981', icon: 'M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 15h-2v-6h2v6zm0-8h-2V7h2v2z' },
+                  { key: 'exercise' as const, label: t('trainingTab'), color: '#f97316', icon: 'M13 2L3 14h9l-1 8 10-12h-9l1-8z' },
+                  { key: 'sleep' as const, label: t('recoveryTab'), color: '#8b5cf6', icon: 'M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9 9-4.03 9-9c0-.46-.04-.92-.1-1.36-.98 1.37-2.58 2.26-4.4 2.26-2.98 0-5.4-2.42-5.4-5.4 0-1.81.89-3.42 2.26-4.4-.44-.06-.9-.1-1.36-.1z' },
+                  { key: 'measurements' as const, label: t('logMeasurements'), color: '#06b6d4', icon: 'M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12' },
+                ]).map((tab, idx) => (
                   <button
                     key={tab.key}
                     type="button"
                     onClick={() => setLogModalTab(tab.key)}
-                    style={{
-                      flex: 1,
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'center',
-                      gap: '2px',
-                      padding: '8px 0',
-                      borderRadius: '10px',
-                      border: 'none',
-                      background: logModalTab === tab.key ? 'rgba(255,255,255,0.08)' : 'transparent',
-                      cursor: 'pointer',
-                      transition: 'all 0.2s ease',
-                      position: 'relative',
-                    }}
+                    className={`add-log-tab ${logModalTab === tab.key ? 'active' : ''}`}
+                    style={{ '--tab-color': tab.color } as React.CSSProperties}
                   >
-                    <span style={{ fontSize: '20px', lineHeight: 1 }}>{tab.icon}</span>
-                    <span style={{
-                      fontSize: '9px',
-                      fontWeight: logModalTab === tab.key ? 800 : 600,
-                      color: logModalTab === tab.key ? 'var(--text-primary)' : 'var(--text-secondary)',
-                      letterSpacing: '0.5px',
-                      textTransform: 'uppercase',
-                      whiteSpace: 'nowrap',
-                      opacity: logModalTab === tab.key ? 1 : 0.6,
-                      transition: 'opacity 0.2s ease',
-                    }}>{tab.label}</span>
-                    {logModalTab === tab.key && (
-                      <div style={{
-                        position: 'absolute',
-                        bottom: '2px',
-                        left: '25%',
-                        width: '50%',
-                        height: '2px',
-                        borderRadius: '1px',
-                        background: 'var(--accent-cal)',
-                      }} />
-                    )}
+                    <div className="add-log-tab-icon">
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        {tab.key === 'food' && <><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></>}
+                        {tab.key === 'exercise' && <><path d="M18 13v-2a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v2"/><path d="M12 3v18"/><path d="M6 8l4-4 4 4"/></>}
+                        {tab.key === 'sleep' && <><path d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707"/></>}
+                        {tab.key === 'measurements' && <><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></>}
+                      </svg>
+                    </div>
+                    <span className="add-log-tab-label">{tab.label}</span>
+                    <div className="add-log-tab-indicator" />
                   </button>
                 ))}
               </div>
+              <button onClick={() => setIsActionModalOpen(false)} className="add-log-close-btn">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </div>
+
+            <div className="add-log-modal-title">
+              <h3>{logModalTab === 'food' ? t('addFood') : logModalTab === 'exercise' ? t('logActivityTitle') : logModalTab === 'sleep' ? t('logSleep') : t('logMeasurements')}</h3>
             </div>
 
             {logModalTab === 'food' && (
@@ -1740,7 +1523,7 @@ export default function Home() {
                   <div style={{ display: 'flex', gap: '8px', width: '100%' }}>
                     <button
                       onClick={() => setIsScanning(!isScanning)}
-                      className={`glass-btn ${isScanning ? 'active' : ''}`}
+                      className={`add-log-action-btn ${isScanning ? 'active scanning' : ''}`}
                       style={{ flex: 1, height: '36px', borderRadius: '10px', fontSize: '12px' }}
                     >
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 7V5a2 2 0 0 1 2-2h2"></path><path d="M17 3h2a2 2 0 0 1 2 2v2"></path><path d="M21 17v2a2 2 0 0 1-2 2h-2"></path><path d="M7 21H5a2 2 0 0 1-2-2v-2"></path><rect x="7" y="7" width="10" height="10" rx="1"></rect></svg>
@@ -1757,10 +1540,9 @@ export default function Home() {
                       />
                       <label
                         htmlFor="ai-scan-input"
-                        className="primary-btn"
-                        style={{ width: '100%', margin: 0, height: '36px', fontSize: '12px', background: 'var(--accent-pro-gradient)', color: 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '10px', cursor: 'pointer' }}
+                        className="add-log-action-btn ai-scan-btn"
+                        style={{ width: '100%', margin: 0, height: '36px', fontSize: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '10px', cursor: 'pointer' }}
                       >
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '6px' }}><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
                         {aiLoading
                           ? aiStage === 'compressing' ? '⏳ ' + (language === 'en' ? 'Compressing...' : 'กำลังบีบอัด...')
                           : '🔍 ' + (language === 'en' ? 'Analyzing...' : 'กำลังวิเคราะห์...')
@@ -1926,25 +1708,26 @@ export default function Home() {
                     )}
                   </div>
 
-                  <div className="input-row" style={{ marginBottom: '8px', gap: '8px', display: 'flex', flexDirection: 'row', flexWrap: 'nowrap', alignItems: 'center' }}>
+                  <div className="input-row" style={{ display: 'flex', gap: '12px', marginBottom: '12px' }}>
                     <select
                       value={foodInputs.mealCategory}
                       onChange={e => setFoodInputs({ ...foodInputs, mealCategory: e.target.value })}
-                      style={{ flex: 1, height: '40px', padding: '0 8px', borderRadius: '12px', border: '1px solid var(--panel-border)', background: 'rgba(0,0,0,0.3)', color: 'var(--text-primary)', fontWeight: 600, fontSize: '12px' }}
+                      style={{ flex: 1, minWidth: 0 }}
                     >
                       <option value="Breakfast">🍳 {t('breakfast')}</option>
                       <option value="Lunch">🥗 {t('lunch')}</option>
                       <option value="Dinner">🍲 {t('dinner')}</option>
                       <option value="Snack">🍪 {t('snack')}</option>
                     </select>
-                    <div style={{ flex: 1, position: 'relative' }}>
+                    <div style={{ flex: 1, position: 'relative', minWidth: 0 }}>
                       <button
                         type="button"
                         onClick={() => setOpenCalendar(openCalendar === 'food' ? null : 'food')}
-                        style={{ height: '40px', padding: '0 8px', borderRadius: '12px', border: '1px solid var(--panel-border)', background: 'rgba(0,0,0,0.3)', color: 'var(--text-primary)', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '12px' }}
+                        className="form-input-btn"
+                        style={{ width: '100%' }}
                       >
                         <span>📅 {foodInputs.date}</span>
-                        <span style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>▼</span>
+                        <span className="icon-sm">▼</span>
                       </button>
                       {openCalendar === 'food' && (
                         <CalendarPicker
@@ -1968,38 +1751,39 @@ export default function Home() {
                     />
                   </div>
 
-                  <div className="macro-inputs" style={{ marginBottom: '8px', gap: '8px', display: 'flex', flexDirection: 'row', flexWrap: 'nowrap' }}>
-                    <div style={{ position: 'relative' }}>
+                  <div className="macro-inputs" style={{ marginBottom: '12px', gap: '8px', display: 'flex', flexDirection: 'row' }}>
+                    <div style={{ position: 'relative', flex: 1 }}>
                       <input
                         type="number"
                         required
                         value={foodInputs.protein}
                         onChange={e => setFoodInputs({ ...foodInputs, protein: e.target.value })}
-                        style={{ height: '40px', padding: '0 12px 0 8px', borderRadius: '10px', width: '100%', fontSize: '13px' }}
+                        placeholder="0"
                       />
-                      <span style={{ position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)', fontSize: '9px', color: 'var(--accent-pro)', fontWeight: 800 }}>P</span>
+                      <span style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 700 }}>P</span>
                     </div>
-                    <div style={{ position: 'relative' }}>
+                    <div style={{ position: 'relative', flex: 1 }}>
                       <input
                         type="number"
                         value={foodInputs.carbs}
                         onChange={e => setFoodInputs({ ...foodInputs, carbs: e.target.value })}
-                        style={{ height: '40px', padding: '0 12px 0 8px', borderRadius: '10px', width: '100%', fontSize: '13px' }}
+                        placeholder="0"
                       />
-                      <span style={{ position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)', fontSize: '9px', color: 'var(--accent-carb)', fontWeight: 800 }}>C</span>
+                      <span style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 700 }}>C</span>
                     </div>
-                    <div style={{ position: 'relative' }}>
+                    <div style={{ position: 'relative', flex: 1 }}>
                       <input
                         type="number"
                         value={foodInputs.fat}
                         onChange={e => setFoodInputs({ ...foodInputs, fat: e.target.value })}
-                        style={{ height: '40px', padding: '0 12px 0 8px', borderRadius: '10px', width: '100%', fontSize: '13px' }}
+                        placeholder="0"
                       />
-                      <span style={{ position: 'absolute', right: '8px', top: '50%', transform: 'translateY(-50%)', fontSize: '9px', color: 'var(--accent-fat)', fontWeight: 800 }}>F</span>
+                      <span style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 700 }}>F</span>
                     </div>
                   </div>
 
-                  <button type="submit" className="primary-btn active" disabled={loading} style={{ width: '100%', height: '44px', borderRadius: '12px', fontSize: '14px' }}>
+                  <button type="submit" className="add-log-btn add-log-btn-food" disabled={loading} style={{ width: '100%', height: '44px', borderRadius: '14px', fontSize: '14px' }}>
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 15h-2v-6h2v6zm0-8h-2V7h2v2z"/></svg>
                     <span>{t('addFoodBtn')}</span>
                   </button>
                 </form>
@@ -2017,15 +1801,16 @@ export default function Home() {
                     style={{ height: '44px', borderRadius: '12px', fontSize: '14px' }}
                   />
                 </div>
-                <div className="input-row" style={{ display: 'flex', gap: '8px' }}>
-                  <div style={{ flex: 1, position: 'relative' }}>
+                <div className="input-row" style={{ display: 'flex', gap: '12px' }}>
+                  <div style={{ flex: 1, position: 'relative', minWidth: 0 }}>
                     <button
                       type="button"
                       onClick={() => setOpenCalendar(openCalendar === 'exercise' ? null : 'exercise')}
-                      style={{ width: '100%', height: '44px', padding: '0 12px', borderRadius: '12px', border: '1px solid var(--panel-border)', background: 'rgba(0,0,0,0.3)', color: 'var(--text-primary)', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '13px' }}
+                      className="form-input-btn"
+                      style={{ width: '100%' }}
                     >
                       <span>📅 {exerciseInput.date}</span>
-                      <span style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>▼</span>
+                      <span className="icon-sm">▼</span>
                     </button>
                     {openCalendar === 'exercise' && (
                       <CalendarPicker
@@ -2035,15 +1820,15 @@ export default function Home() {
                       />
                     )}
                   </div>
-                  <div style={{ flex: 1, position: 'relative' }}>
+                  <div style={{ flex: 1, position: 'relative', minWidth: 0 }}>
                     <input
                       type="number"
                       placeholder={t('minutes')}
                       value={exerciseInput.durationMinutes || ''}
                       onChange={e => setExerciseInput({ ...exerciseInput, durationMinutes: Number(e.target.value) })}
-                      style={{ height: '44px', borderRadius: '12px', paddingRight: '40px', fontSize: '14px' }}
+                      style={{ paddingRight: '44px' }}
                     />
-                    <span style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', fontSize: '10px', color: 'var(--accent-pro)', fontWeight: 800 }}>{t('unitMin').toUpperCase()}</span>
+                    <span style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 700 }}>{t('unitMin').toUpperCase()}</span>
                   </div>
                 </div>
                 <div className="input-row" style={{ display: 'flex', gap: '8px' }}>
@@ -2058,7 +1843,8 @@ export default function Home() {
                     <span style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', fontSize: '10px', color: 'var(--accent-cal)', fontWeight: 800 }}>{t('unitKcal').toUpperCase()}</span>
                   </div>
                 </div>
-                <button onClick={(e) => { handleLogExercise(); setIsActionModalOpen(false); }} className="primary-btn active" style={{ height: '48px', borderRadius: '12px', marginTop: '4px', fontSize: '14px' }}>
+                <button onClick={(e) => { handleLogExercise(); setIsActionModalOpen(false); }} className="add-log-btn add-log-btn-exercise">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v-2a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v2"/><path d="M12 3v18"/><path d="M6 8l4-4 4 4"/></svg>
                   {t('logActivityBtn')}
                 </button>
               </div>
@@ -2088,15 +1874,16 @@ export default function Home() {
                     <span style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', fontSize: '10px', color: 'var(--accent-fat)', fontWeight: 800 }}>{t('unitMin').toUpperCase()}</span>
                   </div>
                 </div>
-                <div className="input-row" style={{ display: 'flex', gap: '8px' }}>
-                  <div style={{ flex: 1, position: 'relative' }}>
+                <div className="input-row" style={{ display: 'flex', gap: '12px' }}>
+                  <div style={{ flex: 1, position: 'relative', minWidth: 0 }}>
                     <button
                       type="button"
                       onClick={() => setOpenCalendar(openCalendar === 'sleep' ? null : 'sleep')}
-                      style={{ width: '100%', height: '44px', padding: '0 12px', borderRadius: '12px', border: '1px solid var(--panel-border)', background: 'rgba(0,0,0,0.3)', color: 'var(--text-primary)', fontWeight: 600, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', fontSize: '13px' }}
+                      className="form-input-btn"
+                      style={{ width: '100%' }}
                     >
                       <span>📅 {sleepInput.date}</span>
-                      <span style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>▼</span>
+                      <span className="icon-sm">▼</span>
                     </button>
                     {openCalendar === 'sleep' && (
                       <CalendarPicker
@@ -2109,14 +1896,15 @@ export default function Home() {
                   <select
                     value={sleepInput.quality}
                     onChange={e => setSleepInput({ ...sleepInput, quality: e.target.value })}
-                    style={{ flex: 1, height: '44px', borderRadius: '12px', border: '1px solid var(--panel-border)', background: 'rgba(0,0,0,0.3)', color: 'var(--text-primary)', fontWeight: 600, padding: '0 12px', fontSize: '13px' }}
+                    style={{ flex: 1, minWidth: 0 }}
                   >
                     <option value="Good">😊 {t('goodQuality')}</option>
                     <option value="Fair">😐 {t('fairQuality')}</option>
                     <option value="Poor">😴 {t('poorQuality')}</option>
                   </select>
                 </div>
-                <button onClick={(e) => { handleLogSleep(); setIsActionModalOpen(false); }} className="primary-btn active" style={{ height: '48px', borderRadius: '12px', marginTop: '4px', fontSize: '14px' }}>
+                <button onClick={(e) => { handleLogSleep(); setIsActionModalOpen(false); }} className="add-log-btn add-log-btn-sleep">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707"/></svg>
                   {t('recordSleepBtn')}
                 </button>
               </div>
@@ -2176,7 +1964,8 @@ export default function Home() {
                     )}
                   </div>
                 </div>
-                <button onClick={() => { handleLogMeasurement(); setIsActionModalOpen(false); }} className="primary-btn active" style={{ height: '48px', borderRadius: '12px', marginTop: '4px', fontSize: '14px' }}>
+                <button onClick={() => { handleLogMeasurement(); setIsActionModalOpen(false); }} className="add-log-btn add-log-btn-measurements">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
                   {t('saveMeasurements')}
                 </button>
               </div>
