@@ -260,7 +260,7 @@ export default function PlayerCardPage() {
             <>
               <button
                 onClick={() => setLanguage(language === 'en' ? 'th' : 'en')}
-                className="icon-btn"
+                className="icon-btn mobile-hidden"
                 style={{ fontSize: '14px', fontWeight: 'bold', minWidth: '40px' }}
                 title={language === 'en' ? 'เปลี่ยนเป็นภาษาไทย' : 'Switch to English'}
               >
@@ -269,7 +269,7 @@ export default function PlayerCardPage() {
               <button
                 onClick={handleShare}
                 disabled={!card || isSharing}
-                className="icon-btn"
+                className="icon-btn mobile-hidden"
                 title={t("shareCard")}
                 style={{ display: card ? "flex" : "none" }}
               >

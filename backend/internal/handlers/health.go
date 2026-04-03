@@ -378,7 +378,7 @@ func UpdateExercise(c echo.Context) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	userID := c.Get("userID").(primitive.ObjectID)
+	userID := c.Get("userID").(primitive.ObjectID)	
 	filter := bson.M{"_id": objID, "userId": userID}
 
 	update := bson.M{
@@ -600,8 +600,11 @@ func AddBodyMeasurement(c echo.Context) error {
 	if err := c.Bind(&record); err != nil {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid request body"})
 	}
-	if record.Weight <= 0 || record.WaistCircumference <= 0 || record.BodyFatPercentage <= 0 {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "measurements must be positive"})
+	if record.Weight < 0 || record.WaistCircumference < 0 || record.BodyFatPercentage < 0 {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "measurements cannot be negative"})
+	}
+	if record.Weight == 0 && record.WaistCircumference == 0 && record.BodyFatPercentage == 0 {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "at least one measurement must be provided"})
 	}
 
 	if record.Date.IsZero() {

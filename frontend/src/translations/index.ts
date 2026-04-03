@@ -15,6 +15,8 @@ export const translations = {
         navAddFood: "Add Food",
         navAiAssistant: "AI Assistant",
         navProfile: "Profile",
+        navMore: "More",
+        navPlayerCard: "Player Card",
 
         // Main Page (Tracker)
         calories: "Calories",
@@ -27,6 +29,7 @@ export const translations = {
         over: "Over",
         addFood: "Add Food",
         logActivity: "Log Activity",
+        quickActions: "Quick Actions",
         quickAdd: "Quick Add",
         dailyProgress: "Daily Progress",
         todayFeed: "Today's Feed",
@@ -34,6 +37,7 @@ export const translations = {
         tapFoodButton: "Tap the FOOD button above to get started.",
         glasses: "Glasses",
         hydrationGoal: "Hydration Goal",
+        onTarget: "On Target",
         mins: "Mins",
         totalTraining: "Total Training",
         hours: "Hours",
@@ -96,6 +100,7 @@ export const translations = {
         // Login Page
         login: "Log In",
         signup: "Sign Up",
+        loginSubtitle: "Track Your Progress",
         email: "Email Address",
         password: "Password",
         fullName: "Full Name",
@@ -264,6 +269,8 @@ export const translations = {
         navAddFood: "เพิ่มอาหาร",
         navAiAssistant: "ผู้ช่วย AI",
         navProfile: "โปรไฟล์",
+        navMore: "เพิ่มเติม",
+        navPlayerCard: "การ์ดผู้เล่น",
 
         // Main Page (Tracker)
         calories: "แคลอรี่",
@@ -276,6 +283,7 @@ export const translations = {
         over: "เกิน",
         addFood: "เพิ่มอาหาร",
         logActivity: "บันทึกกิจกรรม",
+        quickActions: "ทางลัด",
         quickAdd: "เพิ่มด่วน",
         dailyProgress: "ความคืบหน้าวันนี้",
         todayFeed: "รายการบันทึกวันนี้",
@@ -283,6 +291,7 @@ export const translations = {
         tapFoodButton: "กดปุ่ม 'เพิ่มอาหาร' ด้านบนเพื่อเริ่มบันทึก",
         glasses: "แก้ว",
         hydrationGoal: "เป้าหมายการดื่มน้ำ",
+        onTarget: "ถึงเป้าแล้ว",
         mins: "นาที",
         totalTraining: "การฝึกซ้อมทั้งหมด",
         hours: "ชั่วโมง",
@@ -345,6 +354,7 @@ export const translations = {
         // Login Page
         login: "เข้าสู่ระบบ",
         signup: "สมัครสมาชิก",
+        loginSubtitle: "ติดตามความก้าวหน้าของคุณ",
         email: "อีเมล",
         password: "รหัสผ่าน",
         fullName: "ชื่อ-นามสกุล",
