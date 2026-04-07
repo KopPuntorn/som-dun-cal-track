@@ -26,6 +26,11 @@ import (
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
+// Reusable HTTP client for Groq API calls
+var groqHTTPClient = &http.Client{
+	Timeout: 120 * time.Second,
+}
+
 // AI Related Models
 type GroqChatRequest struct {
 	Model            string        `json:"model"`
@@ -93,8 +98,15 @@ func collectStreamedContent(body io.Reader) (string, error) {
 		if err := json.Unmarshal([]byte(data), &chunk); err != nil {
 			continue
 		}
-		if len(chunk.Choices) > 0 && chunk.Choices[0].Delta.Content != "" {
-			sb.WriteString(chunk.Choices[0].Delta.Content)
+		if len(chunk.Choices) > 0 {
+			delta := chunk.Choices[0].Delta
+			if delta.Reasoning != "" {
+				// If the model sends reasoning, wrap it in <think> tags for downstream handling
+				sb.WriteString("<think>" + delta.Reasoning + "</think>")
+			}
+			if delta.Content != "" {
+				sb.WriteString(delta.Content)
+			}
 		}
 	}
 
@@ -121,8 +133,7 @@ func makeGroqCall(ctx context.Context, groqReq GroqChatRequest) (string, error) 
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+apiKey)
 
-	client := &http.Client{}
-	resp, err := client.Do(req)
+	resp, err := groqHTTPClient.Do(req)
 	if err != nil {
 		return "", err
 	}
@@ -621,12 +632,19 @@ func callGroq(c echo.Context, groqReq GroqChatRequest) error {
 	slog.Info("AI Streamed Response Collected", "content_length", len(content))
 
 	// Implement Hidden Chain-of-Thought (Remove <think> ... </think> blocks cleanly)
-	thinkRe := regexp.MustCompile("(?s)<think>.*?</think>\n*")
+	thinkRe := regexp.MustCompile("(?s)<think>.*?</think>\\n*")
+	originalContent := content
 	content = thinkRe.ReplaceAllString(content, "")
 	content = strings.TrimSpace(content)
 
-	// Clean markdown backticks if any
-	re := regexp.MustCompile("(?s)^```(?:json|markdown)?\n?(.*?)\n?```$")
+	// Fallback: If stripped content is empty but original had content, provide a notice or the raw content
+	if content == "" && originalContent != "" {
+		slog.Warn("AI output was only thinking, falling back to raw content with markers")
+		content = "💡 *Analysis Insight:*\n\n" + originalContent
+	}
+
+	// Clean markdown backticks if current content is wrapped
+	re := regexp.MustCompile("(?s)^\\s*```(?:json|markdown)?\\n?(.*?)\\n?```\\s*$")
 	if matches := re.FindStringSubmatch(content); len(matches) > 1 {
 		content = strings.TrimSpace(matches[1])
 	}
@@ -745,124 +763,201 @@ func ChatAI(c echo.Context) error {
 	startOfToday := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
 
 	// 1. Fetch Today's foods
+	todayFoodStr := "No foods recorded today yet."
+	todayFoods := []models.Food{}
 	todayCursor, _ := db.FoodsCollection.Find(ctx, bson.M{
 		"userId": userID,
 		"date":   bson.M{"$gte": startOfToday},
 	}, options.Find().SetSort(bson.D{{Key: "date", Value: -1}}))
-	var todayFoodStr string
-	var todayFoods []models.Food
-	if err := todayCursor.All(ctx, &todayFoods); err == nil {
-		for _, f := range todayFoods {
-			todayFoodStr += fmt.Sprintf("- %s: %.0f kcal, P:%.1fg, F:%.1fg (%s)\n",
-				f.Name, f.Calories, models.SafeFloat(f.Protein), models.SafeFloat(f.Fat), f.MealCategory)
+	if todayCursor != nil {
+		defer todayCursor.Close(ctx)
+		if err := todayCursor.All(ctx, &todayFoods); err == nil {
+			var sb strings.Builder
+			for _, f := range todayFoods {
+				sb.WriteString(fmt.Sprintf("- %s: %.0f kcal, P:%.1fg, F:%.1fg (%s)\n",
+					f.Name, f.Calories, models.SafeFloat(f.Protein), models.SafeFloat(f.Fat), f.MealCategory))
+			}
+			if sb.Len() > 0 {
+				todayFoodStr = sb.String()
+			}
 		}
-	}
-	if todayFoodStr == "" {
-		todayFoodStr = "No foods recorded today yet."
 	}
 
 	// 2. Fetch Recent History (Last 15, excluding today if many)
+	historyStr := "No recent food history."
+	historyFoods := []models.Food{}
 	histOpts := options.Find().SetLimit(15).SetSort(bson.D{{Key: "date", Value: -1}})
 	histCursor, _ := db.FoodsCollection.Find(ctx, bson.M{
 		"userId": userID,
 		"date":   bson.M{"$lt": startOfToday},
 	}, histOpts)
-	var historyStr string
-	var historyFoods []models.Food
-	if err := histCursor.All(ctx, &historyFoods); err == nil {
-		for _, f := range historyFoods {
-			historyStr += fmt.Sprintf("- %s: %.0f kcal, P:%.1fg, F:%.1fg (%s, %s)\n",
-				f.Name, f.Calories, models.SafeFloat(f.Protein), models.SafeFloat(f.Fat), f.MealCategory, f.Date.Format("2006-01-02"))
-		}
-	}
-
-	// 2. Fetch Weight History (Last 5)
-	var weightStr string
-	wCursor, err := db.WeightCollection.Find(ctx, bson.M{"userId": userID}, options.Find().SetLimit(5).SetSort(bson.D{{Key: "date", Value: -1}}))
-	if err == nil {
-		var weights []models.WeightRecord
-		if err := wCursor.All(ctx, &weights); err == nil {
-			for _, w := range weights {
-				weightStr += fmt.Sprintf("%s: %.1fkg\n", w.Date.Format("2006-01-02"), w.Weight)
+	if histCursor != nil {
+		defer histCursor.Close(ctx)
+		if err := histCursor.All(ctx, &historyFoods); err == nil {
+			var sb strings.Builder
+			for _, f := range historyFoods {
+				sb.WriteString(fmt.Sprintf("- %s: %.0f kcal, P:%.1fg, F:%.1fg (%s, %s)\n",
+					f.Name, f.Calories, models.SafeFloat(f.Protein), models.SafeFloat(f.Fat), f.MealCategory, f.Date.Format("2006-01-02")))
+			}
+			if sb.Len() > 0 {
+				historyStr = sb.String()
 			}
 		}
 	}
 
-	// 3. Fetch Exercise History (Last 5)
-	var exerciseStr string
-	eCursor, err := db.ExerciseCollection.Find(ctx, bson.M{"userId": userID}, options.Find().SetLimit(5).SetSort(bson.D{{Key: "date", Value: -1}}))
-	if err == nil {
-		var exercises []models.ExerciseRecord
-		if err := eCursor.All(ctx, &exercises); err == nil {
-			for _, ex := range exercises {
-				exerciseStr += fmt.Sprintf("- %s (%d min, %.0f kcal burned, %s)\n", ex.Name, ex.DurationMinutes, models.SafeFloat(ex.CaloriesBurned), ex.Date.Format("2006-01-02"))
+	// Fetch weight, exercise, sleep, water, measurements concurrently
+	weightCh := make(chan string, 1)
+	exerciseCh := make(chan string, 1)
+	sleepCh := make(chan string, 1)
+	waterCh := make(chan string, 1)
+	measurementCh := make(chan string, 1)
+	goalsCh := make(chan string, 1)
+	userCh := make(chan string, 1)
+	trendCh := make(chan string, 1)
+
+	// Fetch Weight History (Last 5)
+	go func() {
+		var sb strings.Builder
+		wCursor, err := db.WeightCollection.Find(ctx, bson.M{"userId": userID}, options.Find().SetLimit(5).SetSort(bson.D{{Key: "date", Value: -1}}))
+		if err == nil {
+			defer wCursor.Close(ctx)
+			var weights []models.WeightRecord
+			if err := wCursor.All(ctx, &weights); err == nil {
+				for _, w := range weights {
+					sb.WriteString(fmt.Sprintf("%s: %.1fkg\n", w.Date.Format("2006-01-02"), w.Weight))
+				}
 			}
 		}
-	}
+		weightCh <- sb.String()
+	}()
 
-	// 4. Fetch Sleep History (Last 5)
-	var sleepStr string
-	sCursor, err := db.SleepCollection.Find(ctx, bson.M{"userId": userID}, options.Find().SetLimit(5).SetSort(bson.D{{Key: "date", Value: -1}}))
-	if err == nil {
-		var sleeps []models.SleepRecord
-		if err := sCursor.All(ctx, &sleeps); err == nil {
-			for _, sl := range sleeps {
-				sleepStr += fmt.Sprintf("- %s: %.1f hrs (%s)\n", sl.Date.Format("2006-01-02"), sl.DurationHours, models.SafeString(sl.Quality))
+	// Fetch Exercise History (Last 5)
+	go func() {
+		var sb strings.Builder
+		eCursor, err := db.ExerciseCollection.Find(ctx, bson.M{"userId": userID}, options.Find().SetLimit(5).SetSort(bson.D{{Key: "date", Value: -1}}))
+		if err == nil {
+			defer eCursor.Close(ctx)
+			var exercises []models.ExerciseRecord
+			if err := eCursor.All(ctx, &exercises); err == nil {
+				for _, ex := range exercises {
+					sb.WriteString(fmt.Sprintf("- %s (%d min, %.0f kcal burned, %s)\n", ex.Name, ex.DurationMinutes, models.SafeFloat(ex.CaloriesBurned), ex.Date.Format("2006-01-02")))
+				}
 			}
 		}
-	}
+		exerciseCh <- sb.String()
+	}()
 
-	// 5. Fetch Water Intake (Last 5 days)
-	var waterStr string
-	watCursor, err := db.WaterCollection.Find(ctx, bson.M{"userId": userID}, options.Find().SetLimit(5).SetSort(bson.D{{Key: "date", Value: -1}}))
-	if err == nil {
-		var waters []models.WaterIntake
-		if err := watCursor.All(ctx, &waters); err == nil {
-			for _, wat := range waters {
-				waterStr += fmt.Sprintf("- %s: %d glasses\n", wat.Date, wat.Glasses)
+	// Fetch Sleep History (Last 5)
+	go func() {
+		var sb strings.Builder
+		sCursor, err := db.SleepCollection.Find(ctx, bson.M{"userId": userID}, options.Find().SetLimit(5).SetSort(bson.D{{Key: "date", Value: -1}}))
+		if err == nil {
+			defer sCursor.Close(ctx)
+			var sleeps []models.SleepRecord
+			if err := sCursor.All(ctx, &sleeps); err == nil {
+				for _, sl := range sleeps {
+					sb.WriteString(fmt.Sprintf("- %s: %.1f hrs (%s)\n", sl.Date.Format("2006-01-02"), sl.DurationHours, models.SafeString(sl.Quality)))
+				}
 			}
 		}
-	}
+		sleepCh <- sb.String()
+	}()
 
-	// 6. Fetch Body Measurements (Last 3)
-	var measurementStr string
-	mCursor, err := db.BodyMeasurementCollection.Find(ctx, bson.M{"userId": userID}, options.Find().SetLimit(3).SetSort(bson.D{{Key: "date", Value: -1}}))
-	if err == nil {
-		var measurements []models.BodyMeasurement
-		if err := mCursor.All(ctx, &measurements); err == nil {
-			for _, m := range measurements {
-				measurementStr += fmt.Sprintf("- %s: Waist: %.1fcm, Body Fat: %.1f%%\n", m.Date.Format("2006-01-02"), m.WaistCircumference, m.BodyFatPercentage)
+	// Fetch Water Intake (Last 5 days)
+	go func() {
+		var sb strings.Builder
+		watCursor, err := db.WaterCollection.Find(ctx, bson.M{"userId": userID}, options.Find().SetLimit(5).SetSort(bson.D{{Key: "date", Value: -1}}))
+		if err == nil {
+			defer watCursor.Close(ctx)
+			var waters []models.WaterIntake
+			if err := watCursor.All(ctx, &waters); err == nil {
+				for _, wat := range waters {
+					sb.WriteString(fmt.Sprintf("- %s: %d glasses\n", wat.Date, wat.Glasses))
+				}
 			}
 		}
+		waterCh <- sb.String()
+	}()
+
+	// Fetch Body Measurements (Last 3)
+	go func() {
+		var sb strings.Builder
+		mCursor, err := db.BodyMeasurementCollection.Find(ctx, bson.M{"userId": userID}, options.Find().SetLimit(3).SetSort(bson.D{{Key: "date", Value: -1}}))
+		if err == nil {
+			defer mCursor.Close(ctx)
+			var measurements []models.BodyMeasurement
+			if err := mCursor.All(ctx, &measurements); err == nil {
+				for _, m := range measurements {
+					sb.WriteString(fmt.Sprintf("- %s: Waist: %.1fcm, Body Fat: %.1f%%\n", m.Date.Format("2006-01-02"), m.WaistCircumference, m.BodyFatPercentage))
+				}
+			}
+		}
+		measurementCh <- sb.String()
+	}()
+
+	// Fetch Goals
+	go func() {
+		var g models.Goals
+		goalsStr := "Not set"
+		objectiveStr := "Not set"
+		if err := db.GoalsCollection.FindOne(ctx, bson.M{"userId": userID}).Decode(&g); err == nil {
+			goalsStr = fmt.Sprintf("Cal:%.0f, Pro:%.1f, Carb:%.1f, Fat:%.1f", g.Calories, g.Protein, g.Carbs, g.Fat)
+			if g.Objective != "" {
+				objectiveStr = g.Objective
+			}
+		}
+		goalsCh <- goalsStr + "||" + objectiveStr
+	}()
+
+	// Fetch User Profile
+	go func() {
+		var u models.User
+		userStr := "Not provided"
+		preferenceStr := "Not provided"
+		longTermContext := ""
+		if err := db.UserCollection.FindOne(ctx, bson.M{"_id": userID}).Decode(&u); err == nil {
+			userStr = fmt.Sprintf("Name: %s, Age: %d, Current W: %.1fkg, H: %.1fcm, Sex: %s", u.Name, u.Age, u.Weight, u.Height, u.Sex)
+			longTermContext = u.LongTermContext
+			if u.DietaryPreferences != "" || u.Allergies != "" || u.FoodDislikes != "" || u.TonePreference != "" {
+				preferenceStr = fmt.Sprintf("Dietary preferences: %s; Allergies: %s; Dislikes: %s; Tone: %s", u.DietaryPreferences, u.Allergies, u.FoodDislikes, u.TonePreference)
+			}
+		}
+		userCh <- userStr + "||" + preferenceStr + "||" + longTermContext
+	}()
+
+	// Fetch Trends
+	go func() {
+		trendSummary, _ := trends.CalculateUserTrends(userID, 30)
+		trendCh <- trendSummary
+	}()
+
+	// Wait for all concurrent fetches
+	weightStr := <-weightCh
+	exerciseStr := <-exerciseCh
+	sleepStr := <-sleepCh
+	waterStr := <-waterCh
+	measurementStr := <-measurementCh
+	goalsData := <-goalsCh
+	userData := <-userCh
+	trendSummary := <-trendCh
+
+	goalsParts := strings.Split(goalsData, "||")
+	goalsStr, objectiveStr := goalsParts[0], goalsParts[1]
+	if len(goalsParts) > 2 {
+		objectiveStr = goalsParts[1]
 	}
 
-	// 7. Fetch Goals
-	var g models.Goals
-	goalsStr := "Not set"
-	objectiveStr := "Not set"
-	if err := db.GoalsCollection.FindOne(ctx, bson.M{"userId": userID}).Decode(&g); err == nil {
-		goalsStr = fmt.Sprintf("Cal:%.0f, Pro:%.1f, Carb:%.1f, Fat:%.1f", g.Calories, g.Protein, g.Carbs, g.Fat)
-		if g.Objective != "" {
-			objectiveStr = g.Objective
-		}
+	userParts := strings.Split(userData, "||")
+	userStr, preferenceStr := userParts[0], userParts[1]
+	longTermContext := ""
+	if len(userParts) > 2 {
+		longTermContext = userParts[2]
 	}
-
-	// 8. Fetch User Profile & Trends
-	var u models.User
-	userStr := "Not provided"
-	preferenceStr := "Not provided"
-	if err := db.UserCollection.FindOne(ctx, bson.M{"_id": userID}).Decode(&u); err == nil {
-		userStr = fmt.Sprintf("Name: %s, Age: %d, Current W: %.1fkg, H: %.1fcm, Sex: %s", u.Name, u.Age, u.Weight, u.Height, u.Sex)
-		if u.DietaryPreferences != "" || u.Allergies != "" || u.FoodDislikes != "" || u.TonePreference != "" {
-			preferenceStr = fmt.Sprintf("Dietary preferences: %s; Allergies: %s; Dislikes: %s; Tone: %s", u.DietaryPreferences, u.Allergies, u.FoodDislikes, u.TonePreference)
-		}
-	}
-	trendSummary, _ := trends.CalculateUserTrends(userID, 30)
 
 	contextPrompt := "Persona: Elite Clinical Dietitian & Health Consultant. " +
 		langInstruction +
 		"\n\n--- CURRENT DATE/TIME ---\n" + now.Format("Monday, 2006-01-02 15:04 MST") + "\n\n" +
-		"--- LONG-TERM CONTEXT ---\n" + u.LongTermContext + "\n\n" +
+		"--- LONG-TERM CONTEXT ---\n" + longTermContext + "\n\n" +
 		"--- 30-DAY TREND DATA ---\n" + trendSummary + "\n\n" +
 		"CRITICAL NUTRITION ACCURACY RULES: \n" +
 		"- DO NOT hallucinate health benefits. If a food is unhealthy, fatty (e.g., pork neck / คอหมูย่าง, fried foods), or sugary, state facts firmly. DO NOT call high-fat foods 'balanced fat'.\n" +
@@ -914,12 +1009,22 @@ func ChatAI(c echo.Context) error {
 	slog.Info("Raw AI Chat Response Captured", "content_length", len(replyContent))
 
 	// Implement Hidden Chain-of-Thought (Remove <think> ... </think> blocks cleanly)
-	thinkRe := regexp.MustCompile("(?s)<think>.*?</think>\n*")
+	thinkRe := regexp.MustCompile("(?s)<think>.*?</think>\\n*")
+	originalReply := replyContent
 	replyContent = thinkRe.ReplaceAllString(replyContent, "")
 	replyContent = strings.TrimSpace(replyContent)
 
+	// Fallback Strategy: If after stripping thinking, we have nothing left, 
+	// it means the AI only produced reasoning. We show a fallback UI or the reasoning.
+	if replyContent == "" && originalReply != "" {
+		slog.Warn("AI Chat response only contained thinking", "sessionID", sessionID)
+		// Option A: Use the last part of the thinking as the answer
+		// Option B: Show a friendly message
+		replyContent = "I've analyzed your data, and here is my summary: \n\n" + originalReply
+	}
+
 	// Clean markdown backticks if any (sometimes AI wraps the whole output)
-	re := regexp.MustCompile("(?s)^```(?:json|markdown)?\n?(.*?)\n?```$")
+	re := regexp.MustCompile("(?s)^\\s*```(?:json|markdown)?\\n?(.*?)\\n?```\\s*$")
 	if matches := re.FindStringSubmatch(replyContent); len(matches) > 1 {
 		replyContent = strings.TrimSpace(matches[1])
 	}
