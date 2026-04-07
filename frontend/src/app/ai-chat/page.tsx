@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { useLanguage } from "@/context/LanguageContext";
@@ -25,7 +25,7 @@ type SessionMessage = {
   content?: string;
 };
 
-const MarkdownRenderer = ({ content }: { content: string }) => {
+const MarkdownRenderer = React.memo(({ content }: { content: string }) => {
   return (
     <div className="markdown-chat">
       <div className="overflow-x-auto no-scrollbar">
@@ -33,7 +33,8 @@ const MarkdownRenderer = ({ content }: { content: string }) => {
       </div>
     </div>
   );
-};
+});
+MarkdownRenderer.displayName = 'MarkdownRenderer';
 
 export default function AiChatPage() {
   const router = useRouter();
@@ -63,9 +64,13 @@ export default function AiChatPage() {
   const isAtBottomRef = useRef(true);
   const shouldReduceMotion = useReducedMotion();
 
-  const scrollToBottom = () => {
+  const scrollToBottom = useCallback(() => {
+    chatMessagesEndRef.current?.scrollIntoView({ behavior: "auto" });
+  }, []);
+
+  const scrollToBottomSmooth = useCallback(() => {
     chatMessagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  };
+  }, []);
 
   useEffect(() => {
     const handleResize = () => setIsDesktop(window.innerWidth >= 1024);
@@ -76,27 +81,28 @@ export default function AiChatPage() {
 
   useEffect(() => {
     if (isAtBottomRef.current) {
-      scrollToBottom();
+      scrollToBottomSmooth();
     }
     setMounted(true);
-  }, [chatMessages, isAiLoading, showQuickAdd]);
+  }, [chatMessages, isAiLoading, showQuickAdd, scrollToBottomSmooth]);
+
+  const handleScroll = useCallback(() => {
+    const el = messagesAreaRef.current;
+    if (!el) return;
+    const distanceToBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    const atBottom = distanceToBottom < 120;
+    isAtBottomRef.current = atBottom;
+    setShowScrollToBottom(!atBottom);
+  }, []);
 
   useEffect(() => {
     if (!mounted) return;
     const el = messagesAreaRef.current;
     if (!el) return;
-
-    const handleScroll = () => {
-      const distanceToBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
-      const atBottom = distanceToBottom < 120;
-      isAtBottomRef.current = atBottom;
-      setShowScrollToBottom(!atBottom);
-    };
-
     handleScroll();
     el.addEventListener("scroll", handleScroll, { passive: true });
     return () => el.removeEventListener("scroll", handleScroll);
-  }, [mounted]);
+  }, [mounted, handleScroll]);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -111,39 +117,33 @@ export default function AiChatPage() {
     }
   }, []);
 
-  useEffect(() => {
-    if (activeSessionId && activeSessionId !== 'null' && !activeSessionId.startsWith('000000') && user?.id) {
-      fetchSessionHistory(activeSessionId);
-    }
-  }, [activeSessionId, user?.id]);
-
-  const handleChatKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+  const handleChatKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSendMessage();
     }
-  };
+  }, [chatInput, isAiLoading, user]);
 
-  const adjustTextareaHeight = () => {
+  const adjustTextareaHeight = useCallback(() => {
     if (inputRef.current) {
       inputRef.current.style.height = 'auto';
       inputRef.current.style.height = `${Math.min(inputRef.current.scrollHeight, 150)}px`;
     }
-  };
+  }, []);
 
   useEffect(() => {
     adjustTextareaHeight();
-  }, [chatInput]);
+  }, [chatInput, adjustTextareaHeight]);
 
-  const getAuthToken = () => {
+  const getAuthToken = useCallback(() => {
     if (typeof window === 'undefined') return null;
     return localStorage.getItem('auth_token');
-  };
+  }, []);
 
-  const getAppLang = () => {
+  const getAppLang = useCallback(() => {
     if (typeof window === 'undefined') return 'th';
     return localStorage.getItem('app_lang') || 'th';
-  };
+  }, []);
 
   const fetchChatSessions = async () => {
     if (!user?.id) return;
@@ -265,7 +265,7 @@ export default function AiChatPage() {
     if (user?.id) { fetchChatSessions(); }
   }, [user]);
 
-  const groupChatByDate = (sessionsToGroup: typeof chatSessions) => {
+  const groupChatByDate = useCallback((sessionsToGroup: typeof chatSessions) => {
     const groups: { [key: string]: typeof chatSessions } = {
       today: [],
       yesterday: [],
@@ -294,7 +294,9 @@ export default function AiChatPage() {
     });
 
     return groups;
-  };
+  }, []);
+
+  const groupedSessions = useMemo(() => groupChatByDate(chatSessions), [chatSessions, groupChatByDate]);
 
   const formatSessionTime = (updatedAt: string) => {
     const date = new Date(updatedAt);
@@ -421,7 +423,7 @@ export default function AiChatPage() {
     }
   };
 
-  const suggestionChips = [
+  const suggestionChips = useMemo(() => [
     { 
       icon: '📊', 
       label: language === 'th' ? 'สรุปโภชนาการวันนี้' : 'Daily Summary', 
@@ -442,7 +444,7 @@ export default function AiChatPage() {
       label: language === 'th' ? 'วิเคราะห์เป้าหมาย' : 'Goal Analysis', 
       prompt: language === 'th' ? 'วิเคราะห์น้ำหนักปัจจุบันของฉันกับเป้าหมายที่ตั้งไว้หน่อย' : 'Analyze my current weight vs my goal' 
     },
-  ];
+  ], [language]);
 
   const handleSuggestionClick = (prompt: string) => {
     setChatInput(prompt);
@@ -726,21 +728,20 @@ export default function AiChatPage() {
             </button>
 
             <div className="ai-header-title">
-              <div className="ai-header-avatar">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0f1715" strokeWidth="2.5" aria-hidden="true">
-                  <path d="M12 2L2 7l10 5 10-5-10-5z" />
-                  <path d="M2 17l10 5 10-5" />
-                  <path d="M2 12l10 5 10-5" />
+              <div className="ai-header-avatar" style={{ background: 'var(--accent-cal-gradient)' }}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" aria-hidden="true">
+                  <circle cx="12" cy="12" r="10"/>
+                  <path d="M12 6v6l4 2"/>
                 </svg>
               </div>
               <div className="ai-header-text">
-                <span className="ai-header-eyebrow">Somdun AI</span>
+                <span className="ai-header-eyebrow" style={{ color: 'var(--accent-cal)' }}>Somdun AI</span>
                 <span className="ai-header-session">
                   {activeSessionTitle || (language === 'th' ? 'แชทใหม่' : 'New Chat')}
                 </span>
               </div>
               <span className="ai-header-status">
-                <span className="ai-status-dot" />
+                <span className="ai-status-dot" style={{ background: 'var(--accent-cal)' }} />
                 {language === 'th' ? 'พร้อมใช้งาน' : 'Online'}
               </span>
             </div>
@@ -775,9 +776,8 @@ export default function AiChatPage() {
                   transition={{ duration: shouldReduceMotion ? 0 : 0.4, ease: [0.16, 1, 0.3, 1] }}
                   className="flex flex-col items-center justify-center w-full mt-auto mb-auto py-10"
                 >
-                  <div className="w-20 h-20 rounded-[2rem] flex items-center justify-center mb-8 shadow-2xl relative border" style={{ background: 'rgba(130, 166, 125, 0.1)', borderColor: 'rgba(130, 166, 125, 0.2)' }}>
-                    <div className="absolute inset-0 blur-xl opacity-20 rounded-[2rem]" style={{ background: 'var(--accent-cal-gradient)' }} />
-                    <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="var(--accent-cal)" strokeWidth="2"><path d="M12 2L2 7l10 5 10-5-10-5z" /><path d="M2 17l10 5 10-5" /><path d="M2 12l10 5 10-5" /></svg>
+                  <div className="w-20 h-20 rounded-[2rem] flex items-center justify-center mb-8 shadow-2xl relative border" style={{ background: 'var(--accent-cal-gradient)', boxShadow: '0 8px 32px rgba(130, 166, 125, 0.3)' }}>
+                    <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
                   </div>
                   <h1 className="text-3xl font-bold mb-3 tracking-tight text-center">
                     {language === 'th' ? `สวัสดี, ${user?.name || 'User'}` : `Hello, ${user?.name || 'User'}`}
@@ -819,15 +819,14 @@ export default function AiChatPage() {
                     >
                       <div className="flex-shrink-0 pt-1">
                         {msg.role === "user" ? (
-                          <div className="ai-avatar user">
+                          <div className="ai-avatar user" style={{ background: 'var(--accent-pro-gradient)' }}>
                             {user?.name?.charAt(0) || "U"}
                           </div>
                         ) : (
-                          <div className="ai-avatar assistant">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0f1715" strokeWidth="2.5">
-                              <path d="M12 2L2 7l10 5 10-5-10-5z" />
-                              <path d="M2 17l10 5 10-5" />
-                              <path d="M2 12l10 5 10-5" />
+                          <div className="ai-avatar assistant" style={{ background: 'var(--accent-cal-gradient)' }}>
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5">
+                              <circle cx="12" cy="12" r="10"/>
+                              <path d="M12 6v6l4 2"/>
                             </svg>
                           </div>
                         )}
@@ -851,11 +850,10 @@ export default function AiChatPage() {
                   {showQuickAdd && (
                     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: shouldReduceMotion ? 0 : 0.25, ease: [0.16, 1, 0.3, 1] }} className="flex gap-4 w-full">
                       <div className="w-8 h-8 flex-shrink-0 pt-1">
-                        <div className="ai-avatar assistant">
-                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0f1715" strokeWidth="2.5">
-                            <path d="M12 2L2 7l10 5 10-5-10-5z" />
-                            <path d="M2 17l10 5 10-5" />
-                            <path d="M2 12l10 5 10-5" />
+                        <div className="ai-avatar assistant" style={{ background: 'var(--accent-cal-gradient)' }}>
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5">
+                            <circle cx="12" cy="12" r="10"/>
+                            <path d="M12 6v6l4 2"/>
                           </svg>
                         </div>
                       </div>
@@ -907,13 +905,13 @@ export default function AiChatPage() {
 
                   {isAiLoading && (
                     <div className="flex gap-4 w-full">
-                      <div className="w-8 h-8 rounded-full flex items-center justify-center shadow-md animate-pulse" style={{ background: 'var(--accent-cal-gradient)' }}>
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0f1715" strokeWidth="2.5"><path d="M12 2L2 7l10 5 10-5-10-5z" /><path d="M2 17l10 5 10-5" /><path d="M2 12l10 5 10-5" /></svg>
+                      <div className="w-8 h-8 rounded-full flex items-center justify-center" style={{ background: 'var(--accent-cal-gradient)' }}>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
                       </div>
                       <div className="flex items-center gap-1.5 py-3">
-                        <div className="w-2 h-2 rounded-full animate-bounce [animation-delay:-0.3s]" style={{ backgroundColor: 'var(--text-secondary)' }} />
-                        <div className="w-2 h-2 rounded-full animate-bounce [animation-delay:-0.15s]" style={{ backgroundColor: 'var(--text-secondary)' }} />
-                        <div className="w-2 h-2 rounded-full animate-bounce" style={{ backgroundColor: 'var(--text-secondary)' }} />
+                        <div className="w-2 h-2 rounded-full animate-bounce [animation-delay:-0.3s]" style={{ backgroundColor: 'var(--accent-cal)' }} />
+                        <div className="w-2 h-2 rounded-full animate-bounce [animation-delay:-0.15s]" style={{ backgroundColor: 'var(--accent-cal)' }} />
+                        <div className="w-2 h-2 rounded-full animate-bounce" style={{ backgroundColor: 'var(--accent-cal)' }} />
                       </div>
                     </div>
                   )}
@@ -958,15 +956,16 @@ export default function AiChatPage() {
                 disabled={isAiLoading || !chatInput.trim()}
                 className="ai-chat-send-btn"
                 aria-label={language === 'th' ? 'ส่งข้อความ' : 'Send message'}
+                style={{ background: 'var(--accent-cal-gradient)' }}
               >
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                   <line x1="12" y1="19" x2="12" y2="5"></line>
                   <polyline points="5 12 12 5 19 12"></polyline>
                 </svg>
               </button>
             </div>
             <div className="ai-chat-input-hint">
-              <span>{language === 'th' ? 'Somdun อาจผิดพลาด ตรวจสอบข้อมูลสำคัญ' : 'Somdun can make mistakes. Verify important info.'}</span>
+              <span style={{ color: 'var(--text-secondary)', opacity: 0.7 }}>{language === 'th' ? 'Somdun อาจผิดพลาด ตรวจสอบข้อมูลสำคัญ' : 'Somdun can make mistakes. Verify important info.'}</span>
             </div>
           </div>
         </div>
@@ -1005,7 +1004,7 @@ export default function AiChatPage() {
               <p className="text-[14px] mb-6 font-medium" style={{ color: 'var(--text-secondary)' }}>{language === 'th' ? 'ประวัติแชทนี้จะไม่สามารถกู้คืนได้' : 'This conversation cannot be recovered.'}</p>
               <div className="flex gap-3">
                 <button className="flex-1 py-3 rounded-xl text-[14px] font-semibold active:scale-95 transition-all glass-btn" onClick={() => setSessionToDelete(null)}>{language === 'th' ? 'ยกเลิก' : 'Cancel'}</button>
-                <button className="flex-1 py-3 rounded-xl text-[14px] font-semibold text-white active:scale-95 transition-all" style={{ backgroundColor: 'var(--danger)' }} onClick={confirmDeleteSession}>{language === 'th' ? 'ลบ' : 'Delete'}</button>
+                <button className="flex-1 py-3 rounded-xl text-[14px] font-semibold text-white active:scale-95 transition-all" style={{ background: 'var(--danger)' }} onClick={confirmDeleteSession}>{language === 'th' ? 'ลบ' : 'Delete'}</button>
               </div>
             </motion.div>
           </motion.div>

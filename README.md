@@ -7,9 +7,9 @@
 ## 🛠️ Engineering Overview
 
 This project showcases a robust implementation of modern full-stack patterns, focusing on **Performance**, **User Experience**, and **Data Integrity**. Key technical achievements include:
-- **Scalable AI Pipeline**: Seamless integration of multi-modal vision models and LLM coaching.
-- **High-Concurrency Backend**: A Go/Echo architecture optimized for low-latency API response times.
-- **Reactive Frontend**: A cutting-edge Next.js 16 implementation utilizing React 19 features and Framer Motion for premium micro-interactions.
+- **Refined AI Vision Pipeline**: A multi-stage processing engine with dual-vision prompt ensembles for high-accuracy nutritional analysis.
+- **High-Concurrency Backend**: A Go/Echo architecture optimized for low-latency API response times and structured data normalization.
+- **Reactive Frontend**: A cutting-edge Next.js 16 implementation utilizing React 19 features, Tailwind 4, and Framer Motion for premium micro-interactions.
 
 ### 🏗️ System Architecture
 
@@ -59,23 +59,24 @@ graph TD
 ### 1. Multi-Modal AI Pipeline (Vision + LLM)
 I implemented a sophisticated AI pipeline that transforms food imagery into structured nutritional intelligence.
 - **Challenge**: Passing high-resolution images to the AI models often led to increased latency and potential payload failures on unstable mobile networks.
-- **Solution**: Developed a **client-side image processing utility** that performs lightning-fast compression before transmission, reducing payload size by ~80% while maintaining the fidelity required for AI vision accuracy.
+- **Solution**: Developed a **client-side image processing utility** that performs lightning-fast compression before transmission, reducing payload size by ~80%.
+- **Optimization**: Implemented a **Multi-Stage Vision Ensemble** that combines results from multiple model passes to ensure accuracy even with complex, multi-item meals.
 
 ### 2. The "Athlete Player Card" Algorithm
 A core gamification engine that calculates a dynamic "Performance Rating" (OVR) by aggregating multi-dimensional health data:
 - **Nutrition Compliance**: Real-time tracking of macros vs. personalized goals.
+- **Exercise & Recovery**: Granular tracking of physical activity and sleep data.
 - **Hydration Syncing**: Visual tracking of water intake.
-- **Recovery Tracking**: Granular sleep and exercise logging.
 *Technical Detail*: Utilizes complex MongoDB aggregation pipelines to compute rolling averages and performance trends across time-series health data.
 
-### 3. Backend-Proxied Barcode Engine
-To overcome browser-level CORS restrictions and `403 Forbidden` errors from external nutrition databases:
-- **Implementation**: Built a custom Go-based proxy service. It intercepts requests from the `react-zxing` frontend component, negotiates with external UPC APIs using server-side headers, and delivers standardized JSON to the client.
+### 3. Integrated Body Measurement Analytics
+To provide a holistic view of progress, the system tracks and validates body measurements:
+- **Challenge**: Frontend input for measurements often suffers from inconsistent data types (string vs number) and range validation issues.
+- **Solution**: Implemented a **Strict Validation Layer** in both Go and Next.js, ensuring weight, waist, and body fat entries are deterministic, positive, and correctly typed before persistence.
 
 ### 4. Premium Design System (Serene Balance)
-- **Aesthetics**: A fully custom design system using **Vanilla CSS 4** variables to implement a consistent, premium glassmorphic UI.
+- **Aesthetics**: A fully custom design system using **Vanilla CSS 4** and **Tailwind 4** to implement a consistent, premium glassmorphic UI.
 - **Performance**: Optimized rendering using **React 19 Server Components** and `swr` for efficient data fetching and caching.
-- **UX**: An animated "Spotlight Tour" using SVG masking to provide an immersive onboarding experience.
 
 ---
 
@@ -129,7 +130,7 @@ cd frontend && npm run dev
 ---
 
 ## ⚖️ Portfolio Context
-This project was engineered by **[Your Name]** to demonstrate proficiency in modern full-stack architecture, AI integration, and high-quality UI/UX delivery. It solves real-world technical problems (CORS, data aggregation, AI latency) while providing a premium user experience.
+This project was engineered by **KopPuntorn** to demonstrate proficiency in modern full-stack architecture, AI integration, and high-quality UI/UX delivery. It solves real-world technical problems (CORS, data aggregation, AI latency) while providing a premium user experience.
 
 ---
 Developed with a focus on **Scalability**, **Performance**, and **User Experience**.
