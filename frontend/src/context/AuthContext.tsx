@@ -24,6 +24,19 @@ export type UserProfile = {
     };
 };
 
+async function safeReadJson(response: Response): Promise<any> {
+    const contentType = response.headers.get("content-type") || "";
+    if (!contentType.includes("application/json")) {
+        return null;
+    }
+
+    try {
+        return await response.clone().json();
+    } catch {
+        return null;
+    }
+}
+
 type AuthContextType = {
     user: UserProfile | null;
     token: string | null;
@@ -91,8 +104,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 }
 
                 if (response.status === 403) {
-                    const data = await response.clone().json();
-                    if (data.code === "LIMIT_REACHED" || data.code === "PRO_REQUIRED") {
+                    const data = await safeReadJson(response);
+                    if (data?.code === "LIMIT_REACHED" || data?.code === "PRO_REQUIRED") {
                         // Trigger global paywall UI
                         window.dispatchEvent(new CustomEvent("trigger-paywall", { detail: data }));
                     }

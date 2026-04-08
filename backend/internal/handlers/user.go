@@ -31,11 +31,11 @@ func GetUserProfile(c echo.Context) error {
 	usage, _ := GetUserUsageState(ctx, u)
 
 	response := struct {
-		models.User `bson:",inline"`
-		Usage       models.UserUsage `json:"usage"`
+		PublicUserResponse `json:",inline"`
+		Usage              models.UserUsage `json:"usage"`
 	}{
-		User:  u,
-		Usage: usage,
+		PublicUserResponse: buildPublicUserResponse(u),
+		Usage:              usage,
 	}
 
 	return c.JSON(http.StatusOK, response)
@@ -142,5 +142,5 @@ func UpdateUserProfile(c echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 	}
 
-	return c.JSON(http.StatusOK, updatedUser)
+	return c.JSON(http.StatusOK, buildPublicUserResponse(updatedUser))
 }
