@@ -4,6 +4,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"strings"
 
 	"backend/internal/db"
 	appMiddleware "backend/internal/middleware"
@@ -47,13 +48,36 @@ func main() {
 	e.Use(echoMiddleware.RateLimiter(echoMiddleware.NewRateLimiterMemoryStore(20))) // Max 20 requests per second per IP
 
 	frontendURL := os.Getenv("FRONTEND_URL")
+	allowedOrigins := []string{"http://localhost:3000", "http://127.0.0.1:3000"}
 	if frontendURL == "" {
-		slog.Warn("FRONTEND_URL not set, falling back to localhost", "fallback", "http://localhost:3000")
-		frontendURL = "http://localhost:3000"
+		slog.Warn("FRONTEND_URL not set, falling back to localhost-only CORS policy")
+	} else {
+		for _, origin := range strings.Split(frontendURL, ",") {
+			origin = strings.TrimSpace(origin)
+			if origin != "" {
+				allowedOrigins = append(allowedOrigins, origin)
+			}
+		}
 	}
 
 	e.Use(echoMiddleware.CORSWithConfig(echoMiddleware.CORSConfig{
-		AllowOrigins: []string{frontendURL, "http://localhost:3000", "http://127.0.0.1:3000"},
+		AllowOriginFunc: func(origin string) (bool, error) {
+			if origin == "" {
+				return true, nil
+			}
+
+			for _, allowed := range allowedOrigins {
+				if origin == allowed {
+					return true, nil
+				}
+				if allowed == "https://*.vercel.app" && strings.HasPrefix(origin, "https://") && strings.HasSuffix(origin, ".vercel.app") {
+					return true, nil
+				}
+			}
+
+			slog.Warn("Blocked CORS origin", "origin", origin)
+			return false, nil
+		},
 		AllowMethods: []string{echo.GET, echo.PUT, echo.POST, echo.DELETE, echo.OPTIONS},
 		AllowHeaders: []string{echo.HeaderOrigin, echo.HeaderContentType, echo.HeaderAccept, echo.HeaderAuthorization},
 		MaxAge:       86400, // Cache preflight requests for 24 hours

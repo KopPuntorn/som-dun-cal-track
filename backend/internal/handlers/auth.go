@@ -162,6 +162,7 @@ func GoogleLogin(c echo.Context) error {
 
 	clientId := os.Getenv("GOOGLE_CLIENT_ID")
 	if clientId == "" || clientId == "PLACEHOLDER" {
+		slog.Error("Google login failed: GOOGLE_CLIENT_ID is not configured")
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Google Client ID not configured. Please add it to your .env"})
 	}
 
@@ -170,7 +171,7 @@ func GoogleLogin(c echo.Context) error {
 
 	payload, err := idtoken.Validate(ctx, req.Token, clientId)
 	if err != nil {
-		slog.Warn("Google login failed: invalid token", "error", err)
+		slog.Warn("Google login failed: invalid token", "error", err, "googleClientIDConfigured", clientId != "")
 		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Invalid Google token"})
 	}
 
