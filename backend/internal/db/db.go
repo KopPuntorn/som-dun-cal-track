@@ -110,7 +110,7 @@ func EnsureIndexes() {
 	// ChatSessionsCollection: userId + updatedAt for listing recent sessions
 	_, err = ChatSessionsCollection.Indexes().CreateOne(ctx, mongo.IndexModel{
 		Keys:    bson.D{{Key: "userId", Value: 1}, {Key: "updatedAt", Value: -1}},
-		Options: indexOpts,
+		Options: options.Index().SetBackground(true).SetName("chat_sessions_user_updated_at"),
 	})
 	if err != nil {
 		slog.Warn("Failed to create ChatSessions index", "error", err)

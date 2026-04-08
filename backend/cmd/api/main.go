@@ -2,6 +2,7 @@ package main
 
 import (
 	"log/slog"
+	"net/http"
 	"os"
 
 	"backend/internal/db"
@@ -61,13 +62,15 @@ func main() {
 	// Setup Routes
 	routes.SetupRoutes(e)
 
-	// Root Route (for health checks/confirm service is up)
-	e.GET("/", func(c echo.Context) error {
+	// Health routes for Render/proxies that may probe with GET or HEAD.
+	healthHandler := func(c echo.Context) error {
 		return c.JSON(200, map[string]string{
 			"status":  "online",
 			"message": "Calorie Track API is running",
 		})
-	})
+	}
+	e.Match([]string{http.MethodGet, http.MethodHead}, "/", healthHandler)
+	e.Match([]string{http.MethodGet, http.MethodHead}, "/healthz", healthHandler)
 
 	// Start server
 	port := os.Getenv("PORT")
