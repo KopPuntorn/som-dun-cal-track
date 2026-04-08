@@ -3,6 +3,7 @@ package main
 import (
 	"log/slog"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 
@@ -53,7 +54,7 @@ func main() {
 		slog.Warn("FRONTEND_URL not set, falling back to localhost-only CORS policy")
 	} else {
 		for _, origin := range strings.Split(frontendURL, ",") {
-			origin = strings.TrimSpace(origin)
+			origin = normalizeOrigin(origin)
 			if origin != "" {
 				allowedOrigins = append(allowedOrigins, origin)
 			}
@@ -62,20 +63,21 @@ func main() {
 
 	e.Use(echoMiddleware.CORSWithConfig(echoMiddleware.CORSConfig{
 		AllowOriginFunc: func(origin string) (bool, error) {
-			if origin == "" {
+			normalizedOrigin := normalizeOrigin(origin)
+			if normalizedOrigin == "" {
 				return true, nil
 			}
 
 			for _, allowed := range allowedOrigins {
-				if origin == allowed {
+				if normalizedOrigin == allowed {
 					return true, nil
 				}
-				if allowed == "https://*.vercel.app" && strings.HasPrefix(origin, "https://") && strings.HasSuffix(origin, ".vercel.app") {
+				if allowed == "https://*.vercel.app" && strings.HasPrefix(normalizedOrigin, "https://") && strings.HasSuffix(normalizedOrigin, ".vercel.app") {
 					return true, nil
 				}
 			}
 
-			slog.Warn("Blocked CORS origin", "origin", origin)
+			slog.Warn("Blocked CORS origin", "origin", normalizedOrigin)
 			return false, nil
 		},
 		AllowMethods: []string{echo.GET, echo.PUT, echo.POST, echo.DELETE, echo.OPTIONS},
@@ -102,4 +104,22 @@ func main() {
 		port = "8080"
 	}
 	e.Logger.Fatal(e.Start(":" + port))
+}
+
+func normalizeOrigin(raw string) string {
+	raw = strings.TrimSpace(strings.TrimRight(raw, "/"))
+	if raw == "" {
+		return ""
+	}
+
+	if strings.Contains(raw, "*") {
+		return raw
+	}
+
+	parsed, err := url.Parse(raw)
+	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
+		return raw
+	}
+
+	return parsed.Scheme + "://" + parsed.Host
 }
