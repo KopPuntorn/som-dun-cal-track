@@ -99,6 +99,80 @@ const fetcher = (url: string) => fetch(url, {
 
 type RangeType = 'today' | 'week' | 'month' | 'custom';
 
+const DASHBOARD_THEME = {
+    nutrition: {
+        solid: '#f97316',
+        gradientStart: '#fdba74',
+        gradientEnd: '#f97316',
+        glow: 'rgba(249, 115, 22, 0.22)',
+    },
+    protein: {
+        solid: '#38bdf8',
+        gradientStart: '#7dd3fc',
+        gradientEnd: '#0ea5e9',
+        glow: 'rgba(56, 189, 248, 0.22)',
+    },
+    carbs: {
+        solid: '#f59e0b',
+        gradientStart: '#fbbf24',
+        gradientEnd: '#f97316',
+        glow: 'rgba(245, 158, 11, 0.22)',
+    },
+    fitness: {
+        solid: '#22c55e',
+        gradientStart: '#4ade80',
+        gradientEnd: '#16a34a',
+        glow: 'rgba(34, 197, 94, 0.22)',
+    },
+    recovery: {
+        solid: '#a855f7',
+        gradientStart: '#c084fc',
+        gradientEnd: '#9333ea',
+        glow: 'rgba(168, 85, 247, 0.22)',
+    },
+    macroProtein: {
+        solid: '#14b8a6',
+        gradientStart: '#5eead4',
+        gradientEnd: '#0f766e',
+        glow: 'rgba(20, 184, 166, 0.22)',
+    },
+    macroCarbs: {
+        solid: '#fb7185',
+        gradientStart: '#fda4af',
+        gradientEnd: '#e11d48',
+        glow: 'rgba(251, 113, 133, 0.22)',
+    },
+    macroFat: {
+        solid: '#eab308',
+        gradientStart: '#fde047',
+        gradientEnd: '#ca8a04',
+        glow: 'rgba(234, 179, 8, 0.22)',
+    },
+    danger: {
+        solid: '#ef4444',
+        gradientStart: '#f87171',
+        gradientEnd: '#dc2626',
+        glow: 'rgba(239, 68, 68, 0.22)',
+    },
+};
+
+const getToggleButtonStyle = (active: boolean, color: string, glow: string) => ({
+    padding: '6px 12px',
+    fontSize: '12px',
+    height: 'auto',
+    borderRadius: '8px',
+    ...(active
+        ? {
+            background: color,
+            color: '#081012',
+            borderColor: color,
+            boxShadow: `0 0 0 1px ${color}, 0 10px 20px ${glow}`,
+        }
+        : {
+            color: 'var(--text-secondary)',
+        }),
+});
+
 export default function DashboardPage() {
     const { logout, isLoading: authLoading } = useAuth();
     const { language, setLanguage, t } = useLanguage();
@@ -202,8 +276,8 @@ export default function DashboardPage() {
             } else {
                 setError("Failed to get AI advice");
             }
-        } catch (err: any) {
-            if (err?.name === 'AbortError') {
+        } catch (err: unknown) {
+            if (err instanceof Error && err.name === 'AbortError') {
                 setError("Request timed out. Try a shorter date range.");
             } else {
                 console.error(err);
@@ -378,6 +452,35 @@ export default function DashboardPage() {
     const sleepLabel = t('chartSleep');
     const exerciseTitle = t('chartExerciseTitle');
     const sleepTitle = t('chartSleepTitle');
+    const rangeLabels: Record<RangeType, string> = {
+        today: t('rangeToday'),
+        week: t('rangeWeek'),
+        month: t('rangeMonth'),
+        custom: t('rangeCustom'),
+    };
+    const selectedRangeLabel =
+        range === 'custom'
+            ? `${format(new Date(customStart), 'MMM d')} - ${format(new Date(customEnd), 'MMM d')}`
+            : rangeLabels[range];
+    const currentMacroTheme =
+        macroView === 'protein'
+            ? DASHBOARD_THEME.macroProtein
+            : macroView === 'carbs'
+                ? DASHBOARD_THEME.macroCarbs
+                : DASHBOARD_THEME.macroFat;
+    const currentMacroPanelClass =
+        macroView === 'protein'
+            ? 'chart-panel--macro-protein'
+            : macroView === 'carbs'
+                ? 'chart-panel--macro-carbs'
+                : 'chart-panel--macro-fat';
+    const currentHealthTheme = healthView === 'exercise' ? DASHBOARD_THEME.fitness : DASHBOARD_THEME.recovery;
+    const currentMeasureTheme =
+        measureView === 'weight'
+            ? DASHBOARD_THEME.nutrition
+            : measureView === 'waist'
+                ? DASHBOARD_THEME.protein
+                : DASHBOARD_THEME.recovery;
 
     if (dashboardLoading || loading) {
         return (
@@ -432,38 +535,66 @@ export default function DashboardPage() {
                     }
                 />
 
-                <section className="glass-panel range-selector" style={{ padding: '12px 16px' }}>
-                    <div style={{ display: 'flex', gap: '6px', overflowX: 'auto', paddingBottom: '0', flexWrap: 'wrap' }}>
+                <section className="glass-panel range-selector">
+                    <div className="range-selector-top">
+                        <div className="range-selector-copy">
+                            <p className="range-selector-label">{t('rangeSelectorLabel')}</p>
+                            <p className="range-selector-hint">{t('rangeSelectorHint')}</p>
+                        </div>
+                        <div className="range-selector-chip">
+                            <span>{t('selectedWindow')}</span>
+                            <strong>{selectedRangeLabel}</strong>
+                        </div>
+                    </div>
+                    <div className="range-selector-tabs">
                         {(['today', 'week', 'month', 'custom'] as RangeType[]).map(r => (
                             <button 
                                 key={r} 
                                 className={`range-btn ${range === r ? 'active' : ''}`} 
                                 onClick={() => setRange(r)}
                             >
-                                {r === 'today' ? 'Today' : r === 'week' ? '7 Days' : r === 'month' ? '30 Days' : 'Custom'}
+                                {rangeLabels[r]}
                             </button>
                         ))}
                     </div>
                     {range === 'custom' && (
-                        <div style={{ display: 'flex', gap: '12px', marginTop: '12px', flexWrap: 'wrap' }}>
-                            <input type="date" value={customStart} onChange={e => setCustomStart(e.target.value)} className="date-input" />
-                            <input type="date" value={customEnd} onChange={e => setCustomEnd(e.target.value)} className="date-input" />
+                        <div className="range-selector-dates">
+                            <label className="range-date-field">
+                                <span className="range-date-label">{t('startDate')}</span>
+                                <input type="date" value={customStart} onChange={e => setCustomStart(e.target.value)} className="date-input" />
+                            </label>
+                            <label className="range-date-field">
+                                <span className="range-date-label">{t('endDate')}</span>
+                                <input type="date" value={customEnd} onChange={e => setCustomEnd(e.target.value)} className="date-input" />
+                            </label>
                         </div>
                     )}
                 </section>
 
-                <section className="glass-panel" style={{ padding: '24px' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                            <div className="icon-btn" style={{ background: 'var(--accent-cal-gradient)', border: 'none', width: '40px', height: '40px' }}>
+                <section className="glass-panel dashboard-insight-card">
+                    <div className="dashboard-insight-header">
+                        <div className="dashboard-insight-copy">
+                            <div className="dashboard-insight-title-row">
+                                <div className="dashboard-insight-icon" style={{ background: `linear-gradient(135deg, ${DASHBOARD_THEME.nutrition.gradientStart}, ${DASHBOARD_THEME.nutrition.gradientEnd})`, boxShadow: `0 10px 24px ${DASHBOARD_THEME.nutrition.glow}` }}>
                                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5"><path d="M12 2a10 10 0 1 0 10 10H12V2z"></path><path d="M12 2a10 10 0 0 1 10 10"></path><path d="M12 12L2.7 16.5"></path></svg>
+                                </div>
+                                <div>
+                                    <p className="dashboard-insight-eyebrow">{t('aiBriefing')}</p>
+                                    <h3 className="dashboard-insight-title">{t('aiAnalyst')}</h3>
+                                </div>
                             </div>
-                            <h3 style={{ margin: 0, fontSize: '17px', color: 'var(--text-primary)' }}>{t('aiAnalyst')}</h3>
+                            <p className="dashboard-insight-hint">{t('aiAnalystHint')}</p>
                         </div>
-                        <button onClick={handleGetAiAdvice} className="primary-btn active" disabled={aiLoading || loading} style={{ margin: 0, padding: '10px 20px', fontSize: '14px' }}>{aiLoading ? t('analyzing') : t('getInsights')}</button>
+                        <div className="dashboard-insight-actions">
+                            <div className="dashboard-insight-window">
+                                <span>{t('selectedWindow')}</span>
+                                <strong>{selectedRangeLabel}</strong>
+                            </div>
+                            <button onClick={handleGetAiAdvice} className="primary-btn dashboard-insight-btn" disabled={aiLoading || loading}>{aiLoading ? t('analyzing') : t('getInsights')}</button>
+                        </div>
                     </div>
                     {aiAdvice && (
-                        <div className="markdown-content" style={{ fontSize: '14px', background: 'rgba(255,255,255,0.02)', padding: '20px', borderRadius: '20px', borderLeft: '4px solid var(--accent-cal)', marginTop: '16px' }}>
+                        <div className="markdown-content dashboard-insight-body">
                             <ReactMarkdown remarkPlugins={[remarkGfm]}>{aiAdvice}</ReactMarkdown>
                         </div>
                     )}
@@ -475,33 +606,37 @@ export default function DashboardPage() {
                     <svg style={{ height: 0, width: 0, position: 'absolute' }}>
                         <defs>
                             <linearGradient id="cal-gradient" x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="5%" stopColor="var(--accent-cal)" stopOpacity={0.85} />
-                                <stop offset="95%" stopColor="var(--accent-cal)" stopOpacity={0} />
+                                <stop offset="5%" stopColor={DASHBOARD_THEME.nutrition.solid} stopOpacity={0.85} />
+                                <stop offset="95%" stopColor={DASHBOARD_THEME.nutrition.solid} stopOpacity={0} />
                             </linearGradient>
                             <linearGradient id="pro-gradient" x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="5%" stopColor="var(--accent-pro)" stopOpacity={0.85} />
-                                <stop offset="95%" stopColor="var(--accent-pro)" stopOpacity={0} />
+                                <stop offset="5%" stopColor={DASHBOARD_THEME.macroProtein.solid} stopOpacity={0.85} />
+                                <stop offset="95%" stopColor={DASHBOARD_THEME.macroProtein.solid} stopOpacity={0} />
+                            </linearGradient>
+                            <linearGradient id="carb-gradient" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="5%" stopColor={DASHBOARD_THEME.macroCarbs.solid} stopOpacity={0.85} />
+                                <stop offset="95%" stopColor={DASHBOARD_THEME.macroCarbs.solid} stopOpacity={0} />
                             </linearGradient>
                             <linearGradient id="fat-gradient" x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="5%" stopColor="var(--accent-fat)" stopOpacity={0.85} />
-                                <stop offset="95%" stopColor="var(--accent-fat)" stopOpacity={0} />
+                                <stop offset="5%" stopColor={DASHBOARD_THEME.macroFat.solid} stopOpacity={0.85} />
+                                <stop offset="95%" stopColor={DASHBOARD_THEME.macroFat.solid} stopOpacity={0} />
                             </linearGradient>
                             <linearGradient id="cal-danger" x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="5%" stopColor="var(--danger)" stopOpacity={0.9} />
-                                <stop offset="95%" stopColor="var(--danger)" stopOpacity={0} />
+                                <stop offset="5%" stopColor={DASHBOARD_THEME.danger.solid} stopOpacity={0.9} />
+                                <stop offset="95%" stopColor={DASHBOARD_THEME.danger.solid} stopOpacity={0} />
                             </linearGradient>
                             <linearGradient id="ex-gradient" x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="5%" stopColor="var(--accent-carb)" stopOpacity={0.85} />
-                                <stop offset="95%" stopColor="var(--accent-carb)" stopOpacity={0} />
+                                <stop offset="5%" stopColor={DASHBOARD_THEME.fitness.solid} stopOpacity={0.85} />
+                                <stop offset="95%" stopColor={DASHBOARD_THEME.fitness.solid} stopOpacity={0} />
                             </linearGradient>
                             <linearGradient id="sleep-gradient" x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="5%" stopColor="var(--accent-pro)" stopOpacity={0.85} />
-                                <stop offset="95%" stopColor="var(--accent-pro)" stopOpacity={0} />
+                                <stop offset="5%" stopColor={DASHBOARD_THEME.recovery.solid} stopOpacity={0.85} />
+                                <stop offset="95%" stopColor={DASHBOARD_THEME.recovery.solid} stopOpacity={0} />
                             </linearGradient>
                         </defs>
                     </svg>
                     
-                    <div className="glass-panel chart-panel" style={{ height: '320px', gridColumn: '1 / -1' }}>
+                    <div className="glass-panel chart-panel chart-panel--nutrition chart-panel--energy" style={{ height: '320px', gridColumn: '1 / -1' }}>
                         <div className="chart-header">
                             <div>
                                 <p className="chart-eyebrow">{energyLabel}</p>
@@ -519,7 +654,7 @@ export default function DashboardPage() {
                                 <XAxis dataKey="date" stroke="var(--text-secondary)" fontSize={11} tickLine={false} axisLine={false} />
                                 <YAxis stroke="var(--text-secondary)" fontSize={11} tickLine={false} axisLine={false} domain={[0, (dataMax: number) => Math.max(dataMax, goals.calories) * 1.1]} />
                                 <Tooltip wrapperClassName="chart-tooltip" contentStyle={{ background: 'rgba(15, 23, 21, 0.9)', borderColor: 'rgba(255,255,255,0.15)', borderRadius: '14px' }} itemStyle={{ color: 'var(--text-primary)' }} />
-                                <ReferenceLine y={goals.calories} stroke="var(--danger)" strokeDasharray="4 4" label={{ position: 'right', value: goalLabel, fill: 'var(--danger)', fontSize: 10, fontWeight: 700 }} />
+                                <ReferenceLine y={goals.calories} stroke={DASHBOARD_THEME.nutrition.solid} strokeDasharray="4 4" label={{ position: 'right', value: goalLabel, fill: DASHBOARD_THEME.nutrition.solid, fontSize: 10, fontWeight: 700 }} />
                                 {avgCalories > 0 && (
                                     <ReferenceLine y={avgCalories} stroke="rgba(255,255,255,0.25)" strokeDasharray="2 6" label={{ position: 'left', value: avgLabel, fill: 'rgba(255,255,255,0.6)', fontSize: 10, fontWeight: 700 }} />
                                 )}
@@ -532,7 +667,7 @@ export default function DashboardPage() {
                         </ResponsiveContainer>
                     </div>
 
-                    <div className="glass-panel chart-panel" style={{ height: '320px', gridColumn: '1 / -1' }}>
+                    <div className={`glass-panel chart-panel chart-panel--macro-section ${currentMacroPanelClass}`} style={{ height: '320px', gridColumn: '1 / -1' }}>
                         <div className="chart-header">
                             <div>
                                 <p className="chart-eyebrow">{macroLabel}</p>
@@ -543,21 +678,21 @@ export default function DashboardPage() {
                                 <button
                                     onClick={() => setMacroView('protein')}
                                     className={`glass-btn ${macroView === 'protein' ? 'active' : ''}`}
-                                    style={{ padding: '6px 12px', fontSize: '12px', height: 'auto', borderRadius: '8px' }}
+                                    style={getToggleButtonStyle(macroView === 'protein', DASHBOARD_THEME.macroProtein.solid, DASHBOARD_THEME.macroProtein.glow)}
                                 >
                                     {t('protein').toUpperCase()}
                                 </button>
                                 <button
                                     onClick={() => setMacroView('carbs')}
                                     className={`glass-btn ${macroView === 'carbs' ? 'active' : ''}`}
-                                    style={{ padding: '6px 12px', fontSize: '12px', height: 'auto', borderRadius: '8px' }}
+                                    style={getToggleButtonStyle(macroView === 'carbs', DASHBOARD_THEME.macroCarbs.solid, DASHBOARD_THEME.macroCarbs.glow)}
                                 >
                                     {t('carbs').toUpperCase()}
                                 </button>
                                 <button
                                     onClick={() => setMacroView('fat')}
                                     className={`glass-btn ${macroView === 'fat' ? 'active' : ''}`}
-                                    style={{ padding: '6px 12px', fontSize: '12px', height: 'auto', borderRadius: '8px' }}
+                                    style={getToggleButtonStyle(macroView === 'fat', DASHBOARD_THEME.macroFat.solid, DASHBOARD_THEME.macroFat.glow)}
                                 >
                                     {t('fat').toUpperCase()}
                                 </button>
@@ -571,24 +706,24 @@ export default function DashboardPage() {
                                 <Tooltip wrapperClassName="chart-tooltip" contentStyle={{ background: 'rgba(15, 23, 21, 0.9)', borderColor: 'rgba(255,255,255,0.15)', borderRadius: '14px' }} itemStyle={{ color: 'var(--text-primary)' }} />
                                 <ReferenceLine
                                     y={macroView === 'protein' ? goals.protein : macroView === 'carbs' ? goals.carbs : goals.fat}
-                                    stroke={macroView === 'protein' ? "var(--accent-pro)" : macroView === 'carbs' ? "var(--accent-carb)" : "var(--accent-fat)"}
+                                    stroke={currentMacroTheme.solid}
                                     strokeDasharray="4 4"
-                                    label={{ position: 'right', value: `${macroView.toUpperCase()} ${goalLabel}`, fill: macroView === 'protein' ? "var(--accent-pro)" : macroView === 'carbs' ? "var(--accent-carb)" : "var(--accent-fat)", fontSize: 10, fontWeight: 700 }}
+                                    label={{ position: 'right', value: `${macroView.toUpperCase()} ${goalLabel}`, fill: currentMacroTheme.solid, fontSize: 10, fontWeight: 700 }}
                                 />
                                 <Line
                                     type="monotone"
                                     dataKey={macroView}
-                                    stroke={macroView === 'protein' ? "var(--accent-pro)" : macroView === 'carbs' ? "var(--accent-carb)" : "var(--accent-fat)"}
+                                    stroke={currentMacroTheme.solid}
                                     strokeWidth={3}
-                                    dot={{ fill: 'var(--bg-color)', r: 4, strokeWidth: 2, stroke: macroView === 'protein' ? 'var(--accent-pro)' : macroView === 'carbs' ? 'var(--accent-carb)' : 'var(--accent-fat)' }}
-                                    activeDot={{ r: 6, strokeWidth: 2, stroke: '#0f1715', fill: macroView === 'protein' ? 'var(--accent-pro)' : macroView === 'carbs' ? 'var(--accent-carb)' : 'var(--accent-fat)' }}
+                                    dot={{ fill: 'var(--bg-color)', r: 4, strokeWidth: 2, stroke: currentMacroTheme.solid }}
+                                    activeDot={{ r: 6, strokeWidth: 2, stroke: '#0f1715', fill: currentMacroTheme.solid }}
                                     animationDuration={1000}
                                 />
                             </LineChart>
                         </ResponsiveContainer>
                     </div>
 
-                    <div className="glass-panel chart-panel" style={{ height: '320px', gridColumn: '1 / -1' }}>
+                    <div className={`glass-panel chart-panel chart-panel--health-section ${healthView === 'exercise' ? 'chart-panel--fitness' : 'chart-panel--recovery'}`} style={{ height: '320px', gridColumn: '1 / -1' }}>
                         <div className="chart-header">
                             <div>
                                 <p className="chart-eyebrow">{healthView === 'exercise' ? exerciseLabel : sleepLabel}</p>
@@ -599,19 +734,19 @@ export default function DashboardPage() {
                                         : `${avgLabel} ${avgSleepHours} ${t('unitHr')}/${t('unitDay')}`}
                                 </p>
                             </div>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                            <div className="chart-actions">
                                 <div className="chart-toggle">
                                     <button
                                         onClick={() => setHealthView('exercise')}
                                         className={`glass-btn ${healthView === 'exercise' ? 'active' : ''}`}
-                                        style={{ padding: '6px 12px', fontSize: '12px', height: 'auto', borderRadius: '8px' }}
+                                        style={getToggleButtonStyle(healthView === 'exercise', DASHBOARD_THEME.fitness.solid, DASHBOARD_THEME.fitness.glow)}
                                     >
                                         {exerciseLabel.toUpperCase()}
                                     </button>
                                     <button
                                         onClick={() => setHealthView('sleep')}
                                         className={`glass-btn ${healthView === 'sleep' ? 'active' : ''}`}
-                                        style={{ padding: '6px 12px', fontSize: '12px', height: 'auto', borderRadius: '8px' }}
+                                        style={getToggleButtonStyle(healthView === 'sleep', DASHBOARD_THEME.recovery.solid, DASHBOARD_THEME.recovery.glow)}
                                     >
                                         {sleepLabel.toUpperCase()}
                                     </button>
@@ -629,7 +764,7 @@ export default function DashboardPage() {
                                     <XAxis dataKey="date" stroke="var(--text-secondary)" fontSize={11} tickLine={false} axisLine={false} />
                                     <YAxis stroke="var(--text-secondary)" fontSize={11} tickLine={false} axisLine={false} />
                                     <Tooltip wrapperClassName="chart-tooltip" contentStyle={{ background: 'rgba(15, 23, 21, 0.9)', borderColor: 'rgba(255,255,255,0.15)', borderRadius: '14px' }} itemStyle={{ color: 'var(--text-primary)' }} />
-                                    <ReferenceLine y={30} stroke="var(--accent-carb)" strokeDasharray="4 4" label={{ position: 'right', value: goalLabel, fill: 'var(--accent-carb)', fontSize: 10, fontWeight: 700 }} />
+                                    <ReferenceLine y={30} stroke={DASHBOARD_THEME.fitness.solid} strokeDasharray="4 4" label={{ position: 'right', value: goalLabel, fill: DASHBOARD_THEME.fitness.solid, fontSize: 10, fontWeight: 700 }} />
                                     <Bar dataKey="duration" name={t('minutes')} fill="url(#ex-gradient)" radius={[8, 8, 4, 4]} maxBarSize={44} />
                                 </BarChart>
                             ) : (
@@ -638,12 +773,12 @@ export default function DashboardPage() {
                                     <XAxis dataKey="date" stroke="var(--text-secondary)" fontSize={11} tickLine={false} axisLine={false} />
                                     <YAxis stroke="var(--text-secondary)" fontSize={11} tickLine={false} axisLine={false} domain={[0, 12]} />
                                     <Tooltip wrapperClassName="chart-tooltip" contentStyle={{ background: 'rgba(15, 23, 21, 0.9)', borderColor: 'rgba(255,255,255,0.15)', borderRadius: '14px' }} itemStyle={{ color: 'var(--text-primary)' }} />
-                                    <ReferenceLine y={8} stroke="var(--accent-pro)" strokeDasharray="4 4" label={{ position: 'right', value: goalLabel, fill: 'var(--accent-pro)', fontSize: 10, fontWeight: 700 }} />
+                                    <ReferenceLine y={8} stroke={DASHBOARD_THEME.recovery.solid} strokeDasharray="4 4" label={{ position: 'right', value: goalLabel, fill: DASHBOARD_THEME.recovery.solid, fontSize: 10, fontWeight: 700 }} />
                                     <Bar dataKey="duration" name={t('hours')} radius={[8, 8, 4, 4]} maxBarSize={44}>
                                         {chartDataSleep.map((entry, index) => {
                                             let color = 'url(#sleep-gradient)';
                                             if (entry.quality === 'Poor') color = 'var(--danger)';
-                                            if (entry.quality === 'Fair') color = 'var(--accent-carb)';
+                                            if (entry.quality === 'Fair') color = DASHBOARD_THEME.carbs.solid;
                                             return <Cell key={`cell-${index}`} fill={color} />;
                                         })}
                                     </Bar>
@@ -652,8 +787,8 @@ export default function DashboardPage() {
                         </ResponsiveContainer>
                     </div>
 
-                    <div className="glass-panel chart-panel" style={{ height: '340px', gridColumn: '1 / -1' }}>
-                        <div className="chart-header" style={{ flexWrap: 'wrap', gap: '12px' }}>
+                    <div className={`glass-panel chart-panel chart-panel--body-section ${measureView === 'weight' ? 'chart-panel--nutrition' : measureView === 'waist' ? 'chart-panel--protein' : 'chart-panel--recovery'}`} style={{ height: '340px', gridColumn: '1 / -1' }}>
+                        <div className="chart-header chart-header--wrap">
                             <div>
                                 <p className="chart-eyebrow">{bodyLabel}</p>
                                 <h3 className="chart-title">{t('measurementsTrend')}</h3>
@@ -667,21 +802,21 @@ export default function DashboardPage() {
                                 <button
                                     onClick={() => setMeasureView('weight')}
                                     className={`glass-btn ${measureView === 'weight' ? 'active' : ''}`}
-                                    style={{ padding: '6px 12px', fontSize: '12px', height: 'auto', borderRadius: '8px' }}
+                                    style={getToggleButtonStyle(measureView === 'weight', DASHBOARD_THEME.nutrition.solid, DASHBOARD_THEME.nutrition.glow)}
                                 >
                                     {t('weight')}
                                 </button>
                                 <button
                                     onClick={() => setMeasureView('waist')}
                                     className={`glass-btn ${measureView === 'waist' ? 'active' : ''}`}
-                                    style={{ padding: '6px 12px', fontSize: '12px', height: 'auto', borderRadius: '8px' }}
+                                    style={getToggleButtonStyle(measureView === 'waist', DASHBOARD_THEME.protein.solid, DASHBOARD_THEME.protein.glow)}
                                 >
                                     {t('waist')}
                                 </button>
                                 <button
                                     onClick={() => setMeasureView('bodyFat')}
                                     className={`glass-btn ${measureView === 'bodyFat' ? 'active' : ''}`}
-                                    style={{ padding: '6px 12px', fontSize: '12px', height: 'auto', borderRadius: '8px' }}
+                                    style={getToggleButtonStyle(measureView === 'bodyFat', DASHBOARD_THEME.recovery.solid, DASHBOARD_THEME.recovery.glow)}
                                 >
                                     {t('bodyFat')}
                                 </button>
@@ -700,10 +835,10 @@ export default function DashboardPage() {
                                     type="monotone"
                                     dataKey={measureView}
                                     name={measureView === 'weight' ? `${t('weight')} (kg)` : measureView === 'waist' ? `${t('waist')} (cm)` : `${t('bodyFat')} (%)`}
-                                    stroke={measureView === 'weight' ? "var(--accent-cal)" : measureView === 'waist' ? "var(--accent-pro)" : "var(--accent-fat)"}
+                                    stroke={currentMeasureTheme.solid}
                                     strokeWidth={3}
-                                    dot={{ fill: 'var(--bg-color)', r: 4, strokeWidth: 2, stroke: measureView === 'weight' ? 'var(--accent-cal)' : measureView === 'waist' ? 'var(--accent-pro)' : 'var(--accent-fat)' }}
-                                    activeDot={{ r: 6, strokeWidth: 2, stroke: '#0f1715', fill: measureView === 'weight' ? 'var(--accent-cal)' : measureView === 'waist' ? 'var(--accent-pro)' : 'var(--accent-fat)' }}
+                                    dot={{ fill: 'var(--bg-color)', r: 4, strokeWidth: 2, stroke: currentMeasureTheme.solid }}
+                                    activeDot={{ r: 6, strokeWidth: 2, stroke: '#0f1715', fill: currentMeasureTheme.solid }}
                                     animationDuration={1000}
                                 />
                             </LineChart>

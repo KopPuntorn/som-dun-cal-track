@@ -95,8 +95,8 @@ func EnsureIndexes() {
 		slog.Warn("Failed to create Foods text index", "error", err)
 	}
 
-	// Water, Weight, Exercise, Sleep, BodyMeasurement, ChatSessions, UserUsage - user+date indexes for fast queries
-	collections := []*mongo.Collection{WaterCollection, WeightCollection, ExerciseCollection, SleepCollection, BodyMeasurementCollection, ChatSessionsCollection, UserUsageCollection}
+	// Water, Weight, Exercise, Sleep, BodyMeasurement - user+date indexes for fast queries
+	collections := []*mongo.Collection{WaterCollection, WeightCollection, ExerciseCollection, SleepCollection, BodyMeasurementCollection}
 	for _, coll := range collections {
 		_, err = coll.Indexes().CreateOne(ctx, mongo.IndexModel{
 			Keys:    bson.D{{Key: "userId", Value: 1}, {Key: "date", Value: -1}},
@@ -105,6 +105,27 @@ func EnsureIndexes() {
 		if err != nil {
 			slog.Warn("Failed to create index", "collection", coll.Name(), "error", err)
 		}
+	}
+
+	// ChatSessionsCollection: userId + updatedAt for listing recent sessions
+	_, err = ChatSessionsCollection.Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys:    bson.D{{Key: "userId", Value: 1}, {Key: "updatedAt", Value: -1}},
+		Options: indexOpts,
+	})
+	if err != nil {
+		slog.Warn("Failed to create ChatSessions index", "error", err)
+	}
+
+	// UserUsageCollection: unique per-user per-day document to keep quota tracking atomic
+	_, err = UserUsageCollection.Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys: bson.D{{Key: "userId", Value: 1}, {Key: "date", Value: 1}},
+		Options: options.Index().
+			SetUnique(true).
+			SetBackground(true).
+			SetName("user_usage_unique_user_day"),
+	})
+	if err != nil {
+		slog.Warn("Failed to create UserUsage unique index", "error", err)
 	}
 
 	slog.Info("MongoDB indexes verified.")

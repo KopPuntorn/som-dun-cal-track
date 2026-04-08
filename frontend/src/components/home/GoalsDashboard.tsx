@@ -49,9 +49,8 @@ export default function GoalsDashboard({
   loading,
   macros,
 }: GoalsDashboardProps) {
-  const radius = 64;
-  const circumference = 2 * Math.PI * radius;
   const calPercent = Math.min(100, Math.max(0, (calTotal / adjustedCalGoal) * 100));
+  const remainingAmount = Math.abs(calRemaining);
 
   return (
     <section className="goals-dashboard">
@@ -66,111 +65,55 @@ export default function GoalsDashboard({
             <p className="goals-card-eyebrow">{dailyTargetsLabel}</p>
             <h2 className="goals-card-title">{caloriesLabel}</h2>
           </div>
-          {burnedToday > 0 && <span className="goals-bonus-chip">+{burnedToday}</span>}
         </div>
 
         <div className="goals-energy-body">
-          <div className="goals-energy-ring-wrap">
-            <svg className="progress-ring" viewBox="0 0 160 160" style={{ width: "100%", height: "auto" }}>
-              <defs>
-                <linearGradient id="goals-cal-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
-                  <stop offset="0%" stopColor="#fff7ed" />
-                  <stop offset="30%" stopColor="#fb923c" />
-                  <stop offset="100%" stopColor="#f97316" />
-                </linearGradient>
-              </defs>
-              <circle
-                className="ring-bg"
-                stroke="rgba(255,255,255,0.05)"
-                strokeWidth="10"
-                fill="none"
-                r={radius}
-                cx="80"
-                cy="80"
-              />
+          <div className="goals-energy-summary">
+            <div className="goals-energy-hero">
+              <div className="goals-energy-main">
+                <motion.span
+                  initial={{ scale: 0.8, opacity: 0 }}
+                  animate={{ scale: 1, opacity: 1 }}
+                  key={calTotal}
+                  className={`goals-energy-value ${isOverCal ? "is-over" : ""}`}
+                >
+                  {calTotal}
+                </motion.span>
+                <span className="goals-energy-goal">/ {adjustedCalGoal} kcal</span>
+              </div>
+              <p className="goals-energy-summary-note">
+                {remainingAmount} kcal {isOverCal ? overLabel.toLowerCase() : remainingLabel.toLowerCase()}
+              </p>
+            </div>
 
-              {/* Layer 1: Ambient Glow (Radiance) */}
-              <circle
-                className="ring-glow-ambient"
-                strokeWidth="14"
-                strokeLinecap="round"
-                fill="none"
-                r={radius}
-                cx="80"
-                cy="80"
-                stroke={isOverCal ? "rgba(239, 68, 68, 0.4)" : "rgba(249, 115, 22, 0.4)"}
-                strokeDasharray={`${loading ? 0 : (calPercent / 100) * circumference} ${circumference}`}
-                transform="rotate(-90 80 80)"
-                style={{
-                  transition: "stroke-dasharray 1.2s cubic-bezier(0.16, 1, 0.3, 1)",
-                  filter: "blur(5px)",
-                  opacity: loading ? 0 : 1,
-                }}
-              />
-
-              {/* Layer 2: Core Glow (Neon Intensity) */}
-              <circle
-                className="ring-glow-core"
-                strokeWidth="10"
-                strokeLinecap="round"
-                fill="none"
-                r={radius}
-                cx="80"
-                cy="80"
-                stroke={isOverCal ? "rgba(239, 68, 68, 0.5)" : "rgba(251, 146, 60, 0.5)"}
-                strokeDasharray={`${loading ? 0 : (calPercent / 100) * circumference} ${circumference}`}
-                transform="rotate(-90 80 80)"
-                style={{
-                  transition: "stroke-dasharray 1.2s cubic-bezier(0.16, 1, 0.3, 1)",
-                  filter: "blur(2px)",
-                  opacity: loading ? 0 : 1,
-                }}
-              />
-
-              {/* Layer 3: Solid Segment (Precision) */}
-              <circle
-                className="ring-progress"
-                strokeWidth="8"
-                strokeLinecap="round"
-                fill="none"
-                r={radius}
-                cx="80"
-                cy="80"
-                stroke={isOverCal ? "#ef4444" : "url(#goals-cal-gradient)"}
-                strokeDasharray={`${loading ? 0 : (calPercent / 100) * circumference} ${circumference}`}
-                transform="rotate(-90 80 80)"
-                style={{
-                  transition: "stroke-dasharray 1.2s cubic-bezier(0.16, 1, 0.3, 1)",
-                }}
-              />
-            </svg>
-
-            <div className="goals-energy-ring-copy">
-              <motion.span
-                initial={{ scale: 0.8, opacity: 0 }}
-                animate={{ scale: 1, opacity: 1 }}
-                key={calTotal}
-                className={`goals-energy-value ${isOverCal ? "is-over" : ""}`}
-              >
-                {calTotal}
-              </motion.span>
-              <span className="goals-energy-goal">/ {adjustedCalGoal} kcal</span>
+            <div className="goals-energy-meter" aria-hidden="true">
+              <div className="goals-energy-meter-track">
+                <motion.span
+                  className={`goals-energy-meter-fill ${isOverCal ? "is-over" : ""}`}
+                  initial={{ width: 0 }}
+                  animate={{ width: `${loading ? 0 : calPercent}%` }}
+                  transition={{ duration: 1.1, ease: [0.16, 1, 0.3, 1] }}
+                />
+              </div>
+              <span className="goals-energy-meter-label">{Math.round(calPercent)}%</span>
             </div>
           </div>
 
-          <div className="goals-energy-stats">
-            <div className="goals-energy-stat">
+          <div className={`goals-energy-stats${burnedToday > 0 ? " has-bonus" : ""}`}>
+            <div className="goals-energy-stat goals-energy-stat--target">
               <span className="goals-energy-stat-value">{caloriesTarget}</span>
               <span className="goals-energy-stat-label">{targetLabel}</span>
             </div>
-            <div className="goals-energy-stat goals-energy-stat--accent">
-              <span className="goals-energy-stat-value">+{burnedToday}</span>
-              <span className="goals-energy-stat-label">{activeBonusLabel}</span>
-            </div>
-            <div className="goals-energy-stat">
-              <span className={`goals-energy-stat-value ${isOverCal ? "is-over" : ""}`}>{calRemaining}</span>
+            <div className="goals-energy-stat goals-energy-stat--remaining">
+              <span className={`goals-energy-stat-value ${isOverCal ? "is-over" : ""}`}>{remainingAmount}</span>
               <span className="goals-energy-stat-label">{isOverCal ? overLabel : remainingLabel}</span>
             </div>
+            {burnedToday > 0 && (
+              <div className="goals-energy-stat goals-energy-stat--accent">
+                <span className="goals-energy-stat-value">+{burnedToday}</span>
+                <span className="goals-energy-stat-label">{activeBonusLabel}</span>
+              </div>
+            )}
           </div>
         </div>
       </motion.article>
@@ -198,16 +141,19 @@ export default function GoalsDashboard({
               className={`goals-macro goals-macro--${macro.tone}${macro.isComplete ? " is-complete" : ""}`}
             >
               <div className="goals-macro-top">
-                <span className="goals-macro-label">
-                  {macro.label}
-                  {macro.isComplete && <strong>{onTargetLabel}</strong>}
-                </span>
+                <div className="goals-macro-copy">
+                  <span className="goals-macro-label">{macro.label}</span>
+                  <p className="goals-macro-note">
+                    {macro.isComplete ? onTargetLabel : `${macro.remaining}g ${remainingLabel}`}
+                  </p>
+                </div>
                 <span className="goals-macro-amount">
                   {macro.consumed}
                   <small>/ {macro.goal}g</small>
                 </span>
               </div>
-              <div className="goals-macro-meter">
+              <div className="goals-macro-progress-row">
+                <div className="goals-macro-meter">
                 <div className="goals-macro-meter-bg">
                   <motion.span
                     className={`goals-macro-meter-fill goals-macro-meter-fill--${macro.tone}`}
@@ -216,8 +162,9 @@ export default function GoalsDashboard({
                     transition={{ duration: 1.1, ease: [0.16, 1, 0.3, 1], delay: 0.5 + idx * 0.1 }}
                   />
                 </div>
+                </div>
+                <span className="goals-macro-progress">{Math.round(Math.min(100, macro.percent))}%</span>
               </div>
-              <p className="goals-macro-note">{macro.remaining}g {remainingLabel}</p>
             </motion.div>
           ))}
         </div>

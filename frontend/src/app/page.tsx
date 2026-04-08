@@ -2,25 +2,19 @@
 
 import { useState, useEffect, useRef } from "react";
 import useSWR, { mutate } from "swr";
-import { startOfDay, endOfDay, format, subDays } from 'date-fns';
-import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
+import { format } from 'date-fns';
 import { useZxing } from "react-zxing";
 import { useAuth } from "@/context/AuthContext";
-import type { UserProfile } from "@/context/AuthContext";
 import { useToast } from "@/context/ToastContext";
 import { useLanguage } from "@/context/LanguageContext";
-import ConfirmModal from "@/components/ConfirmModal";
 import ErrorState from "@/components/ErrorState";
 import SuccessAnimation from "@/components/SuccessAnimation";
 import CalendarPicker from "@/components/CalendarPicker";
-import LoadingSkeleton, { SkeletonFoodCard } from "@/components/LoadingSkeleton";
-import EmptyState from "@/components/EmptyState";
+import { SkeletonFoodCard } from "@/components/LoadingSkeleton";
 import ParticleBurst from "@/components/ParticleBurst";
 import TourOverlay from "@/components/TourOverlay";
 import HydrationCard from "@/components/home/HydrationCard";
 import QuickActionsRow from "@/components/home/QuickActionsRow";
-import QuickAddSection from "@/components/home/QuickAddSection";
 import TodayFeedSection from "@/components/home/TodayFeedSection";
 import HomeHeader from "@/components/home/HomeHeader";
 import PerformanceRingsCard from "@/components/home/PerformanceRingsCard";
@@ -53,23 +47,6 @@ type Goals = {
   fiber: number;
 };
 
-type QuickAddFood = {
-  name: string;
-  calories: number;
-  protein?: number;
-  carbs?: number;
-  fat?: number;
-  sugar?: number;
-  sodium?: number;
-  fiber?: number;
-};
-
-type ChatSession = {
-  id: string;
-  title: string;
-  updatedAt: string;
-};
-
 type ExerciseRecord = {
   id: string;
   name: string;
@@ -82,12 +59,6 @@ type SleepRecord = {
   id: string;
   durationHours: number;
   quality: string;
-  date: string;
-};
-
-type WeightRecord = {
-  id: string;
-  weight: number;
   date: string;
 };
 
@@ -140,10 +111,8 @@ export default function Home() {
   const [exerciseToday, setExerciseToday] = useState(0);
   const [sleepToday, setSleepToday] = useState(0);
 
-  const [recentFoods, setRecentFoods] = useState<Food[]>([]);
   const [exerciseRecords, setExerciseRecords] = useState<ExerciseRecord[]>([]);
   const [sleepRecords, setSleepRecords] = useState<SleepRecord[]>([]);
-  const [weightRecords, setWeightRecords] = useState<WeightRecord[]>([]);
   const [unifiedHistory, setUnifiedHistory] = useState<UnifiedActivity[]>([]);
 
   const [editingFood, setEditingFood] = useState<Food | null>(null);
@@ -168,15 +137,11 @@ export default function Home() {
   const [photoUrl, setPhotoUrl] = useState('');
 
   // SWR for Dashboard Summary
-  const { data: dashboardData, error: dashboardError, isLoading: dashboardLoading } = useSWR(
+  const { data: dashboardData, error: dashboardError } = useSWR(
     authLoading ? null : `${API_BASE}/dashboard/summary?lang=${language}`,
     fetcher,
     { revalidateOnFocus: true }
   );
-
-
-
-  const dataFetchedRef = useRef(false);
 
   // Helper for image compression
   const compressImage = (file: File, maxWidth = 1024, quality = 0.7): Promise<Blob> => {
@@ -239,7 +204,6 @@ export default function Home() {
     proteinPer100g: number; carbsPer100g: number; fatPer100g: number;
     servingSize: number; imageUrl?: string;
   } | null>(null);
-  const [barcodeServing, setBarcodeServing] = useState(100);
   const { ref: zxingRef } = useZxing({
     constraints: { video: { facingMode: 'environment' } },
     onDecodeResult(result) {
@@ -273,7 +237,6 @@ export default function Home() {
               imageUrl: p.image_small_url || p.image_url || undefined,
             };
             setBarcodePreview(preview);
-            setBarcodeServing(preview.servingSize);
           } else {
             showToast(language === 'en' ? 'Product not found in database' : 'ไม่พบสินค้าในฐานข้อมูล', "error");
             setError(language === 'en' ? `Barcode not found: ${text}` : `ไม่พบบาร์โค้ด: ${text}`);
@@ -318,9 +281,6 @@ export default function Home() {
       }
       setFoods(dashboardData.todayFoods || []);
       setWaterGlasses(dashboardData.waterToday?.glasses || 0);
-      setRecentFoods(dashboardData.recentFoods || []);
-      setWeightRecords(dashboardData.weightRecent || []);
-
       const today = format(new Date(), 'yyyy-MM-dd');
       const exerciseRecent = dashboardData.exerciseRecent || [];
       const exToday = exerciseRecent
@@ -634,7 +594,7 @@ export default function Home() {
 
   const confirmBarcodePreview = () => {
     if (!barcodePreview) return;
-    const ratio = barcodeServing / 100;
+    const ratio = (barcodePreview.servingSize > 0 ? barcodePreview.servingSize : 100) / 100;
     setFoodInputs(prev => ({
       ...prev,
       name: barcodePreview.name,
@@ -893,16 +853,6 @@ export default function Home() {
     });
   };
 
-  const handleDeleteWeight = async (id: string) => {
-    try {
-      const res = await fetch(`${API_BASE}/weight/${id}`, { method: "DELETE" });
-      if (res.ok) {
-        setWeightRecords(weightRecords.filter(r => r.id !== id));
-        showToast("Weight record deleted", "info");
-      }
-    } catch (err) { console.error(err); }
-  };
-
 
   const handleEditExerciseSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -940,34 +890,6 @@ export default function Home() {
         mutate(`${API_BASE}/dashboard/summary?lang=${language}`);
       }
     } catch (err) { console.error(err); }
-  };
-
-  const handleQuickAdd = async (food: QuickAddFood) => {
-    try {
-      const res = await fetch(`${API_BASE}/foods`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: food.name,
-          calories: food.calories,
-          protein: food.protein,
-          carbs: food.carbs,
-          fat: food.fat,
-          sugar: food.sugar,
-          sodium: food.sodium,
-          fiber: food.fiber
-        })
-      });
-
-      if (res.ok) {
-        const newFood = await res.json();
-        setFoods(prev => [newFood, ...prev]);
-        showToast(`Quick added ${food.name}!`, "success");
-        mutate(`${API_BASE}/dashboard/summary?lang=${language}`);
-      }
-    } catch (err) {
-      console.error(err);
-    }
   };
 
 
@@ -1073,10 +995,7 @@ export default function Home() {
   const fatRemaining = Math.max(0, Math.round((goals.fat - fatTotal) * 10) / 10);
 
   // Ring Calculation
-  const radius = 70;
-  const circumference = radius * 2 * Math.PI;
   const calPercent = Math.min(100, Math.max(0, (calTotal / adjustedCalGoal) * 100));
-  const calOffset = circumference - (calPercent / 100) * circumference;
   const isOverCal = calTotal > adjustedCalGoal;
   const exercisePercent = Math.min(100, Math.max(0, (exerciseToday / 30) * 100));
   const sleepPercent = Math.min(100, Math.max(0, (sleepToday / 8) * 100));
@@ -1097,6 +1016,16 @@ export default function Home() {
   const currentLevelXP = totalXP % 1000;
   const xpProgress = (currentLevelXP / 1000) * 100;
   const stepLabel = t('tourStep');
+  const openFoodLogModal = () => {
+    haptic("medium");
+    setLogModalTab('food');
+    setIsActionModalOpen(true);
+  };
+  const openExerciseLogModal = () => {
+    haptic("medium");
+    setLogModalTab('exercise');
+    setIsActionModalOpen(true);
+  };
 
   if (!mounted) return null;
 
@@ -1167,11 +1096,7 @@ export default function Home() {
           playerCardTitle={t('playerCard')}
           profileSettingsTitle={t('profileSettings')}
           onToggleLanguage={() => setLanguage(language === 'en' ? 'th' : 'en')}
-          onQuickAdd={() => {
-            haptic("medium");
-            setLogModalTab('food');
-            setIsActionModalOpen(true);
-          }}
+          onQuickAdd={openFoodLogModal}
         />
 
         <div className="responsive-layout home-layout">
@@ -1182,8 +1107,14 @@ export default function Home() {
             transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
           >
             <PerformanceRingsCard
-              title={t('performanceRings')}
+              title={t('todaySnapshot')}
               subtitle={currentDate}
+              summaryLabel={language === 'th' ? 'ความคืบหน้ารวม' : t('overallProgress')}
+              summaryHint={
+                language === 'th'
+                  ? 'คำนวณจากความคืบหน้าของโภชนาการ น้ำ การออกกำลังกาย และการพักฟื้นในวันนี้'
+                  : t('overallProgressHint')
+              }
               metrics={[
                 {
                   label: t('nut'),
@@ -1222,13 +1153,13 @@ export default function Home() {
               overLabel={t('over')}
               onTargetLabel={t('onTarget')}
               caloriesTarget={goals.calories}
-              adjustedCalGoal={adjustedCalGoal}
-              calTotal={calTotal}
-              calRemaining={calRemaining}
-              burnedToday={burnedToday}
-              isOverCal={isOverCal}
-              loading={loading}
-              macros={[
+                adjustedCalGoal={adjustedCalGoal}
+                calTotal={calTotal}
+                calRemaining={calRemaining}
+                burnedToday={burnedToday}
+                isOverCal={isOverCal}
+                loading={loading}
+                macros={[
                 {
                   tone: 'protein',
                   label: t('protein'),
@@ -1259,8 +1190,8 @@ export default function Home() {
               ]}
             />
 
-            {/* Unified Activity Feed */}
-            <div className="dashboard-logs desktop-feed-only" style={{ display: 'flex', flexDirection: 'column', gap: '24px', marginTop: '16px' }}>
+            {/* Legacy feed kept temporarily for cleanup follow-up */}
+            <div className="dashboard-logs desktop-feed-only" style={{ display: 'none' }}>
               <section className="foods-list-section">
                 <h3 className="section-title" style={{ fontSize: '16px', marginBottom: '16px' }}>{t('todayFeed')}</h3>
                 <div className="foods-list">
@@ -1413,47 +1344,40 @@ export default function Home() {
 
             <QuickActionsRow
               title={t('quickActions')}
+              description={t('quickActionsDescription')}
               addFoodLabel={t('addFood')}
+              addFoodHint={t('addFoodHint')}
               logActivityLabel={t('logActivity')}
-              onAddFood={() => {
-                haptic("medium");
-                setLogModalTab('food');
-                setIsActionModalOpen(true);
-              }}
-              onLogActivity={() => {
-                haptic("medium");
-                setLogModalTab('exercise');
-                setIsActionModalOpen(true);
-              }}
+              logActivityHint={t('logActivityHint')}
+              onAddFood={openFoodLogModal}
+              onLogActivity={openExerciseLogModal}
             />
 
-            <QuickAddSection
-              title={t('quickAdd')}
-              foods={recentFoods}
-              onQuickAdd={handleQuickAdd}
-            />
           </motion.div>
 
           <motion.div
-            className="layout-column home-feed mobile-feed-only"
+            className="layout-column home-feed"
             initial={{ opacity: 0, y: 30 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1], delay: 0.2 }}
           >
             <TodayFeedSection
               title={t('todayFeed')}
+              description={t('todayFeedDescription')}
               loading={loading}
               items={unifiedHistory}
               foods={foods}
               exerciseRecords={exerciseRecords}
               sleepRecords={sleepRecords}
-              noItemsTitle={t('noFoodLogged')}
-              noItemsMessage={t('tapFoodButton')}
+              noItemsTitle={t('emptyTodayTitle')}
+              noItemsMessage={t('emptyTodayMessage')}
+              emptyActionLabel={t('startLogging')}
               sleepLabel={t('sleep')}
               goodQualityLabel={t('goodQuality')}
               fairQualityLabel={t('fairQuality')}
               poorQualityLabel={t('poorQuality')}
               relogTitle={language === 'en' ? 'Log again' : 'บันทึกซ้ำ'}
+              onEmptyAction={openFoodLogModal}
               onRelogFood={handleReLogFood}
               onEditFood={openEditModal}
               onEditExercise={setEditingExercise}
@@ -1471,16 +1395,16 @@ export default function Home() {
       {/* Add Action Modal */}
       {isActionModalOpen && (
         <div className="modal-overlay" onClick={() => setIsActionModalOpen(false)}>
-          <div className="glass-panel modal-content add-log-modal" onClick={e => e.stopPropagation()}>
+          <div className={`glass-panel modal-content add-log-modal add-log-modal--${logModalTab}`} onClick={e => e.stopPropagation()}>
 
             <div className="add-log-modal-header">
               <div className="add-log-modal-tabs">
                 {([
-                  { key: 'food' as const, label: t('addFood'), color: '#10b981', icon: 'M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 15h-2v-6h2v6zm0-8h-2V7h2v2z' },
-                  { key: 'exercise' as const, label: t('trainingTab'), color: '#f97316', icon: 'M13 2L3 14h9l-1 8 10-12h-9l1-8z' },
+                  { key: 'food' as const, label: t('addFood'), color: '#f97316', icon: 'M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 15h-2v-6h2v6zm0-8h-2V7h2v2z' },
+                  { key: 'exercise' as const, label: t('trainingTab'), color: '#10b981', icon: 'M13 2L3 14h9l-1 8 10-12h-9l1-8z' },
                   { key: 'sleep' as const, label: t('recoveryTab'), color: '#8b5cf6', icon: 'M12 3c-4.97 0-9 4.03-9 9s4.03 9 9 9 9-4.03 9-9c0-.46-.04-.92-.1-1.36-.98 1.37-2.58 2.26-4.4 2.26-2.98 0-5.4-2.42-5.4-5.4 0-1.81.89-3.42 2.26-4.4-.44-.06-.9-.1-1.36-.1z' },
                   { key: 'measurements' as const, label: t('logMeasurements'), color: '#06b6d4', icon: 'M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12' },
-                ]).map((tab, idx) => (
+                ]).map((tab) => (
                   <button
                     key={tab.key}
                     type="button"
@@ -1508,20 +1432,31 @@ export default function Home() {
 
             <div className="add-log-modal-title">
               <h3>{logModalTab === 'food' ? t('addFood') : logModalTab === 'exercise' ? t('logActivityTitle') : logModalTab === 'sleep' ? t('logSleep') : t('logMeasurements')}</h3>
+              <p className="add-log-modal-subtitle">
+                {logModalTab === 'food'
+                  ? t('addFoodHint')
+                  : logModalTab === 'exercise'
+                    ? t('logActivityHint')
+                    : logModalTab === 'sleep'
+                      ? t('modalSleepHint')
+                      : t('modalMeasurementsHint')}
+              </p>
             </div>
 
             {logModalTab === 'food' && (
               <div className="modal-form">
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '12px' }}>
+                <div className="add-log-scan-panel" style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginBottom: '12px' }}>
                   <input 
+                    className="add-log-scan-input"
                     type="text" 
                     placeholder={language === 'en' ? "Optional: Enter dish name before scanning" : "(ตัวเลือก) พิมพ์ชื่อเมนูอาหารก่อนสแกน"} 
                     value={scanHint} 
                     onChange={(e) => setScanHint(e.target.value)} 
                     style={{ height: '36px', fontSize: '13px', padding: '0 12px', borderRadius: '10px', border: '1px solid var(--panel-border)', background: 'rgba(0,0,0,0.3)', color: 'var(--text-primary)', width: '100%' }} 
                   />
-                  <div style={{ display: 'flex', gap: '8px', width: '100%' }}>
+                  <div className="add-log-action-row" style={{ display: 'flex', gap: '8px', width: '100%' }}>
                     <button
+                      type="button"
                       onClick={() => setIsScanning(!isScanning)}
                       className={`add-log-action-btn ${isScanning ? 'active scanning' : ''}`}
                       style={{ flex: 1, height: '36px', borderRadius: '10px', fontSize: '12px' }}
@@ -1530,7 +1465,7 @@ export default function Home() {
                       {isScanning ? t('stopBtn') : t('scanBtn')}
                     </button>
 
-                    <div style={{ flex: 1 }}>
+                    <div className="add-log-action-file" style={{ flex: 1 }}>
                       <input
                         type="file"
                         accept="image/*"
@@ -1554,8 +1489,8 @@ export default function Home() {
 
                 {/* AI Progress Indicator */}
                 {aiLoading && (
-                  <div style={{ marginBottom: '8px', padding: '10px 14px', background: 'rgba(255,255,255,0.04)', borderRadius: '12px', border: '1px solid var(--panel-border)' }}>
-                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  <div className="add-log-status-card add-log-status-card--progress" style={{ marginBottom: '8px', padding: '10px 14px', background: 'rgba(255,255,255,0.04)', borderRadius: '12px', border: '1px solid var(--panel-border)' }}>
+                    <div className="add-log-progress-row" style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                       {(['compressing', 'analyzing', 'done'] as const).map((stage, i) => {
                         const stageIdx = ['compressing', 'analyzing', 'done'].indexOf(aiStage);
                         const isDone = i < stageIdx;
@@ -1564,18 +1499,18 @@ export default function Home() {
                           ? ['Compressing', 'Analyzing', 'Done']
                           : ['บีบอัดรูป', 'วิเคราะห์', 'เสร็จแล้ว'];
                         return (
-                          <div key={stage} style={{ display: 'flex', alignItems: 'center', gap: '4px', flex: 1 }}>
-                            <div style={{
+                          <div key={stage} className="add-log-progress-step" style={{ display: 'flex', alignItems: 'center', gap: '4px', flex: 1 }}>
+                            <div className={`add-log-progress-bar ${isDone ? 'is-done' : ''} ${isActive ? 'is-active' : ''}`} style={{
                               width: '100%', height: '4px', borderRadius: '4px',
                               background: isDone ? 'var(--accent-cal)' : isActive ? 'var(--accent-pro)' : 'rgba(255,255,255,0.1)',
                               transition: 'background 0.4s ease'
                             }} />
-                            {i === 2 && <span style={{ fontSize: '10px', color: 'var(--text-secondary)', whiteSpace: 'nowrap', marginLeft: '4px' }}>{labels[i]}</span>}
+                            {i === 2 && <span className="add-log-progress-label" style={{ fontSize: '10px', color: 'var(--text-secondary)', whiteSpace: 'nowrap', marginLeft: '4px' }}>{labels[i]}</span>}
                           </div>
                         );
                       })}
                     </div>
-                    <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '6px' }}>
+                    <div className="add-log-status-copy" style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '6px' }}>
                       {aiStage === 'compressing' ? (language === 'en' ? 'Compressing image for faster upload...' : 'กำลังบีบอัดรูปภาพ...') : (language === 'en' ? 'AI is analyzing nutritional content...' : 'AI กำลังวิเคราะห์คุณค่าทางโภชนาการ...')}
                     </div>
                   </div>
@@ -1583,7 +1518,7 @@ export default function Home() {
 
                 {/* AI Confidence Badge */}
                 {!aiLoading && aiConfidence !== null && foodInputs.name && (
-                  <div style={{
+                  <div className={`add-log-status-card add-log-status-card--confidence ${aiConfidence >= 80 ? 'is-high' : aiConfidence >= 50 ? 'is-medium' : 'is-low'}`} style={{
                     display: 'flex', alignItems: 'center', gap: '8px',
                     padding: '8px 12px', borderRadius: '10px', marginBottom: '8px',
                     background: aiConfidence >= 80 ? 'rgba(130,166,125,0.12)' : aiConfidence >= 50 ? 'rgba(251,191,36,0.10)' : 'rgba(249,115,22,0.10)',
@@ -1607,55 +1542,51 @@ export default function Home() {
 
                 {/* Barcode Preview Card */}
                 {barcodePreview && (
-                  <div style={{ marginBottom: '10px', padding: '14px', background: 'rgba(255,255,255,0.04)', borderRadius: '14px', border: '1px solid var(--panel-border)' }}>
-                    <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-start', marginBottom: '10px' }}>
+                  <div className="barcode-preview-card">
+                    <div className="barcode-preview-header">
                       {barcodePreview.imageUrl && (
-                        <img src={barcodePreview.imageUrl} alt={barcodePreview.name} style={{ width: '48px', height: '48px', objectFit: 'contain', borderRadius: '8px', background: '#fff', padding: '2px', flexShrink: 0 }} />
+                        <img src={barcodePreview.imageUrl} alt={barcodePreview.name} className="barcode-preview-image" />
                       )}
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontSize: '13px', fontWeight: 700, lineHeight: 1.3, marginBottom: '2px' }}>{barcodePreview.name}</div>
-                        {barcodePreview.brand && <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>{barcodePreview.brand}</div>}
-                        <div style={{ fontSize: '11px', color: 'var(--text-secondary)', marginTop: '4px' }}>
+                      <div className="barcode-preview-copy">
+                        <div className="barcode-preview-name">{barcodePreview.name}</div>
+                        {barcodePreview.brand && <div className="barcode-preview-brand">{barcodePreview.brand}</div>}
+                        <div className="barcode-preview-meta">
                           {barcodePreview.kcalPer100g} kcal / 100g &nbsp;|&nbsp; P:{barcodePreview.proteinPer100g}g &nbsp;C:{barcodePreview.carbsPer100g}g &nbsp;F:{barcodePreview.fatPer100g}g
                         </div>
                       </div>
                     </div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px' }}>
-                      <label style={{ fontSize: '12px', color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
-                        {language === 'en' ? 'Serving (g):' : 'ปริมาณ (ก.):'}
-                      </label>
-                      <input
-                        type="number"
-                        min={1}
-                        max={2000}
-                        value={barcodeServing}
-                        onChange={e => setBarcodeServing(Math.max(1, parseInt(e.target.value) || 1))}
-                        style={{ flex: 1, height: '34px', borderRadius: '8px', border: '1px solid var(--panel-border)', background: 'rgba(0,0,0,0.3)', color: 'var(--text-primary)', padding: '0 8px', fontSize: '13px' }}
-                      />
-                      <span style={{ fontSize: '12px', fontWeight: 700, color: 'var(--accent-cal)', whiteSpace: 'nowrap' }}>
-                        = {Math.round(barcodePreview.kcalPer100g * barcodeServing / 100)} kcal
+                    <div className="barcode-preview-serving">
+                      <div className="barcode-preview-serving-copy">
+                        <div className="barcode-preview-serving-label">{t('barcodeAutoServing')}</div>
+                        <div className="barcode-preview-serving-note">
+                          {t('barcodeServingSize')}: {barcodePreview.servingSize}g
+                        </div>
+                        <div className="barcode-preview-serving-note">{t('barcodeAutoFillHint')}</div>
+                      </div>
+                      <span className="barcode-preview-serving-result">
+                        {Math.round(barcodePreview.kcalPer100g * barcodePreview.servingSize / 100)} kcal
                       </span>
                     </div>
-                    <div style={{ display: 'flex', gap: '8px' }}>
-                      <button onClick={() => setBarcodePreview(null)} className="glass-btn" style={{ flex: 1, height: '36px', borderRadius: '10px', fontSize: '12px' }}>
+                    <div className="barcode-preview-actions">
+                      <button type="button" onClick={() => setBarcodePreview(null)} className="glass-btn barcode-preview-cancel">
                         {language === 'en' ? 'Cancel' : 'ยกเลิก'}
                       </button>
-                      <button onClick={confirmBarcodePreview} className="primary-btn active" style={{ flex: 2, height: '36px', borderRadius: '10px', fontSize: '12px', margin: 0 }}>
-                        {language === 'en' ? 'Confirm & Fill Form' : 'ยืนยัน & กรอกฟอร์ม'}
+                      <button type="button" onClick={confirmBarcodePreview} className="primary-btn active barcode-preview-confirm">
+                        {language === 'en' ? 'Use This Serving' : 'ใช้ 1 เสิร์ฟนี้'}
                       </button>
                     </div>
                   </div>
                 )}
 
                 {isScanning && (
-                  <div style={{ marginBottom: '8px', borderRadius: '12px', overflow: 'hidden', border: '1px solid var(--panel-border)', background: '#000', position: 'relative', height: '140px' }}>
-                    <video ref={zxingRef} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                    <div style={{ position: 'absolute', top: '50%', left: '50%', transform: 'translate( -50%, -50%)', width: '120px', height: '80px', border: '2px solid var(--accent-pro)', borderRadius: '12px', boxShadow: '0 0 0 1000px rgba(0,0,0,0.5)' }}></div>
+                  <div className="barcode-scanner-stage">
+                    <video ref={zxingRef} className="barcode-scanner-video" />
+                    <div className="barcode-scanner-frame"></div>
                   </div>
                 )}
 
-                <form id="add-food-form" onSubmit={(e) => { handleAddFood(e); setIsActionModalOpen(false); }}>
-                  <div className="input-group" style={{ position: 'relative', marginBottom: '8px', width: '100%' }}>
+                <form id="add-food-form" className="add-log-food-form" onSubmit={(e) => { handleAddFood(e); setIsActionModalOpen(false); }}>
+                  <div className="input-group add-log-search-group" style={{ position: 'relative', marginBottom: '8px', width: '100%' }}>
                     <input
                       type="text"
                       required
@@ -1669,7 +1600,7 @@ export default function Home() {
                       onBlur={() => setTimeout(() => setSearchResults([]), 200)}
                     />
                     {searchResults.length > 0 && (
-                      <div className="glass-panel" style={{
+                      <div className="glass-panel add-log-search-results" style={{
                         position: 'absolute',
                         top: '100%',
                         left: 0,
@@ -1751,8 +1682,8 @@ export default function Home() {
                     />
                   </div>
 
-                  <div className="macro-inputs" style={{ marginBottom: '12px', gap: '8px', display: 'flex', flexDirection: 'row' }}>
-                    <div style={{ position: 'relative', flex: 1 }}>
+                  <div className="macro-inputs add-log-macro-grid" style={{ marginBottom: '12px', gap: '8px', display: 'flex', flexDirection: 'row' }}>
+                    <div className="add-log-macro-field" style={{ position: 'relative', flex: 1 }}>
                       <input
                         type="number"
                         required
@@ -1760,25 +1691,25 @@ export default function Home() {
                         onChange={e => setFoodInputs({ ...foodInputs, protein: e.target.value })}
                         placeholder="0"
                       />
-                      <span style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 700 }}>P</span>
+                      <span className="add-log-macro-tag" style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 700 }}>P</span>
                     </div>
-                    <div style={{ position: 'relative', flex: 1 }}>
+                    <div className="add-log-macro-field" style={{ position: 'relative', flex: 1 }}>
                       <input
                         type="number"
                         value={foodInputs.carbs}
                         onChange={e => setFoodInputs({ ...foodInputs, carbs: e.target.value })}
                         placeholder="0"
                       />
-                      <span style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 700 }}>C</span>
+                      <span className="add-log-macro-tag" style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 700 }}>C</span>
                     </div>
-                    <div style={{ position: 'relative', flex: 1 }}>
+                    <div className="add-log-macro-field" style={{ position: 'relative', flex: 1 }}>
                       <input
                         type="number"
                         value={foodInputs.fat}
                         onChange={e => setFoodInputs({ ...foodInputs, fat: e.target.value })}
                         placeholder="0"
                       />
-                      <span style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 700 }}>F</span>
+                      <span className="add-log-macro-tag" style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 700 }}>F</span>
                     </div>
                   </div>
 
@@ -1791,23 +1722,22 @@ export default function Home() {
             )}
 
             {logModalTab === 'exercise' && (
-              <div className="modal-form" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              <div className="modal-form add-log-form-stack">
                 <div className="input-group">
                   <input
                     type="text"
                     placeholder={t('activityPlaceholder')}
                     value={exerciseInput.name}
                     onChange={e => setExerciseInput({ ...exerciseInput, name: e.target.value })}
-                    style={{ height: '44px', borderRadius: '12px', fontSize: '14px' }}
+                    className="add-log-form-input"
                   />
                 </div>
-                <div className="input-row" style={{ display: 'flex', gap: '12px' }}>
-                  <div style={{ flex: 1, position: 'relative', minWidth: 0 }}>
+                <div className="input-row add-log-form-row">
+                  <div className="add-log-date-field">
                     <button
                       type="button"
                       onClick={() => setOpenCalendar(openCalendar === 'exercise' ? null : 'exercise')}
-                      className="form-input-btn"
-                      style={{ width: '100%' }}
+                      className="form-input-btn add-log-date-btn"
                     >
                       <span>📅 {exerciseInput.date}</span>
                       <span className="icon-sm">▼</span>
@@ -1820,30 +1750,30 @@ export default function Home() {
                       />
                     )}
                   </div>
-                  <div style={{ flex: 1, position: 'relative', minWidth: 0 }}>
+                  <div className="add-log-field add-log-field--unit">
                     <input
                       type="number"
                       placeholder={t('minutes')}
                       value={exerciseInput.durationMinutes || ''}
                       onChange={e => setExerciseInput({ ...exerciseInput, durationMinutes: Number(e.target.value) })}
-                      style={{ paddingRight: '44px' }}
+                      className="add-log-form-input add-log-form-input--unit"
                     />
-                    <span style={{ position: 'absolute', right: '12px', top: '50%', transform: 'translateY(-50%)', fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 700 }}>{t('unitMin').toUpperCase()}</span>
+                    <span className="add-log-field-unit">{t('unitMin').toUpperCase()}</span>
                   </div>
                 </div>
-                <div className="input-row" style={{ display: 'flex', gap: '8px' }}>
-                  <div style={{ flex: 1, position: 'relative' }}>
+                <div className="input-row add-log-form-row add-log-form-row--compact">
+                  <div className="add-log-field add-log-field--unit add-log-field--accent-cal">
                     <input
                       type="number"
                       placeholder={t('caloriesBurnedPlc')}
                       value={exerciseInput.caloriesBurned || ''}
                       onChange={e => setExerciseInput({ ...exerciseInput, caloriesBurned: Number(e.target.value) })}
-                      style={{ height: '44px', borderRadius: '12px', paddingRight: '44px', fontSize: '14px' }}
+                      className="add-log-form-input add-log-form-input--unit"
                     />
-                    <span style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', fontSize: '10px', color: 'var(--accent-cal)', fontWeight: 800 }}>{t('unitKcal').toUpperCase()}</span>
+                    <span className="add-log-field-unit">{t('unitKcal').toUpperCase()}</span>
                   </div>
                 </div>
-                <button onClick={(e) => { handleLogExercise(); setIsActionModalOpen(false); }} className="add-log-btn add-log-btn-exercise">
+                <button onClick={() => { handleLogExercise(); setIsActionModalOpen(false); }} className="add-log-btn add-log-btn-exercise">
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M18 13v-2a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v2"/><path d="M12 3v18"/><path d="M6 8l4-4 4 4"/></svg>
                   {t('logActivityBtn')}
                 </button>
@@ -1851,36 +1781,35 @@ export default function Home() {
             )}
 
             {logModalTab === 'sleep' && (
-              <div className="modal-form" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                <div className="input-row" style={{ display: 'flex', gap: '8px' }}>
-                  <div style={{ flex: 1, position: 'relative' }}>
+              <div className="modal-form add-log-form-stack">
+                <div className="input-row add-log-form-row add-log-form-row--compact">
+                  <div className="add-log-field add-log-field--unit add-log-field--accent-sleep">
                     <input
                       type="number"
                       placeholder={t('hours')}
                       value={sleepInput.durationHours || ''}
                       onChange={e => setSleepInput({ ...sleepInput, durationHours: Number(e.target.value) })}
-                      style={{ height: '44px', borderRadius: '12px', paddingRight: '36px', fontSize: '14px' }}
+                      className="add-log-form-input add-log-form-input--unit"
                     />
-                    <span style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', fontSize: '10px', color: 'var(--accent-fat)', fontWeight: 800 }}>{t('unitHr').toUpperCase()}</span>
+                    <span className="add-log-field-unit">{t('unitHr').toUpperCase()}</span>
                   </div>
-                  <div style={{ flex: 1, position: 'relative' }}>
+                  <div className="add-log-field add-log-field--unit add-log-field--accent-sleep">
                     <input
                       type="number"
                       placeholder={t('minutes')}
                       value={sleepInput.durationMinutes || ''}
                       onChange={e => setSleepInput({ ...sleepInput, durationMinutes: Number(e.target.value) })}
-                      style={{ height: '44px', borderRadius: '12px', paddingRight: '40px', fontSize: '14px' }}
+                      className="add-log-form-input add-log-form-input--unit"
                     />
-                    <span style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', fontSize: '10px', color: 'var(--accent-fat)', fontWeight: 800 }}>{t('unitMin').toUpperCase()}</span>
+                    <span className="add-log-field-unit">{t('unitMin').toUpperCase()}</span>
                   </div>
                 </div>
-                <div className="input-row" style={{ display: 'flex', gap: '12px' }}>
-                  <div style={{ flex: 1, position: 'relative', minWidth: 0 }}>
+                <div className="input-row add-log-form-row">
+                  <div className="add-log-date-field">
                     <button
                       type="button"
                       onClick={() => setOpenCalendar(openCalendar === 'sleep' ? null : 'sleep')}
-                      className="form-input-btn"
-                      style={{ width: '100%' }}
+                      className="form-input-btn add-log-date-btn"
                     >
                       <span>📅 {sleepInput.date}</span>
                       <span className="icon-sm">▼</span>
@@ -1896,14 +1825,14 @@ export default function Home() {
                   <select
                     value={sleepInput.quality}
                     onChange={e => setSleepInput({ ...sleepInput, quality: e.target.value })}
-                    style={{ flex: 1, minWidth: 0 }}
+                    className="add-log-form-select"
                   >
                     <option value="Good">😊 {t('goodQuality')}</option>
                     <option value="Fair">😐 {t('fairQuality')}</option>
                     <option value="Poor">😴 {t('poorQuality')}</option>
                   </select>
                 </div>
-                <button onClick={(e) => { handleLogSleep(); setIsActionModalOpen(false); }} className="add-log-btn add-log-btn-sleep">
+                <button onClick={() => { handleLogSleep(); setIsActionModalOpen(false); }} className="add-log-btn add-log-btn-sleep">
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707"/></svg>
                   {t('recordSleepBtn')}
                 </button>
@@ -1911,54 +1840,54 @@ export default function Home() {
             )}
 
             {logModalTab === 'measurements' && (
-              <div className="modal-form" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                <div className="input-row" style={{ display: 'flex', gap: '8px' }}>
-                  <div style={{ flex: 1, position: 'relative' }}>
+              <div className="modal-form add-log-form-stack">
+                <div className="input-row add-log-form-row add-log-form-row--compact">
+                  <div className="add-log-field add-log-field--unit add-log-field--accent-cal">
                     <input
                       type="number"
                       placeholder="0.0"
                       value={measurementInput.weight}
                       onChange={e => setMeasurementInput({ ...measurementInput, weight: e.target.value })}
-                      style={{ height: '44px', borderRadius: '12px', paddingRight: '36px', fontSize: '14px' }}
+                      className="add-log-form-input add-log-form-input--unit"
                     />
-                    <span style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', fontSize: '10px', color: 'var(--accent-cal)', fontWeight: 800 }}>KG</span>
+                    <span className="add-log-field-unit">KG</span>
                   </div>
-                  <div style={{ flex: 1, position: 'relative' }}>
+                  <div className="add-log-field add-log-field--unit add-log-field--accent-pro">
                     <input
                       type="number"
                       placeholder="0.0"
                       value={measurementInput.waist}
                       onChange={e => setMeasurementInput({ ...measurementInput, waist: e.target.value })}
-                      style={{ height: '44px', borderRadius: '12px', paddingRight: '36px', fontSize: '14px' }}
+                      className="add-log-form-input add-log-form-input--unit"
                     />
-                    <span style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', fontSize: '10px', color: 'var(--accent-pro)', fontWeight: 800 }}>CM</span>
+                    <span className="add-log-field-unit">CM</span>
                   </div>
                 </div>
-                <div style={{ position: 'relative' }}>
+                <div className="add-log-field add-log-field--unit add-log-field--accent-sleep">
                   <input
                     type="number"
                     placeholder="0.0"
                     value={measurementInput.bodyFat}
                     onChange={e => setMeasurementInput({ ...measurementInput, bodyFat: e.target.value })}
-                    style={{ height: '44px', borderRadius: '12px', width: '100%', paddingRight: '36px', fontSize: '14px' }}
+                    className="add-log-form-input add-log-form-input--unit"
                   />
-                  <span style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', fontSize: '10px', color: 'var(--accent-fat)', fontWeight: 800 }}>%</span>
+                  <span className="add-log-field-unit">%</span>
                 </div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                  <label style={{ fontSize: '11px', fontWeight: 700, color: 'var(--text-secondary)', letterSpacing: '0.5px' }}>
+                <div className="add-log-photo-group">
+                  <label className="add-log-photo-label">
                     {language === 'en' ? 'Progress Photo (optional)' : 'รูปภาพ (ตัวเลือก)'}
                   </label>
-                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                  <div className="add-log-photo-row">
                     <label
                       htmlFor="measurement-photo-input"
-                      style={{ flex: 1, height: '44px', borderRadius: '12px', border: '1px dashed var(--panel-border)', background: 'rgba(0,0,0,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: '13px', color: 'var(--text-secondary)', gap: '6px' }}
+                      className="add-log-photo-trigger"
                     >
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
                       {uploadingPhoto ? (language === 'en' ? 'Uploading...' : 'กำลังอัปโหลด...') : photoUrl ? (language === 'en' ? 'Photo attached' : 'แนบรูปแล้ว') : (language === 'en' ? 'Upload photo' : 'อัปโหลดรูป')}
                     </label>
                     <input type="file" id="measurement-photo-input" accept="image/*" onChange={handlePhotoUpload} style={{ display: 'none' }} />
                     {photoUrl && (
-                      <button onClick={() => setPhotoUrl('')} className="icon-btn" style={{ width: '44px', height: '44px', borderRadius: '12px', background: 'rgba(255,255,255,0.05)' }}>
+                      <button onClick={() => setPhotoUrl('')} className="icon-btn add-log-photo-remove">
                         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
                       </button>
                     )}

@@ -46,6 +46,7 @@ type UnifiedActivity = {
 
 type TodayFeedSectionProps = {
   title: string;
+  description: string;
   loading: boolean;
   items: UnifiedActivity[];
   foods: Food[];
@@ -53,11 +54,13 @@ type TodayFeedSectionProps = {
   sleepRecords: SleepRecord[];
   noItemsTitle: string;
   noItemsMessage: string;
+  emptyActionLabel: string;
   sleepLabel: string;
   goodQualityLabel: string;
   fairQualityLabel: string;
   poorQualityLabel: string;
   relogTitle: string;
+  onEmptyAction: () => void;
   onRelogFood: (food: Food) => void;
   onEditFood: (food: Food) => void;
   onEditExercise: (exercise: ExerciseRecord) => void;
@@ -69,6 +72,7 @@ type TodayFeedSectionProps = {
 
 export default function TodayFeedSection({
   title,
+  description,
   loading,
   items,
   foods,
@@ -76,11 +80,13 @@ export default function TodayFeedSection({
   sleepRecords,
   noItemsTitle,
   noItemsMessage,
+  emptyActionLabel,
   sleepLabel,
   goodQualityLabel,
   fairQualityLabel,
   poorQualityLabel,
   relogTitle,
+  onEmptyAction,
   onRelogFood,
   onEditFood,
   onEditExercise,
@@ -91,7 +97,10 @@ export default function TodayFeedSection({
 }: TodayFeedSectionProps) {
   return (
     <section className="foods-list-section">
-      <h3 className="section-title home-section-title">{title}</h3>
+      <div className="home-section-header">
+        <h3 className="section-title home-section-title">{title}</h3>
+        <p className="home-section-description">{description}</p>
+      </div>
       <div className="foods-list">
         {loading ? (
           <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
@@ -108,8 +117,11 @@ export default function TodayFeedSection({
               <line x1="10" y1="1" x2="10" y2="4"></line>
               <line x1="14" y1="1" x2="14" y2="4"></line>
             </svg>
-            <div style={{ fontSize: "14px", fontWeight: 600 }}>{noItemsTitle}</div>
-            <div style={{ fontSize: "12px", opacity: 0.6 }}>{noItemsMessage}</div>
+            <div className="home-empty-title">{noItemsTitle}</div>
+            <div className="home-empty-copy">{noItemsMessage}</div>
+            <button type="button" className="glass-btn home-empty-cta" onClick={onEmptyAction}>
+              {emptyActionLabel}
+            </button>
           </div>
         ) : (
           <div className="home-feed-list">

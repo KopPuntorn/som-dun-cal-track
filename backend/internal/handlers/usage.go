@@ -9,6 +9,7 @@ import (
 	"backend/internal/models"
 
 	"go.mongodb.org/mongo-driver/bson"
+	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
 )
 
@@ -25,57 +26,103 @@ func CheckAndIncrementUsage(ctx context.Context, user models.User, actionType st
 	}
 
 	today := time.Now().Format("2006-01-02")
-	filter := bson.M{"userId": user.ID, "date": today}
-
-	// Read current state first to check limit before incrementing
-	var usage models.UserUsage
-	err := db.UserUsageCollection.FindOne(ctx, filter).Decode(&usage)
+	fieldName, limit, err := usageFieldConfig(actionType)
 	if err != nil {
+		return false, 0, err
+	}
+
+	baseFilter := bson.M{"userId": user.ID, "date": today}
+	updateOpts := options.FindOneAndUpdate().SetReturnDocument(options.After)
+
+	// Atomic increment for an existing document that is still below the limit.
+	var usage models.UserUsage
+	err = db.UserUsageCollection.FindOneAndUpdate(
+		ctx,
+		bson.M{
+			"userId": user.ID,
+			"date":   today,
+			fieldName: bson.M{
+				"$lt": limit,
+			},
+		},
+		bson.M{"$inc": bson.M{fieldName: 1}},
+		updateOpts,
+	).Decode(&usage)
+	if err == nil {
+		return true, limit - usageCount(usage, actionType), nil
+	}
+	if err != mongo.ErrNoDocuments {
+		return false, 0, err
+	}
+
+	err = db.UserUsageCollection.FindOne(ctx, baseFilter).Decode(&usage)
+	switch err {
+	case nil:
+		if usageCount(usage, actionType) >= limit {
+			return false, 0, nil
+		}
+
+		err = db.UserUsageCollection.FindOneAndUpdate(
+			ctx,
+			bson.M{
+				"userId": user.ID,
+				"date":   today,
+				fieldName: bson.M{
+					"$lt": limit,
+				},
+			},
+			bson.M{"$inc": bson.M{fieldName: 1}},
+			updateOpts,
+		).Decode(&usage)
+		if err == mongo.ErrNoDocuments {
+			return false, 0, nil
+		}
+		if err != nil {
+			return false, 0, err
+		}
+		return true, limit - usageCount(usage, actionType), nil
+	case mongo.ErrNoDocuments:
 		usage = models.UserUsage{
 			UserID:      user.ID,
 			Date:        today,
 			AIScanCount: 0,
 			AIChatCount: 0,
 		}
-	}
+		if actionType == "scan" {
+			usage.AIScanCount = 1
+		} else {
+			usage.AIChatCount = 1
+		}
 
-	if actionType == "scan" {
-		if usage.AIScanCount >= FreeAIScanLimit {
+		_, err = db.UserUsageCollection.InsertOne(ctx, usage)
+		if err == nil {
+			return true, limit - 1, nil
+		}
+		if !mongo.IsDuplicateKeyError(err) {
+			return false, 0, err
+		}
+
+		err = db.UserUsageCollection.FindOneAndUpdate(
+			ctx,
+			bson.M{
+				"userId": user.ID,
+				"date":   today,
+				fieldName: bson.M{
+					"$lt": limit,
+				},
+			},
+			bson.M{"$inc": bson.M{fieldName: 1}},
+			updateOpts,
+		).Decode(&usage)
+		if err == mongo.ErrNoDocuments {
 			return false, 0, nil
 		}
-	} else if actionType == "chat" {
-		if usage.AIChatCount >= FreeAIChatLimit {
-			return false, 0, nil
+		if err != nil {
+			return false, 0, err
 		}
-	} else {
-		return false, 0, fmt.Errorf("unknown action type: %s", actionType)
-	}
-
-	// We are under limit, now increment it
-	update := bson.M{
-		"$setOnInsert": bson.M{
-			"userId": user.ID,
-			"date":   today,
-		},
-		"$inc": bson.M{},
-	}
-
-	if actionType == "scan" {
-		update["$inc"].(bson.M)["aiScanCount"] = 1
-	} else if actionType == "chat" {
-		update["$inc"].(bson.M)["aiChatCount"] = 1
-	}
-
-	opts := options.FindOneAndUpdate().SetUpsert(true).SetReturnDocument(options.After)
-	err = db.UserUsageCollection.FindOneAndUpdate(ctx, filter, update, opts).Decode(&usage)
-	if err != nil {
+		return true, limit - usageCount(usage, actionType), nil
+	default:
 		return false, 0, err
-	}
-
-	if actionType == "scan" {
-		return true, FreeAIScanLimit - usage.AIScanCount, nil
-	} else {
-		return true, FreeAIChatLimit - usage.AIChatCount, nil
 	}
 }
 
@@ -93,4 +140,22 @@ func GetUserUsageState(ctx context.Context, user models.User) (models.UserUsage,
 		}, nil
 	}
 	return usage, nil
+}
+
+func usageFieldConfig(actionType string) (string, int, error) {
+	switch actionType {
+	case "scan":
+		return "aiScanCount", FreeAIScanLimit, nil
+	case "chat":
+		return "aiChatCount", FreeAIChatLimit, nil
+	default:
+		return "", 0, fmt.Errorf("unknown action type: %s", actionType)
+	}
+}
+
+func usageCount(usage models.UserUsage, actionType string) int {
+	if actionType == "scan" {
+		return usage.AIScanCount
+	}
+	return usage.AIChatCount
 }

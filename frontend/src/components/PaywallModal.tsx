@@ -3,10 +3,13 @@
 import React, { useState, useEffect } from "react";
 import { useAuth } from "@/context/AuthContext";
 
+const BILLING_URL = process.env.NEXT_PUBLIC_BILLING_URL?.trim() || "";
+const SUPPORT_EMAIL = process.env.NEXT_PUBLIC_SUPPORT_EMAIL?.trim() || "";
+
 export default function PaywallModal() {
   const [isOpen, setIsOpen] = useState(false);
   const [reason, setReason] = useState<"limit" | "pro">("limit");
-  const { user, refreshUser } = useAuth();
+  const { user } = useAuth();
   const [isLifting, setIsLifting] = useState(false);
 
   useEffect(() => {
@@ -21,21 +24,20 @@ export default function PaywallModal() {
     return () => window.removeEventListener("trigger-paywall", handleTrigger);
   }, []);
 
-  const handleMockUpgrade = async () => {
+  const handleUpgrade = async () => {
     setIsLifting(true);
     try {
-      const API_BASE = (process.env.NEXT_PUBLIC_API_URL && process.env.NEXT_PUBLIC_API_URL !== "undefined")
-        ? process.env.NEXT_PUBLIC_API_URL
-        : "http://localhost:8080/api";
-      
-      const token = localStorage.getItem("auth_token");
-      await fetch(`${API_BASE}/user/mock-upgrade`, {
-        method: "POST",
-        headers: { "Authorization": `Bearer ${token}` }
-      });
-      
-      await refreshUser();
-      setIsOpen(false);
+      if (BILLING_URL) {
+        window.location.href = BILLING_URL;
+        return;
+      }
+
+      if (SUPPORT_EMAIL) {
+        window.location.href = `mailto:${SUPPORT_EMAIL}?subject=Somdun%20Pro%20Upgrade`;
+        return;
+      }
+
+      console.warn("Billing CTA clicked but no billing URL or support email is configured.");
     } catch (err) {
       console.error("Upgrade failed:", err);
     } finally {
@@ -66,16 +68,24 @@ export default function PaywallModal() {
               : "This feature is reserved for our Pro members. Join today to unlock your full potential."}
           </p>
 
+          {!BILLING_URL && (
+            <p className="mb-6 rounded-2xl border border-amber-500/20 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
+              {SUPPORT_EMAIL
+                ? `Billing is not connected yet. Use the contact option below and we'll help you upgrade manually.`
+                : "Billing is not connected yet. Add NEXT_PUBLIC_BILLING_URL to enable a live upgrade flow."}
+            </p>
+          )}
+
           <div className="space-y-3">
             <button
-              onClick={handleMockUpgrade}
+              onClick={handleUpgrade}
               disabled={isLifting}
               className="w-full py-4 bg-white text-black font-bold rounded-2xl hover:bg-zinc-200 transition-all transform active:scale-95 flex items-center justify-center gap-2"
             >
               {isLifting ? (
                 <div className="w-5 h-5 border-2 border-black/20 border-t-black rounded-full animate-spin" />
               ) : (
-                <>Unlock Unlimited Access</>
+                <>{BILLING_URL ? "Upgrade to Pro" : SUPPORT_EMAIL ? "Contact to Upgrade" : "Billing Setup Required"}</>
               )}
             </button>
             
