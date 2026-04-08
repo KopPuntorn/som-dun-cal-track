@@ -417,6 +417,8 @@
         hydrationGoal: "เป้าหมายการดื่มน้ำ",
         onTarget: "ถึงเป้าแล้ว",
         todaySnapshot: "ภาพรวมวันนี้",
+        overallProgress: "ความคืบหน้ารวม",
+        overallProgressHint: "ค่าเฉลี่ยของความคืบหน้าด้านโภชนาการ น้ำ การออกกำลังกาย และการพักฟื้นของวันนี้",
         mins: "นาที",
         totalTraining: "การฝึกซ้อมทั้งหมด",
         hours: "ชั่วโมง",
