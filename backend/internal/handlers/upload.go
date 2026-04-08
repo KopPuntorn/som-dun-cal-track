@@ -11,10 +11,13 @@ import (
 	"time"
 
 	"github.com/labstack/echo/v4"
+	"go.mongodb.org/mongo-driver/bson/primitive"
 )
 
 // UploadImage handles file uploads for progress photos and other images
 func UploadImage(c echo.Context) error {
+	userID := c.Get("userID").(primitive.ObjectID)
+
 	// Read file
 	file, err := c.FormFile("image")
 	if err != nil {
@@ -51,10 +54,10 @@ func UploadImage(c echo.Context) error {
 	}
 
 	// Ensure uploads directory exists
-	uploadDir := "uploads"
+	uploadDir := filepath.Join("uploads", userID.Hex())
 	if _, err := os.Stat(uploadDir); os.IsNotExist(err) {
 		slog.Info("Creating uploads directory")
-		err = os.MkdirAll(uploadDir, os.ModePerm)
+		err = os.MkdirAll(uploadDir, 0o755)
 		if err != nil {
 			slog.Error("Failed to create upload directory", "error", err)
 			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "failed to create upload directory"})
@@ -80,10 +83,33 @@ func UploadImage(c echo.Context) error {
 	}
 
 	// Return the accessible URL
-	imageURL := fmt.Sprintf("/uploads/%s", filename)
+	imageURL := fmt.Sprintf("/api/uploads/%s", filename)
 	slog.Info("Image uploaded successfully", "filename", filename, "url", imageURL)
 	return c.JSON(http.StatusOK, map[string]string{
 		"message": "uploaded successfully",
 		"url":     imageURL,
 	})
+}
+
+func GetUploadedImage(c echo.Context) error {
+	userID := c.Get("userID").(primitive.ObjectID)
+	rawFilename := c.Param("filename")
+	filename := filepath.Base(rawFilename)
+	if rawFilename == "" || filename != rawFilename || filename == "." || strings.Contains(filename, "..") {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid filename"})
+	}
+
+	targetPath := filepath.Join("uploads", userID.Hex(), filename)
+	info, err := os.Stat(targetPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return c.JSON(http.StatusNotFound, map[string]string{"error": "image not found"})
+		}
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "failed to read image"})
+	}
+	if info.IsDir() {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid filename"})
+	}
+
+	return c.File(targetPath)
 }

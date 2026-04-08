@@ -3,6 +3,7 @@ package routes
 import (
 	"backend/internal/handlers"
 	"backend/internal/middleware"
+	"os"
 
 	"github.com/labstack/echo/v4"
 )
@@ -29,8 +30,10 @@ func SetupRoutes(e *echo.Echo) {
 
 	api.GET("/user", handlers.GetUserProfile)
 	api.PUT("/user", handlers.UpdateUserProfile)
-	api.POST("/user/mock-upgrade", handlers.MockUpgrade)
-	api.POST("/user/mock-downgrade", handlers.MockDowngrade)
+	if os.Getenv("ENABLE_MOCK_BILLING") == "true" {
+		api.POST("/user/mock-upgrade", handlers.MockUpgrade)
+		api.POST("/user/mock-downgrade", handlers.MockDowngrade)
+	}
 
 	// Water & Weight
 	api.GET("/water", handlers.GetWater)
@@ -57,6 +60,7 @@ func SetupRoutes(e *echo.Echo) {
 
 	// Uploads
 	api.POST("/upload", handlers.UploadImage)
+	api.GET("/uploads/:filename", handlers.GetUploadedImage)
 
 	// Export & AI
 	api.GET("/export", handlers.ExportData)

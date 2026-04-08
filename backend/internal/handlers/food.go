@@ -190,6 +190,12 @@ func UpdateFood(c echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 	}
 
+	prevXP := int(currentFood.Calories / 10)
+	newXP := int(food.Calories / 10)
+	if diff := newXP - prevXP; diff != 0 {
+		_ = db.AddUserXP(userID, diff)
+	}
+
 	// Prepare updated object to return
 	food.ID = foodID
 	food.UserID = userID

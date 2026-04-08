@@ -392,7 +392,10 @@ func SuggestGoals(c echo.Context) error {
 	}
 
 	slog.Info("Suggesting goals with AI", "age", data.Age, "objective", data.Objective)
-	return callGroq(c, groqReq)
+	ctx, cancel := context.WithTimeout(c.Request().Context(), 60*time.Second)
+	defer cancel()
+
+	return callGroq(ctx, c, groqReq, "json")
 
 }
 
@@ -591,10 +594,11 @@ func ConsultAI(c echo.Context) error {
 	}
 
 	slog.Info("Consulting AI", "model", groqReq.Model, "userID", userID, "range", startStr+" to "+endStr, "foods", len(foods), "weights", len(weights), "exercises", len(exercises), "sleeps", len(sleeps))
-	return callGroq(c, groqReq)
+	return callGroq(ctx, c, groqReq, "text")
 }
 
-func callGroq(c echo.Context, groqReq GroqChatRequest) error {
+/*
+func callGroqLegacy(c echo.Context, groqReq GroqChatRequest) error {
 	apiKey := os.Getenv("GROQ_API_KEY")
 
 	groqReq.Stream = true
@@ -652,6 +656,64 @@ func callGroq(c echo.Context, groqReq GroqChatRequest) error {
 	// Ensure it's returned as application/json
 	return c.Blob(http.StatusOK, "application/json", []byte(content))
 }
+*/
+
+func callGroq(ctx context.Context, c echo.Context, groqReq GroqChatRequest, responseMode string) error {
+	content, err := makeGroqCall(ctx, groqReq)
+	if err != nil {
+		slog.Error("AI service request failed", "error", err)
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "failed to contact AI service"})
+	}
+
+	slog.Info("AI Streamed Response Collected", "content_length", len(content))
+
+	content = sanitizeGroqContent(content)
+	if content == "" {
+		slog.Warn("AI returned empty content after sanitization")
+		return c.JSON(http.StatusBadGateway, map[string]string{"error": "AI returned no usable content"})
+	}
+
+	if responseMode == "json" {
+		jsonStr, err := extractJSONObject(content)
+		if err != nil {
+			slog.Error("AI JSON extraction failed", "error", err)
+			return c.JSON(http.StatusBadGateway, map[string]string{"error": "AI returned invalid JSON content"})
+		}
+
+		var payload interface{}
+		if err := json.Unmarshal([]byte(jsonStr), &payload); err != nil {
+			slog.Error("AI JSON unmarshal failed", "error", err)
+			return c.JSON(http.StatusBadGateway, map[string]string{"error": "AI returned malformed JSON"})
+		}
+
+		return c.JSON(http.StatusOK, payload)
+	}
+
+	return c.String(http.StatusOK, content)
+}
+
+func sanitizeGroqContent(content string) string {
+	thinkRe := regexp.MustCompile("(?s)<think>.*?</think>\\n*")
+	content = thinkRe.ReplaceAllString(content, "")
+	content = strings.TrimSpace(content)
+
+	re := regexp.MustCompile("(?s)^\\s*```(?:json|markdown)?\\n?(.*?)\\n?```\\s*$")
+	if matches := re.FindStringSubmatch(content); len(matches) > 1 {
+		content = strings.TrimSpace(matches[1])
+	}
+
+	return strings.TrimSpace(content)
+}
+
+func extractJSONObject(content string) (string, error) {
+	start := strings.Index(content, "{")
+	end := strings.LastIndex(content, "}")
+	if start == -1 || end == -1 || end <= start {
+		return "", fmt.Errorf("no json object found in response")
+	}
+
+	return strings.TrimSpace(content[start : end+1]), nil
+}
 
 // ChatAI provides a general personal chat interface with session persistence
 func ChatAI(c echo.Context) error {
@@ -669,6 +731,25 @@ func ChatAI(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid request body"})
 	}
 
+	userID := c.Get("userID").(primitive.ObjectID)
+	var user models.User
+	if err := db.UserCollection.FindOne(c.Request().Context(), bson.M{"_id": userID}).Decode(&user); err != nil {
+		return c.JSON(http.StatusNotFound, map[string]string{"error": "user not found"})
+	}
+
+	allowed, remaining, err := CheckAndIncrementUsage(c.Request().Context(), user, "chat")
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "usage check failed"})
+	}
+	if !allowed {
+		return c.JSON(http.StatusForbidden, map[string]interface{}{
+			"error":     "Daily chat limit reached",
+			"code":      "LIMIT_REACHED",
+			"remaining": 0,
+		})
+	}
+	slog.Info("Usage incremented", "userID", userID, "action", "chat", "remaining", remaining)
+
 	// Determine language instruction
 	langInstruction := "คุณคือ 'ที่ปรึกษาด้านสุขภาพและนักกำหนดอาหารระดับพรีเมียม' ที่มีความเชี่ยวชาญสูงสุด สื่อสารด้วยภาษาไทยที่สมบูรณ์แบบ (ห้ามใช้อักษรภาษาอื่นนอกจากไทยและอังกฤษ) เป็นธรรมชาติ รูปประโยคเหมือนคนไทยพูดจริงๆ มีระดับ และน่าเชื่อถือ " +
 		"ห้ามแปลตรงตัวจากภาษาอังกฤษ (เช่น ห้ามใช้คำว่า 'คุณอาจต้องการพิจารณาการเพิ่ม X ลงในอาหาร' ให้ใช้ 'แนะนำให้ทาน X เสริมดีกว่าครับ') " +
@@ -684,8 +765,6 @@ func ChatAI(c echo.Context) error {
 	// Increase timeout to 60s to allow for Groq response + DB updates
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
-
-	userID := c.Get("userID").(primitive.ObjectID)
 
 	// --- Session Management ---
 	var sessionID primitive.ObjectID
@@ -1014,7 +1093,7 @@ func ChatAI(c echo.Context) error {
 	replyContent = thinkRe.ReplaceAllString(replyContent, "")
 	replyContent = strings.TrimSpace(replyContent)
 
-	// Fallback Strategy: If after stripping thinking, we have nothing left, 
+	// Fallback Strategy: If after stripping thinking, we have nothing left,
 	// it means the AI only produced reasoning. We show a fallback UI or the reasoning.
 	if replyContent == "" && originalReply != "" {
 		slog.Warn("AI Chat response only contained thinking", "sessionID", sessionID)

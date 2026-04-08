@@ -55,6 +55,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const [isLoading] = useState(false);
     const router = useRouter();
     const pathname = usePathname();
+    const publicRoutes = new Set(["/login", "/privacy", "/terms", "/forgot-password"]);
+    const isPublicRoute = pathname ? publicRoutes.has(pathname) : false;
+    const isAuthEntryRoute = pathname === "/login";
 
     useEffect(() => {
         // Setup global fetch interceptor
@@ -119,21 +122,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     useEffect(() => {
         if (!isLoading) {
-            // Allow unrestricted access to login page
             if (!token) {
-                if (pathname !== "/login") {
+                if (!isPublicRoute) {
                     router.push("/login");
                 }
             } else {
                 // User is logged in
                 if (!user?.onboarded && pathname !== "/onboarding") {
                     router.push("/onboarding");
-                } else if (user?.onboarded && (pathname === "/login" || pathname === "/onboarding")) {
+                } else if (user?.onboarded && (isAuthEntryRoute || pathname === "/onboarding")) {
                     router.push("/");
                 }
             }
         }
-    }, [isLoading, token, user?.onboarded, pathname, router]);
+    }, [isLoading, token, user?.onboarded, pathname, router, isPublicRoute, isAuthEntryRoute]);
 
     const login = (newToken: string, newUser: UserProfile) => {
         localStorage.setItem("auth_token", newToken);

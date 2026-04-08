@@ -19,6 +19,14 @@ interface ChatMessage {
   content: string;
 }
 
+type QuickAddCandidate = {
+  foodName: string;
+  calories: number;
+  protein?: number;
+  carbs?: number;
+  fat?: number;
+};
+
 type SessionMessage = {
   id?: string;
   role?: string;
@@ -45,7 +53,7 @@ export default function AiChatPage() {
   const [mounted, setMounted] = useState(false);
   const [chatInput, setChatInput] = useState("");
   const [isAiLoading, setIsAiLoading] = useState(false);
-  const [showQuickAdd, setShowQuickAdd] = useState<{ foodName: string; calories: number; protein?: number; carbs?: number; fat?: number } | null>(null);
+  const [showQuickAdd, setShowQuickAdd] = useState<QuickAddCandidate | null>(null);
 
   const [chatSessions, setChatSessions] = useState<{ id: string; title: string; updatedAt: string }[]>([]);
   const [activeSessionId, setActiveSessionId] = useState<string | null>(null);
@@ -116,13 +124,6 @@ export default function AiChatPage() {
       }
     }
   }, []);
-
-  const handleChatKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSendMessage();
-    }
-  }, [chatInput, isAiLoading, user]);
 
   const adjustTextareaHeight = useCallback(() => {
     if (inputRef.current) {
@@ -296,8 +297,6 @@ export default function AiChatPage() {
     return groups;
   }, []);
 
-  const groupedSessions = useMemo(() => groupChatByDate(chatSessions), [chatSessions, groupChatByDate]);
-
   const formatSessionTime = (updatedAt: string) => {
     const date = new Date(updatedAt);
     if (Number.isNaN(date.getTime())) return '';
@@ -305,6 +304,173 @@ export default function AiChatPage() {
     const isSameDay = date.toDateString() === now.toDateString();
     return isSameDay ? format(date, 'HH:mm') : format(date, 'MMM d');
   };
+
+  const extractQuickAddFromResponse = (assistantContent: string) => {
+    const simpleAddRegex = /\[ADD:\s*([^|\]]+?)\s*[|｜]\s*(\d+)(?:\s*kcal)?(?:\s*[|｜]\s*([\d.]+))?(?:\s*[|｜]\s*([\d.]+))?(?:\s*[|｜]\s*([\d.]+))?\s*\]/gi;
+    const foodDataRegex = /\[FOOD_DATA:\s*(\{[\s\S]*?\})\s*\]/gi;
+    const simpleMatches = [...assistantContent.matchAll(simpleAddRegex)];
+    const jsonDataMatches = [...assistantContent.matchAll(foodDataRegex)];
+
+    let quickAdd: QuickAddCandidate | null = null;
+
+    if (simpleMatches.length > 0) {
+      const match = simpleMatches[0];
+      const protein = match[3] ? parseFloat(match[3]) : undefined;
+      const hasCarbs = typeof match[5] !== 'undefined';
+      const carbs = hasCarbs ? (match[4] ? parseFloat(match[4]) : undefined) : undefined;
+      const fat = hasCarbs ? (match[5] ? parseFloat(match[5]) : undefined) : (match[4] ? parseFloat(match[4]) : undefined);
+      quickAdd = {
+        foodName: match[1].trim(),
+        calories: parseInt(match[2], 10),
+        protein,
+        carbs,
+        fat
+      };
+    } else if (jsonDataMatches.length > 0) {
+      try {
+        const foodObj = JSON.parse(jsonDataMatches[0][1]);
+        quickAdd = {
+          foodName: foodObj.name,
+          calories: foodObj.calories,
+          protein: foodObj.protein,
+          carbs: foodObj.carbs,
+          fat: foodObj.fat
+        };
+      } catch {
+        quickAdd = null;
+      }
+    }
+
+    const cleanedContent = assistantContent.replace(/\[(ADD|FOOD_DATA):[^\]]*?\]/gi, '').trim();
+
+    return {
+      quickAdd,
+      displayContent: cleanedContent || (
+        quickAdd
+          ? (language === 'th'
+              ? 'ฉันเตรียมข้อมูลอาหารไว้ให้แล้ว คุณสามารถบันทึกต่อได้ทันที'
+              : 'I prepared the nutrition details so you can log this right away.')
+          : ''
+      )
+    };
+  };
+
+  const runChatPrompt = async (prompt: string) => {
+    const messageToSend = prompt.trim();
+    if (!messageToSend || !user?.id) return;
+
+    if (window.innerWidth < 1024) {
+      inputRef.current?.blur();
+    }
+
+    setChatMessages((prev) => [
+      ...prev,
+      { id: Date.now().toString(), role: "user", content: messageToSend }
+    ]);
+    setChatInput("");
+    setIsAiLoading(true);
+    setShowQuickAdd(null);
+
+    try {
+      const token = getAuthToken();
+      const lang = getAppLang();
+      const res = await fetch(`${API_BASE}/chat`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({
+          sessionId: activeSessionId && !activeSessionId.startsWith('000000') ? activeSessionId : "",
+          messages: [{ role: "user", content: messageToSend }],
+          language: lang
+        })
+      });
+
+      if (!res.ok) {
+        let errorCode = '';
+        try {
+          const errorData = await res.json();
+          errorCode = typeof errorData?.code === 'string' ? errorData.code : '';
+        } catch {
+          errorCode = '';
+        }
+
+        if (res.status === 403 && (errorCode === 'LIMIT_REACHED' || errorCode === 'PRO_REQUIRED')) {
+          return;
+        }
+
+        throw new Error('chat_request_failed');
+      }
+
+      const data = await res.json();
+      const assistantContent = typeof data.response === 'string' ? data.response : '';
+      const { quickAdd, displayContent } = extractQuickAddFromResponse(assistantContent);
+
+      if (quickAdd) {
+        setShowQuickAdd(quickAdd);
+      }
+
+      if (displayContent) {
+        setChatMessages((prev) => [
+          ...prev,
+          { id: (Date.now() + 1).toString(), role: "assistant", content: displayContent }
+        ]);
+      }
+
+      if (data.sessionId && data.sessionId !== activeSessionId) {
+        lastFetchedSessionId.current = data.sessionId;
+        setActiveSessionId(data.sessionId);
+        localStorage.setItem('active_chat_session', data.sessionId);
+        fetchChatSessions();
+      }
+    } catch {
+      setChatMessages((prev) => [
+        ...prev,
+        {
+          id: (Date.now() + 1).toString(),
+          role: "assistant",
+          content: language === 'th'
+            ? 'การเชื่อมต่อมีปัญหา ลองใหม่อีกครั้งนะ'
+            : 'There was a connection issue. Please try again.'
+        }
+      ]);
+    } finally {
+      setIsAiLoading(false);
+    }
+  };
+
+  const handleChatKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      void runChatPrompt(chatInput);
+    }
+  }, [chatInput]);
+
+  const handleRefineQuickAdd = () => {
+    if (!showQuickAdd) return;
+    const prompt = language === 'th'
+      ? `ช่วยปรับค่าของ ${showQuickAdd.foodName} ให้แม่นขึ้นหน่อย ตอนนี้ฉันมีค่า ${showQuickAdd.calories} kcal, โปรตีน ${showQuickAdd.protein || 0}g, คาร์บ ${showQuickAdd.carbs || 0}g, ไขมัน ${showQuickAdd.fat || 0}g`
+      : `Please refine the estimate for ${showQuickAdd.foodName}. I currently have ${showQuickAdd.calories} kcal, ${showQuickAdd.protein || 0}g protein, ${showQuickAdd.carbs || 0}g carbs, and ${showQuickAdd.fat || 0}g fat.`;
+    setChatInput(prompt);
+    setShowQuickAdd(null);
+    setTimeout(() => inputRef.current?.focus(), 0);
+  };
+
+  const capabilityCards = useMemo(() => [
+    {
+      kicker: language === 'th' ? 'วิเคราะห์เร็ว' : 'Fast Analysis',
+      title: language === 'th' ? 'ประเมินมื้ออาหารจากข้อความธรรมดา' : 'Estimate meals from plain language',
+      description: language === 'th' ? 'ถามแคลอรี่และสารอาหารของเมนูที่กินจริงได้ทันที' : 'Ask for calories and macros from real meals in one message.'
+    },
+    {
+      kicker: language === 'th' ? 'วางแผนวันนี้' : 'Daily Planning',
+      title: language === 'th' ? 'ดูว่าวันนี้ยังขาดอะไรอยู่' : 'See what today still needs',
+      description: language === 'th' ? 'ให้ AI เทียบกับข้อมูลที่บันทึกไว้ แล้วแนะนำสิ่งที่ควรโฟกัสต่อ' : 'Let AI compare your logs and tell you what to focus on next.'
+    },
+    {
+      kicker: language === 'th' ? 'ทำต่อได้เลย' : 'Action Ready',
+      title: language === 'th' ? 'เจอข้อมูลแล้วบันทึกต่อจากแชทได้' : 'Turn an answer into a log instantly',
+      description: language === 'th' ? 'เมื่อ AI เจอข้อมูลอาหารที่พอใช้ได้ คุณกดบันทึกต่อได้ทันที' : 'When AI finds a usable estimate, you can log it straight from chat.'
+    }
+  ], [language]);
 
   const handleQuickAdd = async () => {
     if (!showQuickAdd || !user?.id) return;
@@ -341,86 +507,7 @@ export default function AiChatPage() {
   const handleSendMessage = async () => {
     const messageToSend = chatInput.trim();
     if (!messageToSend || !user?.id) return;
-
-    if (window.innerWidth < 1024) {
-      inputRef.current?.blur();
-    }
-
-    const newMessage: ChatMessage = { id: Date.now().toString(), role: "user", content: messageToSend };
-    setChatMessages((prev) => [...prev, newMessage]);
-    setChatInput("");
-    setIsAiLoading(true);
-    setShowQuickAdd(null);
-    try {
-      const token = getAuthToken();
-      const lang = getAppLang();
-      const res = await fetch(`${API_BASE}/chat`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-        body: JSON.stringify({
-          sessionId: activeSessionId && !activeSessionId.startsWith('000000') ? activeSessionId : "",
-          messages: [{ role: "user", content: messageToSend }],
-          language: lang
-        })
-      });
-      if (res.ok) {
-        const data = await res.json();
-        const assistantContent = data.response;
-        const simpleAddRegex = /\[ADD:\s*([^|\]]+?)\s*[|｜]\s*(\d+)(?:\s*kcal)?(?:\s*[|｜]\s*([\d.]+))?(?:\s*[|｜]\s*([\d.]+))?(?:\s*[|｜]\s*([\d.]+))?\s*\]/gi;
-        const foodDataRegex = /\[FOOD_DATA:\s*(\{[\s\S]*?\})\s*\]/gi;
-
-        const simpleMatches = [...assistantContent.matchAll(simpleAddRegex)];
-        const jsonDataMatches = [...assistantContent.matchAll(foodDataRegex)];
-
-        if (simpleMatches.length > 0) {
-          const m = simpleMatches[0];
-          const protein = m[3] ? parseFloat(m[3]) : undefined;
-          const hasCarbs = typeof m[5] !== 'undefined';
-          const carbs = hasCarbs ? (m[4] ? parseFloat(m[4]) : undefined) : undefined;
-          const fat = hasCarbs ? (m[5] ? parseFloat(m[5]) : undefined) : (m[4] ? parseFloat(m[4]) : undefined);
-          setShowQuickAdd({
-            foodName: m[1].trim(),
-            calories: parseInt(m[2], 10),
-            protein,
-            carbs,
-            fat
-          });
-        } else if (jsonDataMatches.length > 0) {
-          try {
-            const foodObj = JSON.parse(jsonDataMatches[0][1]);
-            setShowQuickAdd({
-              foodName: foodObj.name,
-              calories: foodObj.calories,
-              protein: foodObj.protein,
-              carbs: foodObj.carbs,
-              fat: foodObj.fat
-            });
-          } catch (e) { }
-        }
-
-        // Robust cleaning using non-greedy regex that stops at each closing bracket
-        const finalAssistantContent = assistantContent.replace(/\[(ADD|FOOD_DATA):[^\]]*?\]/gi, '').trim();
-
-        let displayContent = finalAssistantContent;
-        if (!displayContent && (simpleMatches.length > 0 || jsonDataMatches.length > 0)) {
-          displayContent = language === 'th' ? 'นี่คือข้อมูลโภชนาการที่ฉันพบค่ะ:' : 'Here is the nutrition information I found:';
-        }
-
-        if (displayContent) {
-          setChatMessages((prev) => [...prev, { id: (Date.now() + 1).toString(), role: "assistant", content: displayContent }]);
-        }
-        if (data.sessionId && data.sessionId !== activeSessionId) {
-          lastFetchedSessionId.current = data.sessionId;
-          setActiveSessionId(data.sessionId);
-          localStorage.setItem('active_chat_session', data.sessionId);
-          fetchChatSessions();
-        }
-      }
-    } catch (error) {
-      setChatMessages((prev) => [...prev, { id: (Date.now() + 1).toString(), role: "assistant", content: "Connection error. Please try again." }]);
-    } finally {
-      setIsAiLoading(false);
-    }
+    await runChatPrompt(messageToSend);
   };
 
   const suggestionChips = useMemo(() => [
@@ -447,69 +534,7 @@ export default function AiChatPage() {
   ], [language]);
 
   const handleSuggestionClick = (prompt: string) => {
-    setChatInput(prompt);
-    setTimeout(() => {
-      setChatInput('');
-      const newMessage: ChatMessage = { id: Date.now().toString(), role: 'user', content: prompt };
-      setChatMessages(prev => [...prev, newMessage]);
-      setIsAiLoading(true);
-      setShowQuickAdd(null);
-      (async () => {
-        try {
-          const token = getAuthToken();
-          const lang = getAppLang();
-          const res = await fetch(`${API_BASE}/chat`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-            body: JSON.stringify({ sessionId: activeSessionId && !activeSessionId.startsWith('000000') ? activeSessionId : "", messages: [{ role: "user", content: prompt }], language: lang })
-          });
-          if (res.ok) {
-            const data = await res.json();
-            const assistantContent = data.response;
-            const simpleAddRegex = /\[ADD:\s*([^|\]]+?)\s*[|｜]\s*(\d+)(?:\s*kcal)?(?:\s*[|｜]\s*([\d.]+))?(?:\s*[|｜]\s*([\d.]+))?(?:\s*[|｜]\s*([\d.]+))?\s*\]/gi;
-            const foodDataRegex = /\[FOOD_DATA:\s*(\{[\s\S]*?\})\s*\]/gi;
-
-            const simpleMatches = [...assistantContent.matchAll(simpleAddRegex)];
-            const jsonDataMatches = [...assistantContent.matchAll(foodDataRegex)];
-
-            if (simpleMatches.length > 0) {
-              const m = simpleMatches[0];
-              const protein = m[3] ? parseFloat(m[3]) : undefined;
-              const hasCarbs = typeof m[5] !== 'undefined';
-              const carbs = hasCarbs ? (m[4] ? parseFloat(m[4]) : undefined) : undefined;
-              const fat = hasCarbs ? (m[5] ? parseFloat(m[5]) : undefined) : (m[4] ? parseFloat(m[4]) : undefined);
-              setShowQuickAdd({ foodName: m[1].trim(), calories: parseInt(m[2], 10), protein, carbs, fat });
-            } else if (jsonDataMatches.length > 0) {
-              try {
-                const foodObj = JSON.parse(jsonDataMatches[0][1]);
-                setShowQuickAdd({ foodName: foodObj.name, calories: foodObj.calories, protein: foodObj.protein, carbs: foodObj.carbs, fat: foodObj.fat });
-              } catch (e) { }
-            }
-
-            // Robust cleaning
-            const finalAssistantContent = assistantContent.replace(/\[(ADD|FOOD_DATA):[^\]]*?\]/gi, '').trim();
-
-            let displayContent = finalAssistantContent;
-            if (!displayContent && (simpleMatches.length > 0 || jsonDataMatches.length > 0)) {
-              displayContent = language === 'th' ? 'นี่คือข้อมูลโภชนาการที่ฉันพบค่ะ:' : 'Here is the nutrition information I found:';
-            }
-            if (displayContent) {
-              setChatMessages(prev => [...prev, { id: (Date.now() + 1).toString(), role: 'assistant', content: displayContent }]);
-            }
-            if (data.sessionId && data.sessionId !== activeSessionId) {
-              lastFetchedSessionId.current = data.sessionId;
-              setActiveSessionId(data.sessionId);
-              localStorage.setItem('active_chat_session', data.sessionId);
-              fetchChatSessions();
-            }
-          }
-        } catch (e) {
-          setChatMessages(prev => [...prev, { id: (Date.now() + 1).toString(), role: 'assistant', content: 'Connection error.' }]);
-        } finally {
-          setIsAiLoading(false);
-        }
-      })();
-    }, 100);
+    void runChatPrompt(prompt);
   };
 
   const activeSessionTitle = chatSessions.find(session => session.id === activeSessionId)?.title;
@@ -524,7 +549,7 @@ export default function AiChatPage() {
       <div className="ai-sidebar-header">
         <div className="flex items-center justify-between px-1">
           <div className="flex items-center gap-2.5">
-            <div className="w-8 h-8 rounded-lg flex items-center justify-center shadow-sm" style={{ background: 'var(--accent-cal-gradient)' }}>
+            <div className="ai-sidebar-brand-mark">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0f1715" strokeWidth="2.5"><path d="M12 2L2 7l10 5 10-5-10-5z" /><path d="M2 17l10 5 10-5" /><path d="M2 12l10 5 10-5" /></svg>
             </div>
             <span className="font-bold text-[16px] tracking-tight whitespace-nowrap" style={{ color: 'var(--text-primary)' }}>Somdun AI</span>
@@ -728,33 +753,38 @@ export default function AiChatPage() {
             </button>
 
             <div className="ai-header-title">
-              <div className="ai-header-avatar" style={{ background: 'var(--accent-cal-gradient)' }}>
+              <div className="ai-header-avatar">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" aria-hidden="true">
                   <circle cx="12" cy="12" r="10"/>
                   <path d="M12 6v6l4 2"/>
                 </svg>
               </div>
               <div className="ai-header-text">
-                <span className="ai-header-eyebrow" style={{ color: 'var(--accent-cal)' }}>Somdun AI</span>
+                <span className="ai-header-eyebrow ai-header-eyebrow--coach">
+                  {language === 'th' ? 'โค้ชโภชนาการ AI' : 'Nutrition Coach'}
+                </span>
                 <span className="ai-header-session">
                   {activeSessionTitle || (language === 'th' ? 'แชทใหม่' : 'New Chat')}
                 </span>
+                <span className="ai-header-context">
+                  {language === 'th' ? 'อ่านข้อมูลอาหาร น้ำ และกิจกรรมที่คุณบันทึกไว้' : 'Reads your food, hydration, and activity logs'}
+                </span>
               </div>
               <span className="ai-header-status">
-                <span className="ai-status-dot" style={{ background: 'var(--accent-cal)' }} />
-                {language === 'th' ? 'พร้อมใช้งาน' : 'Online'}
+                <span className="ai-status-dot" />
+                {language === 'th' ? 'พร้อมวิเคราะห์มื้ออาหาร' : 'Meal analysis ready'}
               </span>
             </div>
           </div>
 
           <div className="ai-header-actions">
-            {/* <button
+            <button
               onClick={createNewSession}
               className="ai-header-new-btn"
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
               <span className="ai-header-new-text">{language === 'th' ? 'แชทใหม่' : 'New Chat'}</span>
-            </button> */}
+            </button>
             <button
               onClick={() => router.push('/')}
               className="hidden lg:flex items-center gap-2 px-3.5 py-2 rounded-lg transition-all text-[13px] font-bold glass-btn"
@@ -774,37 +804,59 @@ export default function AiChatPage() {
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: shouldReduceMotion ? 0 : 0.4, ease: [0.16, 1, 0.3, 1] }}
-                  className="flex flex-col items-center justify-center w-full mt-auto mb-auto py-10"
+                  className="ai-welcome-state"
                 >
-                  <div className="w-20 h-20 rounded-[2rem] flex items-center justify-center mb-8 shadow-2xl relative border" style={{ background: 'var(--accent-cal-gradient)', boxShadow: '0 8px 32px rgba(130, 166, 125, 0.3)' }}>
-                    <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
-                  </div>
-                  <h1 className="text-3xl font-bold mb-3 tracking-tight text-center">
-                    {language === 'th' ? `สวัสดี, ${user?.name || 'User'}` : `Hello, ${user?.name || 'User'}`}
-                  </h1>
-                  <p className="text-base mb-6 text-center font-medium" style={{ color: 'var(--text-secondary)' }}>
-                    {language === 'th' ? 'ถามเรื่องอาหาร แคลอรี่ หรือแผนโภชนาการได้เลย' : 'Ask about meals, calories, or your nutrition plan.'}
-                  </p>
-                  <p className="text-sm mb-10 text-center font-medium" style={{ color: 'var(--text-secondary)' }}>
-                    {language === 'th' ? 'ลองเริ่มด้วยคำถามแนะนำด้านล่าง' : 'Start with a suggested prompt below.'}
-                  </p>
+                  <div className="ai-welcome-shell">
+                    <div className="ai-welcome-hero">
+                      <div className="ai-welcome-badge">
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+                      </div>
+                      <div className="ai-welcome-copy">
+                        <p className="ai-welcome-kicker">SOMDUN AI</p>
+                        <h1 className="ai-welcome-title">
+                          {language === 'th' ? `สวัสดี ${user?.name || 'คุณ'}` : `Hello, ${user?.name || 'there'}`}
+                        </h1>
+                        <p className="ai-welcome-description">
+                          {language === 'th'
+                            ? 'ให้ AI ช่วยวิเคราะห์มื้ออาหาร สรุปสิ่งที่ขาดของวันนี้ และเปลี่ยนคำแนะนำให้กลายเป็นการบันทึกได้ทันที'
+                            : 'Use AI to analyze meals, spot what today is missing, and turn good answers into logs instantly.'}
+                        </p>
+                      </div>
+                    </div>
 
-                  <div className="suggestion-chips-container no-scrollbar">
-                    {suggestionChips.map((chip, i) => (
-                      <button
-                        key={i}
-                        onClick={() => handleSuggestionClick(chip.prompt)}
-                        className="suggestion-chip"
-                      >
-                        <div className="suggestion-icon">
-                          {chip.icon}
+                    <div className="ai-capability-grid">
+                      {capabilityCards.map((card) => (
+                        <div key={card.title} className="ai-capability-card">
+                          <p className="ai-capability-kicker">{card.kicker}</p>
+                          <h2 className="ai-capability-title">{card.title}</h2>
+                          <p className="ai-capability-description">{card.description}</p>
                         </div>
-                        <div>
-                          <p className="text-[14px] font-semibold mb-1" style={{ color: 'var(--text-primary)' }}>{chip.label}</p>
-                          <p className="text-[12px] line-clamp-1" style={{ color: 'var(--text-secondary)' }}>{chip.prompt}</p>
-                        </div>
-                      </button>
-                    ))}
+                      ))}
+                    </div>
+
+                    <div className="ai-welcome-prompts">
+                      <div className="ai-welcome-prompts-header">
+                        <p className="ai-welcome-prompts-title">{language === 'th' ? 'เริ่มจากงานที่อยากให้ช่วย' : 'Start with the job you need done'}</p>
+                        <p className="ai-welcome-prompts-copy">{language === 'th' ? 'เลือกคำสั่งที่ใกล้กับสิ่งที่คุณต้องการที่สุด แล้วค่อยต่อยอดจากตรงนั้น' : 'Pick the closest task, then keep the conversation moving from there.'}</p>
+                      </div>
+                      <div className="suggestion-chips-container no-scrollbar">
+                        {suggestionChips.map((chip, i) => (
+                          <button
+                            key={i}
+                            onClick={() => handleSuggestionClick(chip.prompt)}
+                            className="suggestion-chip"
+                          >
+                            <div className="suggestion-icon">
+                              {chip.icon}
+                            </div>
+                            <div className="suggestion-copy">
+                              <p className="suggestion-title">{chip.label}</p>
+                              <p className="suggestion-subtitle">{chip.prompt}</p>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
                   </div>
                 </motion.div>
               ) : (
@@ -819,11 +871,11 @@ export default function AiChatPage() {
                     >
                       <div className="flex-shrink-0 pt-1">
                         {msg.role === "user" ? (
-                          <div className="ai-avatar user" style={{ background: 'var(--accent-pro-gradient)' }}>
+                          <div className="ai-avatar user">
                             {user?.name?.charAt(0) || "U"}
                           </div>
                         ) : (
-                          <div className="ai-avatar assistant" style={{ background: 'var(--accent-cal-gradient)' }}>
+                          <div className="ai-avatar assistant">
                             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5">
                               <circle cx="12" cy="12" r="10"/>
                               <path d="M12 6v6l4 2"/>
@@ -848,55 +900,40 @@ export default function AiChatPage() {
 
                   {/* Quick Add Card */}
                   {showQuickAdd && (
-                    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: shouldReduceMotion ? 0 : 0.25, ease: [0.16, 1, 0.3, 1] }} className="flex gap-4 w-full">
-                      <div className="w-8 h-8 flex-shrink-0 pt-1">
-                        <div className="ai-avatar assistant" style={{ background: 'var(--accent-cal-gradient)' }}>
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5">
-                            <circle cx="12" cy="12" r="10"/>
-                            <path d="M12 6v6l4 2"/>
-                          </svg>
-                        </div>
-                      </div>
-                      <div className="flex-1 flex justify-start max-w-[90%] lg:max-w-[80%]">
-                        <div className="quick-add-card">
-                          <div className="p-5">
-                            <div className="flex items-center justify-between mb-4">
-                              <div className="flex items-center gap-2">
-                                <div className="w-2 h-2 rounded-full animate-pulse" style={{ backgroundColor: 'var(--accent-cal)' }} />
-                                <span className="text-xs font-bold tracking-wide uppercase" style={{ color: 'var(--accent-cal)' }}>{language === 'th' ? 'ข้อมูลโภชนาการ' : 'Nutrition Info'}</span>
-                              </div>
-                            </div>
-                            <h3 className="text-xl font-bold mb-2 leading-tight" style={{ color: 'var(--text-primary)' }}>{showQuickAdd.foodName}</h3>
-                            <div className="flex items-baseline gap-1.5 mb-6">
-                              <span className="text-4xl font-black bg-clip-text text-transparent" style={{ backgroundImage: 'var(--accent-cal-gradient)' }}>{showQuickAdd.calories}</span>
-                              <span className="text-sm font-semibold uppercase" style={{ color: 'var(--text-secondary)' }}>kcal</span>
-                            </div>
-                            <div className="grid grid-cols-3 gap-3">
-                              <div className="p-3.5 rounded-xl border" style={{ backgroundColor: 'rgba(0,0,0,0.2)', borderColor: 'var(--panel-border)' }}>
-                                <p className="text-[11px] font-bold mb-1 uppercase tracking-wider" style={{ color: 'var(--text-secondary)' }}>Protein</p>
-                                <div className="flex items-baseline gap-1">
-                                  <p className="text-lg font-bold" style={{ color: 'var(--accent-pro)' }}>{showQuickAdd.protein || 0}</p>
-                                  <span className="text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>g</span>
-                                </div>
-                              </div>
-                              <div className="p-3.5 rounded-xl border" style={{ backgroundColor: 'rgba(0,0,0,0.2)', borderColor: 'var(--panel-border)' }}>
-                                <p className="text-[11px] font-bold mb-1 uppercase tracking-wider" style={{ color: 'var(--text-secondary)' }}>Carbs</p>
-                                <div className="flex items-baseline gap-1">
-                                  <p className="text-lg font-bold" style={{ color: 'var(--accent-carb)' }}>{showQuickAdd.carbs || 0}</p>
-                                  <span className="text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>g</span>
-                                </div>
-                              </div>
-                              <div className="p-3.5 rounded-xl border" style={{ backgroundColor: 'rgba(0,0,0,0.2)', borderColor: 'var(--panel-border)' }}>
-                                <p className="text-[11px] font-bold mb-1 uppercase tracking-wider" style={{ color: 'var(--text-secondary)' }}>Fat</p>
-                                <div className="flex items-baseline gap-1">
-                                  <p className="text-lg font-bold" style={{ color: 'var(--accent-fat)' }}>{showQuickAdd.fat || 0}</p>
-                                  <span className="text-xs font-medium" style={{ color: 'var(--text-secondary)' }}>g</span>
-                                </div>
-                              </div>
-                            </div>
+                    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: shouldReduceMotion ? 0 : 0.25, ease: [0.16, 1, 0.3, 1] }} className="ai-quick-add-row">
+                      <div className="ai-quick-add-card">
+                        <div className="ai-quick-add-head">
+                          <div>
+                            <p className="ai-quick-add-kicker">{language === 'th' ? 'พร้อมบันทึก' : 'Ready to Log'}</p>
+                            <h3 className="ai-quick-add-title">{showQuickAdd.foodName}</h3>
                           </div>
-                          <button onClick={handleQuickAdd} className="quick-add-footer">
-                            {language === "th" ? "บันทึกรายการนี้" : "Log Food"}
+                          <span className="ai-quick-add-calories">{showQuickAdd.calories} kcal</span>
+                        </div>
+                        <p className="ai-quick-add-copy">
+                          {language === 'th'
+                            ? 'ฉันเตรียมค่าที่พร้อมบันทึกไว้แล้ว ถ้าต้องการฉันช่วยปรับรายละเอียดก่อนก็ค่อยแก้ต่อจากแชทนี้ได้'
+                            : 'I prepared a log-ready estimate. If you want, I can refine the details before you save it.'}
+                        </p>
+                        <div className="ai-quick-add-macros">
+                          <div className="ai-quick-add-macro protein">
+                            <span className="ai-quick-add-macro-label">Protein</span>
+                            <strong>{showQuickAdd.protein || 0}g</strong>
+                          </div>
+                          <div className="ai-quick-add-macro carbs">
+                            <span className="ai-quick-add-macro-label">Carbs</span>
+                            <strong>{showQuickAdd.carbs || 0}g</strong>
+                          </div>
+                          <div className="ai-quick-add-macro fat">
+                            <span className="ai-quick-add-macro-label">Fat</span>
+                            <strong>{showQuickAdd.fat || 0}g</strong>
+                          </div>
+                        </div>
+                        <div className="ai-quick-add-actions">
+                          <button type="button" onClick={handleRefineQuickAdd} className="ai-quick-add-secondary">
+                            {language === 'th' ? 'ปรับค่าก่อน' : 'Refine First'}
+                          </button>
+                          <button type="button" onClick={handleQuickAdd} className="ai-quick-add-primary">
+                            {language === 'th' ? 'บันทึกรายการนี้' : 'Log This Food'}
                           </button>
                         </div>
                       </div>
@@ -905,13 +942,13 @@ export default function AiChatPage() {
 
                   {isAiLoading && (
                     <div className="flex gap-4 w-full">
-                      <div className="w-8 h-8 rounded-full flex items-center justify-center" style={{ background: 'var(--accent-cal-gradient)' }}>
+                      <div className="ai-loading-avatar">
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
                       </div>
                       <div className="flex items-center gap-1.5 py-3">
-                        <div className="w-2 h-2 rounded-full animate-bounce [animation-delay:-0.3s]" style={{ backgroundColor: 'var(--accent-cal)' }} />
-                        <div className="w-2 h-2 rounded-full animate-bounce [animation-delay:-0.15s]" style={{ backgroundColor: 'var(--accent-cal)' }} />
-                        <div className="w-2 h-2 rounded-full animate-bounce" style={{ backgroundColor: 'var(--accent-cal)' }} />
+                        <div className="ai-thinking-dot animate-bounce [animation-delay:-0.3s]" />
+                        <div className="ai-thinking-dot animate-bounce [animation-delay:-0.15s]" />
+                        <div className="ai-thinking-dot animate-bounce" />
                       </div>
                     </div>
                   )}
@@ -956,7 +993,6 @@ export default function AiChatPage() {
                 disabled={isAiLoading || !chatInput.trim()}
                 className="ai-chat-send-btn"
                 aria-label={language === 'th' ? 'ส่งข้อความ' : 'Send message'}
-                style={{ background: 'var(--accent-cal-gradient)' }}
               >
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                   <line x1="12" y1="19" x2="12" y2="5"></line>
@@ -965,7 +1001,8 @@ export default function AiChatPage() {
               </button>
             </div>
             <div className="ai-chat-input-hint">
-              <span style={{ color: 'var(--text-secondary)', opacity: 0.7 }}>{language === 'th' ? 'Somdun อาจผิดพลาด ตรวจสอบข้อมูลสำคัญ' : 'Somdun can make mistakes. Verify important info.'}</span>
+              <span>{language === 'th' ? 'Somdun อาจผิดพลาดได้ ตรวจสอบข้อมูลสำคัญก่อนบันทึกเสมอ' : 'Somdun can make mistakes, so verify important details before logging.'}</span>
+              <span>{language === 'th' ? 'กด Enter เพื่อส่ง และ Shift + Enter เพื่อขึ้นบรรทัดใหม่' : 'Press Enter to send and Shift + Enter for a new line.'}</span>
             </div>
           </div>
         </div>

@@ -89,6 +89,7 @@ func GetDashboardSummary(c echo.Context) error {
 	endStr := c.QueryParam("end")
 	var start, end time.Time
 	hasRange := false
+	waterDate := time.Now().Format("2006-01-02")
 	if startStr != "" && endStr != "" {
 		s, errS := time.Parse(time.RFC3339, startStr)
 		e, errE := time.Parse(time.RFC3339, endStr)
@@ -96,6 +97,7 @@ func GetDashboardSummary(c echo.Context) error {
 			start = s
 			end = e
 			hasRange = true
+			waterDate = end.In(time.Local).Format("2006-01-02")
 		}
 	}
 
@@ -130,15 +132,14 @@ func GetDashboardSummary(c echo.Context) error {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		dateStr := time.Now().Format("2006-01-02")
 		var w models.WaterIntake
-		if err := db.WaterCollection.FindOne(ctx, bson.M{"date": dateStr, "userId": userID}).Decode(&w); err == nil {
+		if err := db.WaterCollection.FindOne(ctx, bson.M{"date": waterDate, "userId": userID}).Decode(&w); err == nil {
 			mu.Lock()
 			summary.WaterToday = w
 			mu.Unlock()
 		} else {
 			mu.Lock()
-			summary.WaterToday = models.WaterIntake{Date: dateStr, Glasses: 0}
+			summary.WaterToday = models.WaterIntake{Date: waterDate, Glasses: 0}
 			mu.Unlock()
 		}
 	}()

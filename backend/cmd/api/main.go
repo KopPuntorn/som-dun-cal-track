@@ -69,9 +69,6 @@ func main() {
 		})
 	})
 
-	// Serve Static Uploads Directory
-	e.Static("/uploads", "uploads")
-
 	// Start server
 	port := os.Getenv("PORT")
 	if port == "" {

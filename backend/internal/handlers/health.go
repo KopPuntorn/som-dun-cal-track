@@ -378,8 +378,24 @@ func UpdateExercise(c echo.Context) error {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	userID := c.Get("userID").(primitive.ObjectID)	
+	userID := c.Get("userID").(primitive.ObjectID)
 	filter := bson.M{"_id": objID, "userId": userID}
+
+	var currentRecord models.ExerciseRecord
+	err = db.ExerciseCollection.FindOne(ctx, filter).Decode(&currentRecord)
+	if err != nil {
+		if err == mongo.ErrNoDocuments {
+			return c.JSON(http.StatusNotFound, map[string]string{"error": "record not found"})
+		}
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+	}
+
+	if req.Date.IsZero() {
+		req.Date = currentRecord.Date
+	}
+	if req.CaloriesBurned == nil {
+		req.CaloriesBurned = currentRecord.CaloriesBurned
+	}
 
 	update := bson.M{
 		"$set": bson.M{
@@ -393,6 +409,12 @@ func UpdateExercise(c echo.Context) error {
 	_, err = db.ExerciseCollection.UpdateOne(ctx, filter, update)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+	}
+
+	prevXP := currentRecord.DurationMinutes * 10
+	newXP := req.DurationMinutes * 10
+	if diff := newXP - prevXP; diff != 0 {
+		_ = db.AddUserXP(userID, diff)
 	}
 
 	req.ID = objID
@@ -531,6 +553,22 @@ func UpdateSleep(c echo.Context) error {
 	userID := c.Get("userID").(primitive.ObjectID)
 	filter := bson.M{"_id": objID, "userId": userID}
 
+	var currentRecord models.SleepRecord
+	err = db.SleepCollection.FindOne(ctx, filter).Decode(&currentRecord)
+	if err != nil {
+		if err == mongo.ErrNoDocuments {
+			return c.JSON(http.StatusNotFound, map[string]string{"error": "record not found"})
+		}
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+	}
+
+	if req.Date.IsZero() {
+		req.Date = currentRecord.Date
+	}
+	if req.Quality == nil {
+		req.Quality = currentRecord.Quality
+	}
+
 	update := bson.M{
 		"$set": bson.M{
 			"durationHours": req.DurationHours,
@@ -542,6 +580,12 @@ func UpdateSleep(c echo.Context) error {
 	_, err = db.SleepCollection.UpdateOne(ctx, filter, update)
 	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+	}
+
+	prevXP := int(currentRecord.DurationHours * 100)
+	newXP := int(req.DurationHours * 100)
+	if diff := newXP - prevXP; diff != 0 {
+		_ = db.AddUserXP(userID, diff)
 	}
 
 	req.ID = objID

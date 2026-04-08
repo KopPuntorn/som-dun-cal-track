@@ -3,6 +3,7 @@ package handlers
 import (
 	"context"
 	"net/http"
+	"os"
 	"time"
 
 	"backend/internal/db"
@@ -41,6 +42,10 @@ func GetUserProfile(c echo.Context) error {
 }
 
 func MockUpgrade(c echo.Context) error {
+	if os.Getenv("ENABLE_MOCK_BILLING") != "true" {
+		return c.JSON(http.StatusNotFound, map[string]string{"error": "not found"})
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
@@ -54,6 +59,10 @@ func MockUpgrade(c echo.Context) error {
 }
 
 func MockDowngrade(c echo.Context) error {
+	if os.Getenv("ENABLE_MOCK_BILLING") != "true" {
+		return c.JSON(http.StatusNotFound, map[string]string{"error": "not found"})
+	}
+
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
