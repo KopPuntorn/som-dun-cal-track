@@ -33,7 +33,7 @@ type UnifiedActivity struct {
 }
 
 type DashboardSummary struct {
-	User           models.User              `json:"user"`
+	User           PublicUserResponse       `json:"user"`
 	Goals          models.Goals             `json:"goals"`
 	TodayFoods     []models.Food            `json:"todayFoods"`
 	WaterToday     models.WaterIntake       `json:"waterToday"`
@@ -63,7 +63,7 @@ func GetDashboardSummary(c echo.Context) error {
 		var u models.User
 		if err := db.UserCollection.FindOne(ctx, bson.M{"_id": userID}).Decode(&u); err == nil {
 			mu.Lock()
-			summary.User = u
+			summary.User = buildPublicUserResponse(u)
 			mu.Unlock()
 		}
 	}()

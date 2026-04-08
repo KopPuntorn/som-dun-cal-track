@@ -36,8 +36,8 @@ type GoogleLoginReq struct {
 }
 
 type AuthResponse struct {
-	Token string      `json:"token"`
-	User  models.User `json:"user"`
+	Token string             `json:"token"`
+	User  PublicUserResponse `json:"user"`
 }
 
 type AuthClaims struct {
@@ -125,7 +125,7 @@ func RegisterUser(c echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to create session"})
 	}
 	slog.Info("User registered successfully", "email", newUser.Email, "userID", newUser.ID)
-	return c.JSON(http.StatusCreated, AuthResponse{Token: token, User: newUser})
+	return c.JSON(http.StatusCreated, AuthResponse{Token: token, User: buildPublicUserResponse(newUser)})
 }
 
 func LoginUser(c echo.Context) error {
@@ -160,7 +160,7 @@ func LoginUser(c echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to create session"})
 	}
 	slog.Info("User logged in successfully", "email", user.Email, "userID", user.ID)
-	return c.JSON(http.StatusOK, AuthResponse{Token: token, User: user})
+	return c.JSON(http.StatusOK, AuthResponse{Token: token, User: buildPublicUserResponse(user)})
 }
 
 func GoogleLogin(c echo.Context) error {
@@ -238,5 +238,5 @@ func GoogleLogin(c echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to create session"})
 	}
 	slog.Info("User logged in with Google", "email", user.Email, "userID", user.ID)
-	return c.JSON(http.StatusOK, AuthResponse{Token: token, User: user})
+	return c.JSON(http.StatusOK, AuthResponse{Token: token, User: buildPublicUserResponse(user)})
 }
