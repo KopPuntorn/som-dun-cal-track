@@ -665,7 +665,6 @@ export default function Home() {
       if (res.ok) {
         const updatedFood = await res.json();
         setFoods(foods.map(f => f.id === updatedFood.id ? updatedFood : f));
-        setRecentFoods(prev => prev.map(f => f.name === editingFood.name ? { ...f, name: updatedFood.name, calories: updatedFood.calories, protein: updatedFood.protein } : f));
         setEditingFood(null);
         showToast("Entry updated!", "success");
         mutate(`${API_BASE}/dashboard/summary?lang=${language}`);
