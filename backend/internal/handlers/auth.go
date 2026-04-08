@@ -15,6 +15,7 @@ import (
 	"github.com/labstack/echo/v4"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/mongo"
 	"golang.org/x/crypto/bcrypt"
 	"google.golang.org/api/idtoken"
 )
@@ -118,7 +119,11 @@ func RegisterUser(c echo.Context) error {
 		Fat:      70,
 	})
 
-	token, _ := GenerateJWT(newUser)
+	token, err := GenerateJWT(newUser)
+	if err != nil {
+		slog.Error("Registration failed: jwt generation error", "email", newUser.Email, "userID", newUser.ID, "error", err)
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to create session"})
+	}
 	slog.Info("User registered successfully", "email", newUser.Email, "userID", newUser.ID)
 	return c.JSON(http.StatusCreated, AuthResponse{Token: token, User: newUser})
 }
@@ -149,7 +154,11 @@ func LoginUser(c echo.Context) error {
 		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Invalid email or password"})
 	}
 
-	token, _ := GenerateJWT(user)
+	token, err := GenerateJWT(user)
+	if err != nil {
+		slog.Error("Login failed: jwt generation error", "email", user.Email, "userID", user.ID, "error", err)
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to create session"})
+	}
 	slog.Info("User logged in successfully", "email", user.Email, "userID", user.ID)
 	return c.JSON(http.StatusOK, AuthResponse{Token: token, User: user})
 }
@@ -166,7 +175,7 @@ func GoogleLogin(c echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Google Client ID not configured. Please add it to your .env"})
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(c.Request().Context(), 10*time.Second)
 	defer cancel()
 
 	payload, err := idtoken.Validate(ctx, req.Token, clientId)
@@ -188,7 +197,7 @@ func GoogleLogin(c echo.Context) error {
 	var user models.User
 	err = db.UserCollection.FindOne(ctx, bson.M{"email": email}).Decode(&user)
 
-	if err != nil {
+	if err == mongo.ErrNoDocuments {
 		// User doesn't exist, create them
 		user = models.User{
 			Email:    email,
@@ -209,15 +218,25 @@ func GoogleLogin(c echo.Context) error {
 			Protein:  150,
 			Fat:      70,
 		})
+	} else if err != nil {
+		slog.Error("Google login failed: user lookup error", "email", email, "error", err)
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to load user"})
 	} else if user.GoogleID == "" {
 		// Link Google ID if email matches
 		update := bson.M{"$set": bson.M{"googleId": payload.Subject, "name": name}}
-		db.UserCollection.UpdateOne(ctx, bson.M{"_id": user.ID}, update)
+		if _, err := db.UserCollection.UpdateOne(ctx, bson.M{"_id": user.ID}, update); err != nil {
+			slog.Error("Google login failed: user link update error", "email", email, "userID", user.ID, "error", err)
+			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to update user"})
+		}
 		user.GoogleID = payload.Subject
 		user.Name = name // Update in memory so GenerateJWT and response are correct
 	}
 
-	token, _ := GenerateJWT(user)
+	token, err := GenerateJWT(user)
+	if err != nil {
+		slog.Error("Google login failed: jwt generation error", "email", user.Email, "userID", user.ID, "error", err)
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to create session"})
+	}
 	slog.Info("User logged in with Google", "email", user.Email, "userID", user.ID)
 	return c.JSON(http.StatusOK, AuthResponse{Token: token, User: user})
 }

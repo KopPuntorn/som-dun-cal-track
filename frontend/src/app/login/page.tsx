@@ -3,12 +3,43 @@
 import Link from "next/link";
 import { useState } from "react";
 import { GoogleLogin } from "@react-oauth/google";
-import { useAuth } from "@/context/AuthContext";
+import { useAuth, type UserProfile } from "@/context/AuthContext";
 import { useLanguage } from "@/context/LanguageContext";
 
 const API_BASE = (process.env.NEXT_PUBLIC_API_URL && process.env.NEXT_PUBLIC_API_URL !== "undefined")
     ? process.env.NEXT_PUBLIC_API_URL
     : "http://localhost:8080/api";
+
+const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID?.trim() || "";
+
+type AuthApiResponse = {
+    token?: string;
+    user?: UserProfile;
+    error?: string;
+};
+
+async function readAuthResponse(res: Response): Promise<AuthApiResponse> {
+    const contentType = res.headers.get("content-type") || "";
+
+    if (contentType.includes("application/json")) {
+        try {
+            return await res.json();
+        } catch {
+            return {};
+        }
+    }
+
+    try {
+        const text = await res.text();
+        return text ? { error: text } : {};
+    } catch {
+        return {};
+    }
+}
+
+function isSuccessfulAuthPayload(data: AuthApiResponse): data is { token: string; user: UserProfile } {
+    return typeof data.token === "string" && data.token.length > 0 && !!data.user;
+}
 
 export default function LoginPage() {
     const [isLogin, setIsLogin] = useState(true);
@@ -160,10 +191,12 @@ export default function LoginPage() {
                 body: JSON.stringify(body),
             });
 
-            const data = await res.json();
+            const data = await readAuthResponse(res);
 
-            if (res.ok) {
+            if (res.ok && isSuccessfulAuthPayload(data)) {
                 login(data.token, data.user);
+            } else if (res.ok) {
+                setError(copy.authFailed);
             } else {
                 setError(data.error || copy.authFailed);
             }
@@ -190,9 +223,11 @@ export default function LoginPage() {
                 body: JSON.stringify({ token: credentialResponse.credential }),
             });
 
-            const data = await res.json();
-            if (res.ok) {
+            const data = await readAuthResponse(res);
+            if (res.ok && isSuccessfulAuthPayload(data)) {
                 login(data.token, data.user);
+            } else if (res.ok) {
+                setError(copy.googleLoginFailed);
             } else {
                 setError(data.error || copy.googleLoginFailed);
             }
@@ -389,14 +424,18 @@ export default function LoginPage() {
 
                 {/* Google Login */}
                 <div className="login-google-wrap">
-                    <GoogleLogin
-                        onSuccess={handleGoogleSuccess}
-                        onError={() => setError(copy.googleLoginFailed)}
-                        theme="filled_black"
-                        shape="pill"
-                        text={isLogin ? "signin_with" : "signup_with"}
-                        width="100%"
-                    />
+                    {GOOGLE_CLIENT_ID ? (
+                        <GoogleLogin
+                            onSuccess={handleGoogleSuccess}
+                            onError={() => setError(copy.googleLoginFailed)}
+                            theme="filled_black"
+                            shape="pill"
+                            text={isLogin ? "signin_with" : "signup_with"}
+                            width="100%"
+                        />
+                    ) : (
+                        <div className="login-error">Google sign-in is not configured.</div>
+                    )}
                 </div>
 
                 <div className="login-trust-row">
