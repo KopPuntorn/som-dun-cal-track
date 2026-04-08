@@ -179,10 +179,15 @@ export default function LoginPage() {
         setError(null);
 
         try {
+            if (!credentialResponse.credential) {
+                setError(copy.googleLoginFailed);
+                return;
+            }
+
             const res = await fetch(`${API_BASE}/auth/google`, {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ token: credentialResponse.credential || "MOCK_GOOGLE_TOKEN_123" }),
+                body: JSON.stringify({ token: credentialResponse.credential }),
             });
 
             const data = await res.json();
@@ -191,7 +196,8 @@ export default function LoginPage() {
             } else {
                 setError(data.error || copy.googleLoginFailed);
             }
-        } catch {
+        } catch (err) {
+            console.error("Google login request failed:", err);
             setError(copy.networkServerIssue);
         } finally {
             setLoading(false);
