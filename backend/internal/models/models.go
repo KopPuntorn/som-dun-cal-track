@@ -22,26 +22,50 @@ func SafeString(p *string) string {
 
 // Food represents a single food entry
 type Food struct {
-	ID           primitive.ObjectID `json:"id" bson:"_id,omitempty"`
-	UserID       primitive.ObjectID `json:"userId" bson:"userId"`
-	Name         string             `json:"name" bson:"name"`
-	Calories     float64            `json:"calories" bson:"calories"`
-	Protein      *float64           `json:"protein,omitempty" bson:"protein,omitempty"`
-	Carbs        *float64           `json:"carbs,omitempty" bson:"carbs,omitempty"`
-	Fat          *float64           `json:"fat,omitempty" bson:"fat,omitempty"`
-	Date         time.Time          `json:"date" bson:"date"`
-	MealCategory string             `json:"mealCategory" bson:"mealCategory"` // Breakfast, Lunch, Dinner, Snack
+	ID             primitive.ObjectID `json:"id" bson:"_id,omitempty"`
+	UserID         primitive.ObjectID `json:"userId" bson:"userId"`
+	Name           string             `json:"name" bson:"name"`
+	NormalizedName string             `json:"-" bson:"normalizedName"`
+	Calories       float64            `json:"calories" bson:"calories"`
+	Protein        *float64           `json:"protein,omitempty" bson:"protein,omitempty"`
+	Carbs          *float64           `json:"carbs,omitempty" bson:"carbs,omitempty"`
+	Fat            *float64           `json:"fat,omitempty" bson:"fat,omitempty"`
+	Sugar          *float64           `json:"sugar,omitempty" bson:"sugar,omitempty"`
+	Sodium         *float64           `json:"sodium,omitempty" bson:"sodium,omitempty"`
+	Fiber          *float64           `json:"fiber,omitempty" bson:"fiber,omitempty"`
+	Date           time.Time          `json:"date" bson:"date"`
+	MealCategory   string             `json:"mealCategory" bson:"mealCategory"` // Breakfast, Lunch, Dinner, Snack
+}
+
+type FoodTemplate struct {
+	ID             primitive.ObjectID `json:"id" bson:"_id,omitempty"`
+	UserID         primitive.ObjectID `json:"-" bson:"userId"`
+	Name           string             `json:"name" bson:"name"`
+	NormalizedName string             `json:"-" bson:"normalizedName"`
+	TemplateKey    string             `json:"-" bson:"templateKey"`
+	Calories       float64            `json:"calories" bson:"calories"`
+	Protein        *float64           `json:"protein,omitempty" bson:"protein,omitempty"`
+	Carbs          *float64           `json:"carbs,omitempty" bson:"carbs,omitempty"`
+	Fat            *float64           `json:"fat,omitempty" bson:"fat,omitempty"`
+	Sugar          *float64           `json:"sugar,omitempty" bson:"sugar,omitempty"`
+	Sodium         *float64           `json:"sodium,omitempty" bson:"sodium,omitempty"`
+	Fiber          *float64           `json:"fiber,omitempty" bson:"fiber,omitempty"`
+	UseCount       int                `json:"useCount" bson:"useCount"`
+	LastUsedAt     time.Time          `json:"lastUsedAt" bson:"lastUsedAt"`
+	CreatedAt      time.Time          `json:"createdAt" bson:"createdAt"`
+	UpdatedAt      time.Time          `json:"updatedAt" bson:"updatedAt"`
 }
 
 // Goals represents the daily target for calories and protein
 type Goals struct {
-	ID        primitive.ObjectID `json:"id" bson:"_id,omitempty"`
-	UserID    primitive.ObjectID `json:"userId" bson:"userId"`
-	Calories  float64            `json:"calories" bson:"calories"`
-	Protein   float64            `json:"protein" bson:"protein"`
-	Carbs     float64            `json:"carbs" bson:"carbs"`
-	Fat       float64            `json:"fat" bson:"fat"`
-	Objective string             `json:"objective" bson:"objective"` // lose_fat, lose_weight, gain_weight, build_muscle, maintain
+	ID                  primitive.ObjectID `json:"id" bson:"_id,omitempty"`
+	UserID              primitive.ObjectID `json:"userId" bson:"userId"`
+	Calories            float64            `json:"calories" bson:"calories"`
+	Protein             float64            `json:"protein" bson:"protein"`
+	Carbs               float64            `json:"carbs" bson:"carbs"`
+	Fat                 float64            `json:"fat" bson:"fat"`
+	ExerciseMinutesGoal int                `json:"exerciseMinutesGoal" bson:"exerciseMinutesGoal"`
+	Objective           string             `json:"objective" bson:"objective"` // lose_fat, lose_weight, gain_weight, build_muscle, maintain
 }
 
 // User represents authenticated user and their personal profile
@@ -68,7 +92,7 @@ type User struct {
 	Level              int                `json:"level" bson:"level"`
 	StreakDays         int                `json:"streakDays" bson:"streakDays"`
 	LastActiveDate     string             `json:"lastActiveDate" bson:"lastActiveDate"` // YYYY-MM-DD format
-	Tier               string             `json:"tier" bson:"tier"` // free or pro
+	Tier               string             `json:"tier" bson:"tier"`                     // free or pro
 	SubscriptionStatus string             `json:"subscriptionStatus,omitempty" bson:"subscriptionStatus,omitempty"`
 	StripeCustomerID   string             `json:"stripeCustomerId,omitempty" bson:"stripeCustomerId,omitempty"`
 }
@@ -77,9 +101,9 @@ type User struct {
 type UserUsage struct {
 	ID          primitive.ObjectID `json:"id" bson:"_id,omitempty"`
 	UserID      primitive.ObjectID `json:"userId" bson:"userId"`
-	Date string `json:"date" bson:"date"` // YYYY-MM-DD
-	AIScanCount int `json:"aiScanCount" bson:"aiScanCount"`
-	AIChatCount int `json:"aiChatCount" bson:"aiChatCount"`
+	Date        string             `json:"date" bson:"date"` // YYYY-MM-DD
+	AIScanCount int                `json:"aiScanCount" bson:"aiScanCount"`
+	AIChatCount int                `json:"aiChatCount" bson:"aiChatCount"`
 }
 
 // WaterIntake represents amount of water consumed on a specific date

@@ -41,7 +41,7 @@ type DashboardSummary struct {
 	Exercise       []models.ExerciseRecord  `json:"exerciseRecent"`
 	Sleep          []models.SleepRecord     `json:"sleepRecent"`
 	Measurements   []models.BodyMeasurement `json:"measurementsRecent"`
-	RecentFoods    []models.Food            `json:"recentFoods"`
+	RecentFoods    []models.FoodTemplate    `json:"recentFoods"`
 	UnifiedHistory []UnifiedActivity        `json:"unifiedHistory"`
 }
 
@@ -79,7 +79,7 @@ func GetDashboardSummary(c echo.Context) error {
 			mu.Unlock()
 		} else {
 			mu.Lock()
-			summary.Goals = models.Goals{Calories: 2000, Protein: 150, Carbs: 250, Fat: 70}
+			summary.Goals = models.Goals{Calories: 2000, Protein: 150, Carbs: 250, Fat: 70, ExerciseMinutesGoal: 30}
 			mu.Unlock()
 		}
 	}()
@@ -252,25 +252,23 @@ func GetDashboardSummary(c echo.Context) error {
 	wg.Add(1)
 	go func() {
 		defer wg.Done()
-		allFoodCursor, _ := db.FoodsCollection.Find(ctx, bson.M{"userId": userID}, options.Find().SetSort(bson.D{{Key: "date", Value: -1}}).SetLimit(100))
-		if allFoodCursor != nil {
-			var allFoods []models.Food
-			allFoodCursor.All(ctx, &allFoods)
+		if err := ensureFoodTemplates(ctx, userID); err != nil {
+			return
+		}
 
-			uniqueNames := make(map[string]bool)
-			var recentFoods []models.Food
-			for _, f := range allFoods {
-				if !uniqueNames[f.Name] {
-					uniqueNames[f.Name] = true
-					recentFoods = append(recentFoods, f)
-					if len(recentFoods) >= 5 {
-						break
-					}
-				}
-			}
+		templateCursor, _ := db.FoodTemplatesCollection.Find(
+			ctx,
+			bson.M{"userId": userID},
+			options.Find().
+				SetSort(bson.D{{Key: "useCount", Value: -1}, {Key: "lastUsedAt", Value: -1}}).
+				SetLimit(5),
+		)
+		if templateCursor != nil {
+			var recentFoods []models.FoodTemplate
+			templateCursor.All(ctx, &recentFoods)
 			mu.Lock()
 			if recentFoods == nil {
-				summary.RecentFoods = []models.Food{}
+				summary.RecentFoods = []models.FoodTemplate{}
 			} else {
 				summary.RecentFoods = recentFoods
 			}

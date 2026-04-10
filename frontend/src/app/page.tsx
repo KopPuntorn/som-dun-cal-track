@@ -37,11 +37,26 @@ type Food = {
   date: string;
 };
 
+type FoodTemplate = {
+  id: string;
+  name: string;
+  calories: number;
+  protein: number;
+  carbs: number;
+  fat: number;
+  sugar: number;
+  sodium: number;
+  fiber: number;
+  useCount: number;
+  lastUsedAt: string;
+};
+
 type Goals = {
   calories: number;
   protein: number;
   carbs: number;
   fat: number;
+  exerciseMinutesGoal: number;
   sugar: number;
   sodium: number;
   fiber: number;
@@ -76,9 +91,74 @@ type UnifiedActivity = {
   category?: string;
 };
 
+type BarcodePreview = {
+  name: string;
+  brand: string;
+  kcalPer100g: number;
+  proteinPer100g: number;
+  carbsPer100g: number;
+  fatPer100g: number;
+  sugarPer100g: number;
+  fiberPer100g: number;
+  sodiumPer100g: number;
+  servingSize: number;
+  imageUrl?: string;
+};
+
 const API_BASE = (process.env.NEXT_PUBLIC_API_URL && process.env.NEXT_PUBLIC_API_URL !== "undefined")
   ? process.env.NEXT_PUBLIC_API_URL
   : "http://localhost:8080/api";
+
+const toNumericValue = (value: unknown): number => {
+  if (typeof value === "number") {
+    return Number.isFinite(value) ? value : NaN;
+  }
+
+  if (typeof value === "string") {
+    const match = value.replace(",", ".").match(/-?\d+(\.\d+)?/);
+    return match ? parseFloat(match[0]) : NaN;
+  }
+
+  return NaN;
+};
+
+const toTextValue = (value: unknown): string => (
+  typeof value === "string" ? value : ""
+);
+
+const roundToOneDecimal = (value: number) => Math.round(value * 10) / 10;
+
+const getServingSizeFromProduct = (product: Record<string, unknown>, nutriments: Record<string, unknown>) => {
+  const candidates = [
+    product.serving_quantity,
+    product.serving_size,
+    nutriments.serving_quantity,
+    nutriments.serving_size,
+  ];
+
+  for (const candidate of candidates) {
+    const parsed = toNumericValue(candidate);
+    if (Number.isFinite(parsed) && parsed > 0) {
+      return Math.round(parsed);
+    }
+  }
+
+  return 100;
+};
+
+const getSodiumMgPer100g = (nutriments: Record<string, unknown>) => {
+  const sodiumPer100g = toNumericValue(nutriments.sodium_100g);
+  if (Number.isFinite(sodiumPer100g) && sodiumPer100g >= 0) {
+    return Math.round(sodiumPer100g * 1000);
+  }
+
+  const saltPer100g = toNumericValue(nutriments.salt_100g);
+  if (Number.isFinite(saltPer100g) && saltPer100g >= 0) {
+    return Math.round((saltPer100g / 2.5) * 1000);
+  }
+
+  return 0;
+};
 
 const fetcher = (url: string) => fetch(url, {
   headers: {
@@ -94,7 +174,7 @@ export default function Home() {
   const { showToast, showUndoToast } = useToast();
   const { language, setLanguage, t } = useLanguage();
   const [foods, setFoods] = useState<Food[]>([]);
-  const [goals, setGoals] = useState<Goals>({ calories: 2000, protein: 150, carbs: 250, fat: 70, sugar: 50, sodium: 2000, fiber: 30 });
+  const [goals, setGoals] = useState<Goals>({ calories: 2000, protein: 150, carbs: 250, fat: 70, exerciseMinutesGoal: 30, sugar: 50, sodium: 2000, fiber: 30 });
 
   const [foodInputs, setFoodInputs] = useState({ name: "", calories: "", protein: "", carbs: "", fat: "", sugar: "", sodium: "", fiber: "", mealCategory: "Breakfast", date: format(new Date(), 'yyyy-MM-dd') });
   const [loading, setLoading] = useState(true);
@@ -102,7 +182,7 @@ export default function Home() {
   const [aiStage, setAiStage] = useState<'idle' | 'compressing' | 'analyzing' | 'done'>('idle');
   const [aiConfidence, setAiConfidence] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [searchResults, setSearchResults] = useState<Food[]>([]);
+  const [searchResults, setSearchResults] = useState<FoodTemplate[]>([]);
   const searchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const [waterGlasses, setWaterGlasses] = useState(0);
@@ -199,11 +279,7 @@ export default function Home() {
 
   // Scanner State
   const [isScanning, setIsScanning] = useState(false);
-  const [barcodePreview, setBarcodePreview] = useState<{
-    name: string; brand: string; kcalPer100g: number;
-    proteinPer100g: number; carbsPer100g: number; fatPer100g: number;
-    servingSize: number; imageUrl?: string;
-  } | null>(null);
+  const [barcodePreview, setBarcodePreview] = useState<BarcodePreview | null>(null);
   const { ref: zxingRef } = useZxing({
     constraints: { video: { facingMode: 'environment' } },
     onDecodeResult(result) {
@@ -223,18 +299,21 @@ export default function Home() {
         .then(res => res.json())
         .then(data => {
           if (data.status === 1 && data.product) {
-            const p = data.product;
-            const nutris = p.nutriments || {};
-            const servingG = nutris['serving_size'] ? parseFloat(nutris['serving_size']) : 100;
-            const preview = {
-              name: p.product_name || `Barcode ${text.substring(0, 8)}`,
-              brand: p.brands || '',
-              kcalPer100g: Math.round(nutris['energy-kcal_100g'] || 0),
-              proteinPer100g: Math.round((nutris['proteins_100g'] || 0) * 10) / 10,
-              carbsPer100g: Math.round((nutris['carbohydrates_100g'] || 0) * 10) / 10,
-              fatPer100g: Math.round((nutris['fat_100g'] || 0) * 10) / 10,
-              servingSize: isNaN(servingG) || servingG <= 0 ? 100 : Math.round(servingG),
-              imageUrl: p.image_small_url || p.image_url || undefined,
+            const p = data.product as Record<string, unknown>;
+            const nutris = ((p.nutriments as Record<string, unknown> | undefined) || {});
+            const servingG = getServingSizeFromProduct(p, nutris);
+            const preview: BarcodePreview = {
+              name: toTextValue(p.product_name) || `Barcode ${text.substring(0, 8)}`,
+              brand: toTextValue(p.brands),
+              kcalPer100g: Math.round(toNumericValue(nutris['energy-kcal_100g']) || 0),
+              proteinPer100g: roundToOneDecimal(toNumericValue(nutris['proteins_100g']) || 0),
+              carbsPer100g: roundToOneDecimal(toNumericValue(nutris['carbohydrates_100g']) || 0),
+              fatPer100g: roundToOneDecimal(toNumericValue(nutris['fat_100g']) || 0),
+              sugarPer100g: roundToOneDecimal(toNumericValue(nutris['sugars_100g']) || 0),
+              fiberPer100g: roundToOneDecimal(toNumericValue(nutris['fiber_100g']) || 0),
+              sodiumPer100g: getSodiumMgPer100g(nutris),
+              servingSize: servingG,
+              imageUrl: toTextValue(p.image_small_url) || toTextValue(p.image_url) || undefined,
             };
             setBarcodePreview(preview);
           } else {
@@ -259,6 +338,25 @@ export default function Home() {
     day: 'numeric'
   });
 
+  const formatTemplateLastUsed = (lastUsedAt: string) => {
+    const parsed = new Date(lastUsedAt);
+    if (Number.isNaN(parsed.getTime())) {
+      return language === 'en' ? 'Recently used' : 'ใช้ล่าสุดไม่นานนี้';
+    }
+
+    const formatted = parsed.toLocaleDateString(language === 'en' ? 'en-US' : 'th-TH', {
+      month: 'short',
+      day: 'numeric'
+    });
+    return language === 'en' ? `Last used ${formatted}` : `ใช้ล่าสุด ${formatted}`;
+  };
+
+  const formatTemplateUseCount = (useCount: number) => (
+    language === 'en'
+      ? `${useCount} ${useCount === 1 ? 'use' : 'uses'}`
+      : `ใช้ ${useCount} ครั้ง`
+  );
+
   // Sync SWR data to state for UI consistency (or use data directly in render)
   useEffect(() => {
     if (dashboardData) {
@@ -268,6 +366,7 @@ export default function Home() {
           protein: dashboardData.goals.protein || 150,
           carbs: dashboardData.goals.carbs || 250,
           fat: dashboardData.goals.fat || 70,
+          exerciseMinutesGoal: dashboardData.goals.exerciseMinutesGoal || 30,
           sugar: dashboardData.goals.sugar || 50,
           sodium: dashboardData.goals.sodium || 2000,
           fiber: dashboardData.goals.fiber || 30
@@ -532,6 +631,7 @@ export default function Home() {
     }
   };
 
+
   const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -602,6 +702,9 @@ export default function Home() {
       protein: String(Math.round(barcodePreview.proteinPer100g * ratio * 10) / 10),
       carbs: String(Math.round(barcodePreview.carbsPer100g * ratio * 10) / 10),
       fat: String(Math.round(barcodePreview.fatPer100g * ratio * 10) / 10),
+      sugar: String(Math.round(barcodePreview.sugarPer100g * ratio * 10) / 10),
+      sodium: String(Math.round(barcodePreview.sodiumPer100g * ratio)),
+      fiber: String(Math.round(barcodePreview.fiberPer100g * ratio * 10) / 10),
     }));
     setBarcodePreview(null);
   };
@@ -613,9 +716,9 @@ export default function Home() {
       protein: String(food.protein),
       carbs: String(food.carbs || ''),
       fat: String(food.fat || ''),
-      sugar: String((food as any).sugar || ''),
-      sodium: String((food as any).sodium || ''),
-      fiber: String((food as any).fiber || ''),
+      sugar: String(food.sugar || ''),
+      sodium: String(food.sodium || ''),
+      fiber: String(food.fiber || ''),
       mealCategory: food.mealCategory || 'Breakfast',
       date: format(new Date(), 'yyyy-MM-dd'),
     });
@@ -685,7 +788,11 @@ export default function Home() {
 
     searchTimeoutRef.current = setTimeout(async () => {
       try {
-        const res = await fetch(`${API_BASE}/foods/search?q=${encodeURIComponent(query)}`);
+        const res = await fetch(`${API_BASE}/foods/search?q=${encodeURIComponent(query)}`, {
+          headers: {
+            "Authorization": `Bearer ${localStorage.getItem('auth_token')}`
+          }
+        });
         if (res.ok) {
           const data = await res.json();
           setSearchResults(data || []);
@@ -696,7 +803,7 @@ export default function Home() {
     }, 300);
   };
 
-  const selectSearchResult = (item: Food) => {
+  const selectSearchResult = (item: FoodTemplate) => {
     setFoodInputs({
       name: item.name,
       calories: String(item.calories),
@@ -996,7 +1103,8 @@ export default function Home() {
   // Ring Calculation
   const calPercent = Math.min(100, Math.max(0, (calTotal / adjustedCalGoal) * 100));
   const isOverCal = calTotal > adjustedCalGoal;
-  const exercisePercent = Math.min(100, Math.max(0, (exerciseToday / 30) * 100));
+  const exerciseGoal = Math.max(1, goals.exerciseMinutesGoal || 30);
+  const exercisePercent = Math.min(100, Math.max(0, (exerciseToday / exerciseGoal) * 100));
   const sleepPercent = Math.min(100, Math.max(0, (sleepToday / 8) * 100));
 
   // Bar Calculations
@@ -1130,7 +1238,7 @@ export default function Home() {
                 {
                   label: t('fit'),
                   percent: Math.round(exercisePercent),
-                  value: `${exerciseToday}/30 ${t('unitMin')}`,
+                  value: `${exerciseToday}/${exerciseGoal} ${t('unitMin')}`,
                   tone: 'fitness',
                 },
                 {
@@ -1552,6 +1660,9 @@ export default function Home() {
                         <div className="barcode-preview-meta">
                           {barcodePreview.kcalPer100g} kcal / 100g &nbsp;|&nbsp; P:{barcodePreview.proteinPer100g}g &nbsp;C:{barcodePreview.carbsPer100g}g &nbsp;F:{barcodePreview.fatPer100g}g
                         </div>
+                        <div className="barcode-preview-meta">
+                          Sugar:{barcodePreview.sugarPer100g}g &nbsp;|&nbsp; Fiber:{barcodePreview.fiberPer100g}g &nbsp;|&nbsp; Sodium:{barcodePreview.sodiumPer100g}mg
+                        </div>
                       </div>
                     </div>
                     <div className="barcode-preview-serving">
@@ -1611,9 +1722,9 @@ export default function Home() {
                         overflowY: 'auto',
                         borderRadius: '12px'
                       }}>
-                        {searchResults.map((item, idx) => (
+                        {searchResults.map((item) => (
                           <div
-                            key={idx}
+                            key={item.id}
                             onClick={() => selectSearchResult(item)}
                             className="search-result-item"
                             style={{
@@ -1629,6 +1740,17 @@ export default function Home() {
                               <div style={{ fontSize: '13px', fontWeight: 600 }}>{item.name}</div>
                               <div style={{ fontSize: '10px', color: 'var(--text-secondary)', marginTop: '1px' }}>
                                 P:{item.protein}g | C:{item.carbs}g | F:{item.fat}g
+                              </div>
+                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginTop: '6px' }}>
+                                <span style={{ fontSize: '10px', fontWeight: 700, borderRadius: '999px', padding: '2px 8px', background: 'rgba(56, 189, 248, 0.14)', color: '#d9f8ff' }}>
+                                  {language === 'en' ? 'Template' : 'เทมเพลต'}
+                                </span>
+                                <span style={{ fontSize: '10px', fontWeight: 700, borderRadius: '999px', padding: '2px 8px', background: 'rgba(249, 115, 22, 0.12)', color: '#ffe2bf' }}>
+                                  {formatTemplateUseCount(item.useCount)}
+                                </span>
+                                <span style={{ fontSize: '10px', fontWeight: 700, borderRadius: '999px', padding: '2px 8px', background: 'rgba(255, 255, 255, 0.06)', color: 'var(--text-secondary)' }}>
+                                  {formatTemplateLastUsed(item.lastUsedAt)}
+                                </span>
                               </div>
                             </div>
                             <span style={{ fontSize: '12px', fontWeight: 800, color: 'var(--accent-cal)' }}>{item.calories} kcal</span>

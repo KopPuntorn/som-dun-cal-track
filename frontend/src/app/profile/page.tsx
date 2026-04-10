@@ -18,6 +18,7 @@ type Goals = {
     protein: number;
     carbs: number;
     fat: number;
+    exerciseMinutesGoal: number;
     objective: string;
 };
 
@@ -61,6 +62,7 @@ export default function ProfilePage() {
         protein: 150,
         carbs: 250,
         fat: 70,
+        exerciseMinutesGoal: 30,
         objective: "",
     });
     const [userInputs, setUserInputs] = useState<UserProfile>({
@@ -84,6 +86,7 @@ export default function ProfilePage() {
                 protein: goalsData.protein || 150,
                 carbs: goalsData.carbs || 250,
                 fat: goalsData.fat || 70,
+                exerciseMinutesGoal: goalsData.exerciseMinutesGoal || 30,
                 objective: goalsData.objective || "",
             });
         }
@@ -375,6 +378,12 @@ export default function ProfilePage() {
                                     <span className="profile-field-label">{t("profileFatLabel")}</span>
                                     <input type="number" min="5" value={goalInputs.fat} onChange={(e) => setGoalInputs({ ...goalInputs, fat: parseFloat(e.target.value) || 0 })} />
                                     <span className="profile-field-unit">{t("profileUnitG")}</span>
+                                </label>
+
+                                <label className="profile-field profile-field--unit">
+                                    <span className="profile-field-label">{t("profileExerciseGoalLabel")}</span>
+                                    <input type="number" min="1" value={goalInputs.exerciseMinutesGoal} onChange={(e) => setGoalInputs({ ...goalInputs, exerciseMinutesGoal: parseInt(e.target.value, 10) || 0 })} />
+                                    <span className="profile-field-unit">{t("unitMin")}</span>
                                 </label>
                             </div>
                         </section>

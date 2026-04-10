@@ -524,10 +524,18 @@ select {
 }
 
 .login-google-wrap {
+  width: 100%;
+  display: grid;
+  justify-items: stretch;
+}
+
+.login-google-slot {
+  width: 100%;
   display: flex;
   justify-content: center;
-  width: 100%;
-  overflow: hidden;
+  align-items: center;
+  min-height: 44px;
+  overflow: visible;
 }
 
 .login-screen {
@@ -934,10 +942,16 @@ select {
   background: rgba(12, 14, 16, 0.92);
 }
 
-.login-google-wrap > div,
-.login-google-wrap iframe {
+.login-google-slot > div,
+.login-google-slot iframe {
   width: 100% !important;
   max-width: 100%;
+  margin-inline: auto !important;
+}
+
+.login-google-slot > div {
+  display: flex;
+  justify-content: center;
 }
 
 .login-submit-btn {

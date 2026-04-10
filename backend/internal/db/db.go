@@ -14,6 +14,7 @@ import (
 var Client *mongo.Client
 var DB *mongo.Database
 var FoodsCollection *mongo.Collection
+var FoodTemplatesCollection *mongo.Collection
 var GoalsCollection *mongo.Collection
 var UserCollection *mongo.Collection
 var WaterCollection *mongo.Collection
@@ -46,6 +47,7 @@ func InitDB(connectionString string) error {
 	DB = Client.Database(dbName)
 
 	FoodsCollection = DB.Collection("foods")
+	FoodTemplatesCollection = DB.Collection("food_templates")
 	GoalsCollection = DB.Collection("goals")
 	UserCollection = DB.Collection("user")
 	WaterCollection = DB.Collection("water")
@@ -93,6 +95,33 @@ func EnsureIndexes() {
 	})
 	if err != nil {
 		slog.Warn("Failed to create Foods text index", "error", err)
+	}
+
+	_, err = FoodsCollection.Indexes().CreateOne(ctx, mongo.IndexModel{
+		Keys:    bson.D{{Key: "userId", Value: 1}, {Key: "normalizedName", Value: 1}, {Key: "date", Value: -1}},
+		Options: options.Index().SetBackground(true).SetName("foods_user_normalized_name_date"),
+	})
+	if err != nil {
+		slog.Warn("Failed to create Foods normalized-name index", "error", err)
+	}
+
+	_, err = FoodTemplatesCollection.Indexes().CreateMany(ctx, []mongo.IndexModel{
+		{
+			Keys: bson.D{{Key: "userId", Value: 1}, {Key: "templateKey", Value: 1}},
+			Options: options.Index().
+				SetUnique(true).
+				SetBackground(true).
+				SetName("food_templates_user_template_key"),
+		},
+		{
+			Keys: bson.D{{Key: "userId", Value: 1}, {Key: "normalizedName", Value: 1}, {Key: "useCount", Value: -1}, {Key: "lastUsedAt", Value: -1}},
+			Options: options.Index().
+				SetBackground(true).
+				SetName("food_templates_user_search"),
+		},
+	})
+	if err != nil {
+		slog.Warn("Failed to create FoodTemplates indexes", "error", err)
 	}
 
 	// Water, Weight, Exercise, Sleep, BodyMeasurement - user+date indexes for fast queries
