@@ -425,14 +425,16 @@ export default function LoginPage() {
                 {/* Google Login */}
                 <div className="login-google-wrap">
                     {GOOGLE_CLIENT_ID ? (
-                        <GoogleLogin
-                            onSuccess={handleGoogleSuccess}
-                            onError={() => setError(copy.googleLoginFailed)}
-                            theme="filled_black"
-                            shape="pill"
-                            text={isLogin ? "signin_with" : "signup_with"}
-                            width="100%"
-                        />
+                        <div className="login-google-slot">
+                            <GoogleLogin
+                                onSuccess={handleGoogleSuccess}
+                                onError={() => setError(copy.googleLoginFailed)}
+                                theme="filled_black"
+                                shape="pill"
+                                text={isLogin ? "signin_with" : "signup_with"}
+                                width="100%"
+                            />
+                        </div>
                     ) : (
                         <div className="login-error">Google sign-in is not configured.</div>
                     )}

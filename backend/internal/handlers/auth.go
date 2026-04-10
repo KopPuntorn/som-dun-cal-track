@@ -113,10 +113,11 @@ func RegisterUser(c echo.Context) error {
 
 	// Init default goals for new user
 	db.GoalsCollection.InsertOne(ctx, models.Goals{
-		UserID:   newUser.ID,
-		Calories: 2000,
-		Protein:  150,
-		Fat:      70,
+		UserID:              newUser.ID,
+		Calories:            2000,
+		Protein:             150,
+		Fat:                 70,
+		ExerciseMinutesGoal: 30,
 	})
 
 	token, err := GenerateJWT(newUser)
@@ -213,10 +214,11 @@ func GoogleLogin(c echo.Context) error {
 		user.ID = res.InsertedID.(primitive.ObjectID)
 
 		db.GoalsCollection.InsertOne(ctx, models.Goals{
-			UserID:   user.ID,
-			Calories: 2000,
-			Protein:  150,
-			Fat:      70,
+			UserID:              user.ID,
+			Calories:            2000,
+			Protein:             150,
+			Fat:                 70,
+			ExerciseMinutesGoal: 30,
 		})
 	} else if err != nil {
 		slog.Error("Google login failed: user lookup error", "email", email, "error", err)

@@ -1,136 +1,156 @@
-# ⚖️ SomDun (สมดุล) — Full-Stack AI-Powered Health & Nutrition Ecosystem
+# SomDun
 
-**SomDun** is a professional-grade health tracking platform that demonstrates a sophisticated integration of modern web technologies, AI-driven insights, and high-performance backend engineering. Designed with a "Mobile-First" philosophy and a premium glassmorphic aesthetic, it simplifies complex health data into actionable, gamified performance metrics.
+SomDun is a full-stack nutrition and health tracking app built as a personal portfolio project. It combines food logging, barcode nutrition lookup, AI-assisted meal analysis, daily health dashboards, and bilingual UX in a single product.
 
----
+This project is meant to demonstrate practical product engineering across frontend, backend, data modeling, and user experience rather than just isolated coding tasks.
 
-## 🛠️ Engineering Overview
+## What It Does
 
-This project showcases a robust implementation of modern full-stack patterns, focusing on **Performance**, **User Experience**, and **Data Integrity**. Key technical achievements include:
-- **Refined AI Vision Pipeline**: A multi-stage processing engine with dual-vision prompt ensembles for high-accuracy nutritional analysis.
-- **High-Concurrency Backend**: A Go/Echo architecture optimized for low-latency API response times and structured data normalization.
-- **Reactive Frontend**: A cutting-edge Next.js 16 implementation utilizing React 19 features, Tailwind 4, and Framer Motion for premium micro-interactions.
+- Log meals manually or from saved food templates
+- Search food history without duplicate clutter
+- Scan barcodes and autofill nutrition data
+- Analyze meal photos with AI-assisted nutrition estimation
+- Track exercise, sleep, hydration, and body measurements
+- View daily progress, trends, and a gamified player card
+- Use the app in English or Thai
 
-### 🏗️ System Architecture
+## Why This Project Is Useful In A Portfolio
 
-```mermaid
-graph TD
-    User((User))
-    
-    subgraph "Frontend (Next.js 16 + React 19)"
-        UI[Glassmorphic UI]
-        State[React Context / SWR]
-        Worker[Client-side Image Compression]
-    end
+SomDun demonstrates:
 
-    subgraph "Edge / Auth"
-        Google[Google OAuth 2.0]
-        JWT[JWT Middleware]
-    end
+- End-to-end product thinking across UX, API design, and data flow
+- Real-world CRUD and time-series tracking patterns
+- External API integration for barcode nutrition data
+- AI-assisted product features beyond a simple chat wrapper
+- Ongoing refactors to improve data quality, including reusable food templates and normalized search
+- A production-minded stack with typed frontend code and backend tests
 
-    subgraph "Backend (Go 1.25 + Echo)"
-        API[API Gateway]
-        AuthS[Auth Service]
-        FoodS[Nutrition Service]
-        AIS[AI Proxy Service]
-    end
+## Tech Stack
 
-    subgraph "Data & External"
-        DB[(MongoDB Atlas)]
-        Groq[Groq Cloud API / Llama 3.2]
-    end
+### Frontend
 
-    User --> UI
-    UI --> State
-    State --> API
-    API --> JWT
-    JWT --> AuthS
-    AuthS --> Google
-    API --> FoodS
-    API --> AIS
-    FoodS --> DB
-    AIS --> Groq
-```
+- Next.js 16
+- React 19
+- TypeScript
+- SWR
+- Framer Motion
+- Recharts
 
----
+### Backend
 
-## 🚀 Technical Highlights & Engineering Challenges
+- Go 1.25
+- Echo
+- MongoDB
+- JWT authentication
+- Google OAuth
 
-### 1. Multi-Modal AI Pipeline (Vision + LLM)
-I implemented a sophisticated AI pipeline that transforms food imagery into structured nutritional intelligence.
-- **Challenge**: Passing high-resolution images to the AI models often led to increased latency and potential payload failures on unstable mobile networks.
-- **Solution**: Developed a **client-side image processing utility** that performs lightning-fast compression before transmission, reducing payload size by ~80%.
-- **Optimization**: Implemented a **Multi-Stage Vision Ensemble** that combines results from multiple model passes to ensure accuracy even with complex, multi-item meals.
+### AI And Integrations
 
-### 2. The "Athlete Player Card" Algorithm
-A core gamification engine that calculates a dynamic "Performance Rating" (OVR) by aggregating multi-dimensional health data:
-- **Nutrition Compliance**: Real-time tracking of macros vs. personalized goals.
-- **Exercise & Recovery**: Granular tracking of physical activity and sleep data.
-- **Hydration Syncing**: Visual tracking of water intake.
-*Technical Detail*: Utilizes complex MongoDB aggregation pipelines to compute rolling averages and performance trends across time-series health data.
+- AI meal analysis pipeline
+- Open Food Facts barcode lookup
 
-### 3. Integrated Body Measurement Analytics
-To provide a holistic view of progress, the system tracks and validates body measurements:
-- **Challenge**: Frontend input for measurements often suffers from inconsistent data types (string vs number) and range validation issues.
-- **Solution**: Implemented a **Strict Validation Layer** in both Go and Next.js, ensuring weight, waist, and body fat entries are deterministic, positive, and correctly typed before persistence.
+## Key Features
 
-### 4. Premium Design System (Serene Balance)
-- **Aesthetics**: A fully custom design system using **Vanilla CSS 4** and **Tailwind 4** to implement a consistent, premium glassmorphic UI.
-- **Performance**: Optimized rendering using **React 19 Server Components** and `swr` for efficient data fetching and caching.
+### 1. Nutrition Logging Flow
 
----
+Users can add food manually, reuse recent items, or search reusable food templates derived from their own history. The app keeps daily logs separate from reusable templates so repeat meals stay easy to add without polluting search results.
 
-## 🧰 Tech Stack
+### 2. Barcode Nutrition Autofill
 
-| Layer | Technologies |
-| :--- | :--- |
-| **Frontend** | Next.js 16 (App Router), React 19, TypeScript, Framer Motion, Recharts, Tailwind 4 |
-| **Backend** | Go 1.25, Echo Framework, JWT, Google OAuth 2.0 |
-| **Database** | MongoDB Atlas (NoSQL) |
-| **AI/ML** | Groq Cloud API (Llama 3.2 Vision, OpenAI GPT-OSS-120B) |
-| **Infrastructure** | Docker, GitHub Actions CI/CD |
+Barcode scans fetch product data and map nutrition values into the meal form, including calories, macros, sugar, fiber, and sodium.
 
----
+### 3. AI-Assisted Meal Analysis
 
-## 📂 Project Structure
+Users can upload a meal photo and receive structured nutrition estimates that can be edited before saving.
+
+### 4. Daily Health Dashboard
+
+The home experience combines nutrition, hydration, activity, sleep, and body data into a single daily workflow with trend visibility and lightweight gamification.
+
+### 5. Bilingual Product UX
+
+The interface supports both English and Thai and includes localized product copy for core flows.
+
+## Architecture Overview
 
 ```text
-├── backend/                # Go (Golang) Microservice
-│   ├── cmd/api/            # Application entry point & DI
-│   ├── internal/           # Handlers, Models, Repositories (Domain-Driven)
-│   └── tests/              # End-to-end integration tests
-├── frontend/               # Next.js 16 Web Application
-│   ├── src/app/            # App Router, Layouts, & Pages
-│   ├── src/components/     # UI Design System
-│   └── src/context/        # Global State (Auth, Language, UI)
-└── docker-compose.yml      # Containerized orchestration
+frontend/
+  src/app/          Next.js app routes and pages
+  src/components/   UI components
+  src/context/      Auth, language, toast, and shared state
+
+backend/
+  cmd/api/          API entry point
+  internal/db/      Mongo setup and indexes
+  internal/handlers API handlers
+  internal/models/  Domain models
+  internal/routes/  Route registration
 ```
 
----
+## Local Development
 
-## 🏁 Development Setup
+### Prerequisites
 
-### 1. Prerequisites
-- **Go** 1.25+ | **Node.js** 20+ | **MongoDB Atlas** account
+- Node.js 20+
+- Go 1.25+
+- MongoDB
 
-### 2. Implementation
-Clone the repository and configure the environment:
-- Create `.env` in `/backend` (see `.env.example`)
-- Create `.env.local` in `/frontend`
+### Setup
 
-### 3. Run Locally
+1. Create `backend/.env` from `backend/.env.example`
+2. Create the required frontend env file
+3. Install frontend dependencies
+
 ```bash
-# Backend
-cd backend && go run ./cmd/api/main.go
-
-# Frontend
-cd frontend && npm run dev
+cd frontend
+npm install
 ```
 
----
+### Run The App
 
-## ⚖️ Portfolio Context
-This project was engineered by **KopPuntorn** to demonstrate proficiency in modern full-stack architecture, AI integration, and high-quality UI/UX delivery. It solves real-world technical problems (CORS, data aggregation, AI latency) while providing a premium user experience.
+```bash
+# backend
+cd backend
+go run ./cmd/api/main.go
 
----
-Developed with a focus on **Scalability**, **Performance**, and **User Experience**.
+# frontend
+cd frontend
+npm run dev
+```
+
+## Quality Checks
+
+The repository includes CI checks for:
+
+- `go test ./...` in the backend
+- `npx tsc --noEmit` in the frontend
+
+## Demo
+
+Add your deployed demo URL here before sharing this project in job applications.
+
+Suggested format:
+
+- Frontend: `https://your-frontend-url`
+- Backend: `https://your-api-url`
+
+## Screenshots To Add Before Applying
+
+Recommended screenshots or GIFs:
+
+- Login / onboarding
+- Home dashboard
+- Barcode scan or AI meal analysis
+- Analytics or player card
+- Profile / goals settings
+
+## What I Would Improve Next
+
+- Add stronger automated test coverage for critical flows
+- Add a polished live demo with seeded portfolio data
+- Add observability and error reporting for production debugging
+- Add dedicated food template management UI
+
+## Notes
+
+This is an actively iterated personal project. The goal is to show how I design and improve a product over time, not just how I ship a one-off demo.
