@@ -176,10 +176,10 @@ func GoogleLogin(c echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Google Client ID not configured. Please add it to your .env"})
 	}
 
-	ctx, cancel := context.WithTimeout(c.Request().Context(), 10*time.Second)
-	defer cancel()
+	tokenCtx, tokenCancel := context.WithTimeout(c.Request().Context(), 10*time.Second)
+	defer tokenCancel()
 
-	payload, err := idtoken.Validate(ctx, req.Token, clientId)
+	payload, err := idtoken.Validate(tokenCtx, req.Token, clientId)
 	if err != nil {
 		slog.Warn("Google login failed: invalid token", "error", err, "googleClientIDConfigured", clientId != "")
 		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "Invalid Google token"})
@@ -195,8 +195,11 @@ func GoogleLogin(c echo.Context) error {
 	}
 	name, _ := payload.Claims["name"].(string)
 
+	dbCtx, dbCancel := context.WithTimeout(c.Request().Context(), 15*time.Second)
+	defer dbCancel()
+
 	var user models.User
-	err = db.UserCollection.FindOne(ctx, bson.M{"email": email}).Decode(&user)
+	err = db.UserCollection.FindOne(dbCtx, bson.M{"email": email}).Decode(&user)
 
 	if err == mongo.ErrNoDocuments {
 		// User doesn't exist, create them
@@ -207,26 +210,29 @@ func GoogleLogin(c echo.Context) error {
 			Level:    1,
 			Tier:     "free",
 		}
-		res, err := db.UserCollection.InsertOne(ctx, user)
+		res, err := db.UserCollection.InsertOne(dbCtx, user)
 		if err != nil {
+			slog.Error("Google login failed: user creation error", "email", email, "error", err)
 			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to create user"})
 		}
 		user.ID = res.InsertedID.(primitive.ObjectID)
 
-		db.GoalsCollection.InsertOne(ctx, models.Goals{
+		if _, err := db.GoalsCollection.InsertOne(dbCtx, models.Goals{
 			UserID:              user.ID,
 			Calories:            2000,
 			Protein:             150,
 			Fat:                 70,
 			ExerciseMinutesGoal: 30,
-		})
+		}); err != nil {
+			slog.Warn("Google login goals initialization failed", "email", email, "userID", user.ID, "error", err)
+		}
 	} else if err != nil {
 		slog.Error("Google login failed: user lookup error", "email", email, "error", err)
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to load user"})
 	} else if user.GoogleID == "" {
 		// Link Google ID if email matches
 		update := bson.M{"$set": bson.M{"googleId": payload.Subject, "name": name}}
-		if _, err := db.UserCollection.UpdateOne(ctx, bson.M{"_id": user.ID}, update); err != nil {
+		if _, err := db.UserCollection.UpdateOne(dbCtx, bson.M{"_id": user.ID}, update); err != nil {
 			slog.Error("Google login failed: user link update error", "email", email, "userID", user.ID, "error", err)
 			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to update user"})
 		}
