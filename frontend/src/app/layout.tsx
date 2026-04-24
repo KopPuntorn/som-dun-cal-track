@@ -1,12 +1,19 @@
 import type { Metadata } from 'next';
-import { Outfit } from 'next/font/google';
+import { IBM_Plex_Sans_Thai, Prompt } from 'next/font/google';
 import { Suspense } from 'react';
 import './globals.css';
 
-const outfit = Outfit({
-  subsets: ['latin'],
-  variable: '--font-outfit',
+const bodyFont = IBM_Plex_Sans_Thai({
+  subsets: ['latin', 'thai'],
+  variable: '--font-body',
   weight: ['300', '400', '500', '600', '700'],
+  display: 'swap',
+});
+
+const displayFont = Prompt({
+  subsets: ['latin', 'thai'],
+  variable: '--font-display',
+  weight: ['400', '500', '600', '700', '800'],
   display: 'swap',
 });
 
@@ -35,7 +42,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body className={`${outfit.variable} antialiased`}>
+      <body className={`${bodyFont.variable} ${displayFont.variable} antialiased`}>
         {/* SVG Defs injected here globally */}
         <svg style={{ width: 0, height: 0, position: 'absolute' }} aria-hidden="true" focusable="false">
           <defs>

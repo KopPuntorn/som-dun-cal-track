@@ -15,6 +15,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode"
 
 	"backend/internal/db"
 	"backend/internal/models"
@@ -154,6 +155,61 @@ func makeGroqCall(ctx context.Context, groqReq GroqChatRequest) (string, error) 
 	}
 
 	return content, nil
+}
+
+func normalizeChatLanguage(lang string) string {
+	if strings.EqualFold(strings.TrimSpace(lang), "en") {
+		return "en"
+	}
+	return "th"
+}
+
+func responseUsesUnexpectedScript(content string, lang string) bool {
+	normalizedLang := normalizeChatLanguage(lang)
+
+	for _, r := range content {
+		switch {
+		case unicode.IsSpace(r), unicode.IsNumber(r), unicode.IsPunct(r), unicode.IsSymbol(r):
+			continue
+		case r <= unicode.MaxASCII && unicode.IsLetter(r):
+			continue
+		case normalizedLang == "th" && unicode.In(r, unicode.Thai):
+			continue
+		default:
+			return true
+		}
+	}
+
+	return false
+}
+
+func rewriteResponseInRequestedLanguage(ctx context.Context, content string, lang string) (string, error) {
+	normalizedLang := normalizeChatLanguage(lang)
+	systemPrompt := "Rewrite the provided assistant reply into natural Thai. Preserve every fact, number, Markdown table, list, and structure. " +
+		"Use Thai naturally, but you may keep common Latin terms such as kcal, g, AI, dashboard, and food names when appropriate. " +
+		"Do not use Japanese, Chinese, Cyrillic, or any unrelated script. Output only the rewritten reply."
+
+	if normalizedLang == "en" {
+		systemPrompt = "Rewrite the provided assistant reply into natural professional English. Preserve every fact, number, Markdown table, list, and structure. " +
+			"Use English only. Do not use Thai, Japanese, Chinese, Cyrillic, or any unrelated script. Output only the rewritten reply."
+	}
+
+	return makeGroqCall(ctx, GroqChatRequest{
+		Model: "openai/gpt-oss-120b",
+		Messages: []GroqMessage{
+			{
+				Role:    "system",
+				Content: systemPrompt,
+			},
+			{
+				Role:    "user",
+				Content: content,
+			},
+		},
+		Temperature: 0.2,
+		MaxTokens:   4096,
+		TopP:        0.9,
+	})
 }
 
 // AnalyzeImage analyzes food from an uploaded image
@@ -360,6 +416,7 @@ func SuggestGoals(c echo.Context) error {
 	if err := c.Bind(&data); err != nil {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid request body"})
 	}
+	data.Language = normalizeChatLanguage(data.Language)
 
 	langConstraint := "Respond in Thai (ภาษาไทย)"
 	if data.Language == "en" {
@@ -730,6 +787,7 @@ func ChatAI(c echo.Context) error {
 	if err := c.Bind(&data); err != nil {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid request body"})
 	}
+	data.Language = normalizeChatLanguage(data.Language)
 
 	userID := c.Get("userID").(primitive.ObjectID)
 	var user models.User
@@ -758,7 +816,9 @@ func ChatAI(c echo.Context) error {
 	foodNameLang := "Thai"
 	foodExampleName := "ข้าวผัดกะเพราอกไก่ไข่ดาว"
 	if data.Language == "en" {
-		langInstruction = "You are a 'Premium Health Consultant'. Respond entirely in sophisticated, professional English. Use a natural, helpful, and expert tone. "
+		langInstruction = "You are a 'Premium Health Consultant'. Respond entirely in sophisticated, professional English. " +
+			"Use a natural, helpful, and expert tone. CRITICAL: use only English plus normal Latin-script units like kcal and g. " +
+			"Do not use Thai, Japanese, Chinese, Cyrillic, or any other script under any circumstances. "
 		foodNameLang = "English"
 		foodExampleName = "Basil Chicken Stir-fry with Rice and Fried Egg"
 	}
@@ -1106,6 +1166,23 @@ func ChatAI(c echo.Context) error {
 	re := regexp.MustCompile("(?s)^\\s*```(?:json|markdown)?\\n?(.*?)\\n?```\\s*$")
 	if matches := re.FindStringSubmatch(replyContent); len(matches) > 1 {
 		replyContent = strings.TrimSpace(matches[1])
+	}
+
+	if responseUsesUnexpectedScript(replyContent, data.Language) {
+		slog.Warn("AI Chat response used unexpected script, rewriting", "sessionID", sessionID, "language", data.Language)
+		rewrittenReply, rewriteErr := rewriteResponseInRequestedLanguage(ctx, replyContent, data.Language)
+		if rewriteErr != nil {
+			slog.Error("Failed to rewrite AI chat response into requested language", "error", rewriteErr, "sessionID", sessionID, "language", data.Language)
+		} else {
+			rewrittenReply = thinkRe.ReplaceAllString(rewrittenReply, "")
+			rewrittenReply = strings.TrimSpace(rewrittenReply)
+			if matches := re.FindStringSubmatch(rewrittenReply); len(matches) > 1 {
+				rewrittenReply = strings.TrimSpace(matches[1])
+			}
+			if rewrittenReply != "" && !responseUsesUnexpectedScript(rewrittenReply, data.Language) {
+				replyContent = rewrittenReply
+			}
+		}
 	}
 
 	if useSession {
