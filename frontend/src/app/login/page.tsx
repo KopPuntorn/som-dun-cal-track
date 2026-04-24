@@ -52,7 +52,7 @@ export default function LoginPage() {
     const [showPassword, setShowPassword] = useState(false);
 
     const { login } = useAuth();
-    const { t, language } = useLanguage();
+    const { t, language, setLanguage } = useLanguage();
 
     const isThai = language === "th";
     const copy = {
@@ -250,28 +250,39 @@ export default function LoginPage() {
                         <p className="login-story-description">{copy.description}</p>
                     </div>
 
-                    <div className="login-story-rail">
-                        <div className="login-story-pulse login-story-pulse--amber" />
-                        <div className="login-story-pulse login-story-pulse--teal" />
-                        <div className="login-story-pulse login-story-pulse--violet" />
-                    </div>
-
                     <div className="login-feature-grid">
                         {loginFeatures.map((feature) => (
                             <article key={feature.title} className={`login-feature-card login-feature-card--${feature.tone}`}>
                                 <div className="login-feature-icon">{feature.icon}</div>
                                 <div className="login-feature-copy">
                                     <h2 className="login-feature-title">{feature.title}</h2>
-                                    <p className="login-feature-description">{feature.copy}</p>
                                 </div>
                             </article>
                         ))}
                     </div>
-
-                    <p className="login-story-footnote">{copy.secureSignInNote}</p>
                 </section>
 
                 <section className="glass-panel login-panel">
+                <div className="login-panel-header">
+                    <div className="login-language-switch" role="group" aria-label="Language switcher">
+                        <button
+                            type="button"
+                            onClick={() => setLanguage("th")}
+                            className={`login-language-btn ${language === "th" ? "active" : ""}`}
+                            aria-pressed={language === "th"}
+                        >
+                            TH
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setLanguage("en")}
+                            className={`login-language-btn ${language === "en" ? "active" : ""}`}
+                            aria-pressed={language === "en"}
+                        >
+                            EN
+                        </button>
+                    </div>
+                </div>
 
                 {/* Brand */}
                 <div className="login-brand">
@@ -280,10 +291,10 @@ export default function LoginPage() {
                             <span className="login-monogram-letter">S</span>
                         </div>
                     </div>
-                    <div className="login-brand-copy">
-                        <h2 className="login-title">SomDun</h2>
-                        <p className="login-subtitle">{t("loginSubtitle")}</p>
-                    </div>
+                <div className="login-brand-copy">
+                    <h2 className="login-title">SomDun</h2>
+                    <p className="login-subtitle">{t("loginSubtitle")}</p>
+                </div>
                 </div>
 
                 {/* Tab Switcher */}
@@ -306,7 +317,6 @@ export default function LoginPage() {
 
                 <div className="login-mode-copy">
                     <h3 className="login-mode-title">{isLogin ? copy.loginModeTitle : copy.signupModeTitle}</h3>
-                    <p className="login-mode-subtitle">{isLogin ? copy.loginModeCopy : copy.signupModeCopy}</p>
                 </div>
 
                 {/* Error */}

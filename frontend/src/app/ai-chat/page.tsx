@@ -454,24 +454,6 @@ export default function AiChatPage() {
     setTimeout(() => inputRef.current?.focus(), 0);
   };
 
-  const capabilityCards = useMemo(() => [
-    {
-      kicker: language === 'th' ? 'วิเคราะห์เร็ว' : 'Fast Analysis',
-      title: language === 'th' ? 'ประเมินมื้ออาหารจากข้อความธรรมดา' : 'Estimate meals from plain language',
-      description: language === 'th' ? 'ถามแคลอรี่และสารอาหารของเมนูที่กินจริงได้ทันที' : 'Ask for calories and macros from real meals in one message.'
-    },
-    {
-      kicker: language === 'th' ? 'วางแผนวันนี้' : 'Daily Planning',
-      title: language === 'th' ? 'ดูว่าวันนี้ยังขาดอะไรอยู่' : 'See what today still needs',
-      description: language === 'th' ? 'ให้ AI เทียบกับข้อมูลที่บันทึกไว้ แล้วแนะนำสิ่งที่ควรโฟกัสต่อ' : 'Let AI compare your logs and tell you what to focus on next.'
-    },
-    {
-      kicker: language === 'th' ? 'ทำต่อได้เลย' : 'Action Ready',
-      title: language === 'th' ? 'เจอข้อมูลแล้วบันทึกต่อจากแชทได้' : 'Turn an answer into a log instantly',
-      description: language === 'th' ? 'เมื่อ AI เจอข้อมูลอาหารที่พอใช้ได้ คุณกดบันทึกต่อได้ทันที' : 'When AI finds a usable estimate, you can log it straight from chat.'
-    }
-  ], [language]);
-
   const handleQuickAdd = async () => {
     if (!showQuickAdd || !user?.id) return;
     try {
@@ -716,10 +698,6 @@ export default function AiChatPage() {
 
   return (
     <div className="ai-chat-layout">
-      <div className="floating-blob floating-blob-1" />
-      <div className="floating-blob floating-blob-2" />
-      <div className="floating-blob floating-blob-3" />
-
       {/* Sidebar (Desktop) */}
       <aside className={`hidden lg:flex ai-chat-sidebar ${!isSidebarOpen ? "collapsed" : ""}`}>
         {isSidebarOpen && <SidebarContent />}
@@ -770,10 +748,6 @@ export default function AiChatPage() {
                   {language === 'th' ? 'อ่านข้อมูลอาหาร น้ำ และกิจกรรมที่คุณบันทึกไว้' : 'Reads your food, hydration, and activity logs'}
                 </span>
               </div>
-              <span className="ai-header-status">
-                <span className="ai-status-dot" />
-                {language === 'th' ? 'พร้อมวิเคราะห์มื้ออาหาร' : 'Meal analysis ready'}
-              </span>
             </div>
           </div>
 
@@ -822,16 +796,6 @@ export default function AiChatPage() {
                             : 'Use AI to analyze meals, spot what today is missing, and turn good answers into logs instantly.'}
                         </p>
                       </div>
-                    </div>
-
-                    <div className="ai-capability-grid">
-                      {capabilityCards.map((card) => (
-                        <div key={card.title} className="ai-capability-card">
-                          <p className="ai-capability-kicker">{card.kicker}</p>
-                          <h2 className="ai-capability-title">{card.title}</h2>
-                          <p className="ai-capability-description">{card.description}</p>
-                        </div>
-                      ))}
                     </div>
 
                     <div className="ai-welcome-prompts">
