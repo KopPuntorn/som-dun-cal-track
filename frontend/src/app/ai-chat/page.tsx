@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import React, { useState, useEffect, useRef, useMemo, useCallback, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { useLanguage } from "@/context/LanguageContext";
@@ -44,7 +44,7 @@ const MarkdownRenderer = React.memo(({ content }: { content: string }) => {
 });
 MarkdownRenderer.displayName = 'MarkdownRenderer';
 
-export default function AiChatPage() {
+function AiChatContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { user } = useAuth();
@@ -1037,5 +1037,13 @@ export default function AiChatPage() {
         )}
       </AnimatePresence>
     </div>
+  );
+}
+
+export default function AiChatPage() {
+  return (
+    <Suspense fallback={null}>
+      <AiChatContent />
+    </Suspense>
   );
 }

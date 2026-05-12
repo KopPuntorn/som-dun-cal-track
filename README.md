@@ -2,52 +2,50 @@
 
 SomDun is a full-stack nutrition and health tracking app built as a personal portfolio project. It combines food logging, barcode nutrition lookup, AI-assisted meal analysis, daily health dashboards, and bilingual UX in a single product.
 
-This project is meant to demonstrate practical product engineering across frontend, backend, data modeling, and user experience rather than just isolated coding tasks.
+This project demonstrates practical product engineering across frontend, backend, data modeling, and user experience — not just isolated coding tasks.
 
 ## What It Does
 
-- Log meals manually or from saved food templates
-- Search food history without duplicate clutter
-- Scan barcodes and autofill nutrition data
-- Analyze meal photos with AI-assisted nutrition estimation
+- Log meals manually, from saved food templates, or via barcode scan
+- Analyze meal photos with AI-powered nutrition estimation (Groq + Llama 4 Scout)
 - Track exercise, sleep, hydration, and body measurements
-- View daily progress, trends, and a gamified player card
-- Use the app in English or Thai
+- Get AI-powered daily briefings, 7-day insights, and personalized coaching
+- View progress through a gamified player card with XP, streaks, and levels
+- Use the app fully in English or Thai
 
-## Why This Project Is Useful In A Portfolio
+## Demo Account
 
-SomDun demonstrates:
+A seeded demo account is available with 7 days of realistic data:
 
-- End-to-end product thinking across UX, API design, and data flow
-- Real-world CRUD and time-series tracking patterns
-- External API integration for barcode nutrition data
-- AI-assisted product features beyond a simple chat wrapper
-- Ongoing refactors to improve data quality, including reusable food templates and normalized search
-- A production-minded stack with typed frontend code and backend tests
+- **Email:** `demo@somdun.local`
+- **Password:** `Demo12345!`
+
+The demo includes pre-populated meals, hydration logs, exercise records, sleep data, body measurements, and configured goals — the dashboard shows useful data immediately.
 
 ## Tech Stack
 
 ### Frontend
 
-- Next.js 16
-- React 19
-- TypeScript
-- SWR
-- Framer Motion
-- Recharts
+- **Next.js 16** with React 19 and TypeScript
+- **SWR** for data fetching with optimistic updates
+- **Framer Motion** for micro-animations and transitions
+- **Recharts** for trend visualization
+- **react-zxing** for barcode scanning
+- **Vanilla CSS** with glassmorphism design system
 
 ### Backend
 
-- Go 1.25
-- Echo
-- MongoDB
-- JWT authentication
-- Google OAuth
+- **Go 1.25** with Echo v4 web framework
+- **MongoDB** with compound indexes and aggregation pipelines
+- **JWT authentication** + Google OAuth
+- **Groq API** for AI meal analysis, coaching, and chat
+- **Open Food Facts** integration for barcode nutrition lookup
 
-### AI And Integrations
+### Infrastructure
 
-- AI meal analysis pipeline
-- Open Food Facts barcode lookup
+- Multi-stage Docker builds for both services
+- Docker Compose for local development
+- GitHub Actions CI (Go tests + TypeScript type checking)
 
 ## Key Features
 
@@ -57,35 +55,60 @@ Users can add food manually, reuse recent items, or search reusable food templat
 
 ### 2. Barcode Nutrition Autofill
 
-Barcode scans fetch product data and map nutrition values into the meal form, including calories, macros, sugar, fiber, and sodium.
+Barcode scans fetch product data from Open Food Facts and map nutrition values into the meal form — calories, macros, sugar, fiber, and sodium — with automatic serving size calculation.
 
-### 3. AI-Assisted Meal Analysis
+### 3. AI Meal Analysis
 
-Users can upload a meal photo and receive structured nutrition estimates that can be edited before saving.
+Users upload a meal photo and receive structured nutrition estimates powered by Llama 4 Scout via Groq. The pipeline uses chain-of-thought reasoning with a Thai food reference table, math normalization guardrails, and confidence scoring.
 
-### 4. Daily Health Dashboard
+### 4. AI Coach & Chat
 
-The home experience combines nutrition, hydration, activity, sleep, and body data into a single daily workflow with trend visibility and lightweight gamification.
+A context-aware AI coach reads 14 days of behavioral data to generate personalized daily briefings and 7-day insights. Persistent chat sessions allow follow-up conversations with full nutrition context.
 
-### 5. Bilingual Product UX
+### 5. Daily Health Dashboard
 
-The interface supports both English and Thai and includes localized product copy for core flows.
+The home experience combines nutrition, hydration, activity, sleep, and body data into a single daily workflow with goal tracking, performance rings, trend visibility, and lightweight gamification.
 
-## Architecture Overview
+### 6. Bilingual Product UX
+
+Full English and Thai localization across all flows — including AI-generated briefings, coaching copy, and error messages. Language can be switched at any time.
+
+### 7. Player Card & Gamification
+
+XP progression, streak tracking, level-ups with particle effects, and a shareable player card that summarizes the user's health journey.
+
+## Architecture
 
 ```text
 frontend/
-  src/app/          Next.js app routes and pages
-  src/components/   UI components
-  src/context/      Auth, language, toast, and shared state
+  src/app/            Next.js app routes (home, login, dashboard, ai-chat, profile, player-card)
+  src/components/     Reusable UI components (15+ shared, 10 home-specific)
+  src/context/        Auth, language, toast providers
+  src/translations/   EN/TH localization strings
 
 backend/
-  cmd/api/          API entry point
-  internal/db/      Mongo setup and indexes
-  internal/handlers API handlers
-  internal/models/  Domain models
-  internal/routes/  Route registration
+  cmd/api/            Server entry point (Echo, CORS, rate limiting)
+  cmd/seed_demo/      Demo data seeder
+  internal/db/        MongoDB connection, collections, index management
+  internal/handlers/  15 handler files (auth, ai, dashboard, food, health, chat, etc.)
+  internal/middleware/ JWT auth middleware
+  internal/models/    Domain models (User, Food, Goals, Exercise, Sleep, Chat, etc.)
+  internal/routes/    Route registration (30+ endpoints)
+  internal/trends/    Behavioral trend analysis
 ```
+
+### API Endpoints
+
+| Area | Endpoints | Description |
+|------|-----------|-------------|
+| Auth | 3 | Register, login, Google OAuth |
+| Food | 6 | CRUD, search, barcode lookup |
+| Health | 12 | Water, exercise, sleep, body measurements |
+| AI | 4 | Image analysis, goal suggestion, consult, chat |
+| Dashboard | 1 | Aggregated daily summary with trends |
+| User | 3 | Profile, goals, player card |
+| Chat | 5 | Persistent AI conversation sessions |
+| Export | 1 | Data export |
 
 ## Local Development
 
@@ -93,100 +116,91 @@ backend/
 
 - Node.js 20+
 - Go 1.25+
-- MongoDB
-- A local `.env` file for backend secrets. Do not commit real service keys.
+- MongoDB (local or Atlas)
 
 ### Setup
 
-1. Create `backend/.env` from `backend/.env.example`
-2. Create the required frontend env file
-3. Install frontend dependencies
+1. Copy `backend/.env.example` to `backend/.env` and fill in your keys:
+
+```bash
+cp backend/.env.example backend/.env
+```
+
+> **Important:** Generate a strong `JWT_SECRET` — do not use the placeholder value.
+> ```bash
+> openssl rand -hex 32
+> ```
+
+2. Install frontend dependencies:
 
 ```bash
 cd frontend
 npm install
 ```
 
-### Run The App
+### Run
 
 ```bash
-# backend
+# Terminal 1 — Backend
 cd backend
 go run ./cmd/api/main.go
 
-# frontend
+# Terminal 2 — Frontend
 cd frontend
 npm run dev
 ```
 
-### Seed Demo Data
+The app will be available at `http://localhost:3000`.
 
-To create a portfolio-ready demo account with 7 days of realistic activity:
+### Seed Demo Data
 
 ```bash
 cd backend
 go run ./cmd/seed_demo
 ```
 
-Default demo credentials:
+This creates a demo account with 7 days of meals, hydration, exercise, sleep, body measurements, and configured goals.
 
-- Email: `demo@somdun.local`
-- Password: `Demo12345!`
+Override credentials with `DEMO_USER_EMAIL` and `DEMO_USER_PASSWORD` environment variables.
 
-You can override them with `DEMO_USER_EMAIL` and `DEMO_USER_PASSWORD`.
+### Docker
+
+```bash
+docker-compose up --build
+```
+
+Requires `JWT_SECRET`, `GROQ_API_KEY`, and `GOOGLE_CLIENT_ID` set in your environment or a `.env` file at the project root.
 
 ## Quality Checks
 
-The repository includes CI checks for:
+CI runs automatically on every push:
 
-- `go test ./...` in the backend
-- `npx tsc --noEmit` in the frontend
+- `go test ./...` — backend unit tests
+- `npx tsc --noEmit` — frontend type checking
 
-Recommended checks before sharing a demo:
+Run locally before pushing:
 
 ```bash
-cd backend
-go test ./...
-
-cd ../frontend
-npx tsc --noEmit
-npx eslint --quiet
+cd backend && go test ./...
+cd ../frontend && npx tsc --noEmit && npx eslint --quiet
 ```
 
-## Demo
+## Security
 
-Add your deployed demo URL here before sharing this project in job applications.
-
-Suggested format:
-
-- Frontend: `https://your-frontend-url`
-- Backend: `https://your-api-url`
-
-### Demo Readiness Checklist
-
-- Rotate any service keys that were ever committed or shared, then keep real values only in local or deployment environment variables.
-- Add a seeded demo account with realistic meals, hydration, sleep, exercise, goals, and body measurements.
-- Make the first screen show useful data immediately: daily brief, 7-day insight, recent logs, and goal progress.
-- Confirm the bilingual flow in both English and Thai, especially AI brief/action copy.
-- Record a short GIF or video of the core loop: log food, scan barcode or analyze meal photo, then view dashboard insight.
-- Add production URLs and screenshots to this README before using the project in applications.
-
-## Screenshots To Add Before Applying
-
-Recommended screenshots or GIFs:
-
-- Login / onboarding
-- Home dashboard
-- Barcode scan or AI meal analysis
-- Analytics or player card
-- Profile / goals settings
+- All secrets are loaded from environment variables — never committed
+- JWT tokens expire after 24 hours
+- CORS is restricted to configured frontend origins
+- Rate limiting at 20 req/s per IP
+- Request body limited to 5MB
+- See [SECURITY.md](SECURITY.md) for secret rotation procedures
 
 ## What I Would Improve Next
 
-- Add stronger automated test coverage for critical flows
-- Add a polished live demo with seeded portfolio data
+- Expand automated test coverage for critical AI and dashboard flows
 - Add observability and error reporting for production debugging
-- Add dedicated food template management UI
+- Build a dedicated food template management UI
+- Add offline support with service worker caching
+- Implement webhook-based Stripe billing for Pro tier
 
 ## Notes
 
