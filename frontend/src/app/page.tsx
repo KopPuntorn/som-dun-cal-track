@@ -17,7 +17,8 @@ import HydrationCard from "@/components/home/HydrationCard";
 import QuickActionsRow from "@/components/home/QuickActionsRow";
 import TodayFeedSection from "@/components/home/TodayFeedSection";
 import HomeHeader from "@/components/home/HomeHeader";
-import PerformanceRingsCard from "@/components/home/PerformanceRingsCard";
+import ProactiveBriefCard from "@/components/home/ProactiveBriefCard";
+import SevenDayInsightCard from "@/components/home/SevenDayInsightCard";
 import GoalsDashboard from "@/components/home/GoalsDashboard";
 import { haptic } from "@/lib/haptics";
 import { motion } from "framer-motion";
@@ -218,7 +219,7 @@ export default function Home() {
 
   // SWR for Dashboard Summary
   const { data: dashboardData, error: dashboardError } = useSWR(
-    authLoading ? null : `${API_BASE}/dashboard/summary?lang=${language}`,
+    authLoading || !user ? null : `${API_BASE}/dashboard/summary?lang=${language}`,
     fetcher,
     { revalidateOnFocus: true }
   );
@@ -1100,12 +1101,7 @@ export default function Home() {
   const carbRemaining = Math.max(0, Math.round((goals.carbs - carbTotal) * 10) / 10);
   const fatRemaining = Math.max(0, Math.round((goals.fat - fatTotal) * 10) / 10);
 
-  // Ring Calculation
-  const calPercent = Math.min(100, Math.max(0, (calTotal / adjustedCalGoal) * 100));
   const isOverCal = calTotal > adjustedCalGoal;
-  const exerciseGoal = Math.max(1, goals.exerciseMinutesGoal || 30);
-  const exercisePercent = Math.min(100, Math.max(0, (exerciseToday / exerciseGoal) * 100));
-  const sleepPercent = Math.min(100, Math.max(0, (sleepToday / 8) * 100));
 
   // Bar Calculations
   const proPercent = Math.min(100, Math.max(0, (proTotal / goals.protein) * 100));
@@ -1134,7 +1130,7 @@ export default function Home() {
     setIsActionModalOpen(true);
   };
 
-  if (!mounted) return null;
+  if (!mounted || authLoading || !user) return null;
 
   return (
     <div className="page-shell">
@@ -1213,42 +1209,13 @@ export default function Home() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5, ease: [0.16, 1, 0.3, 1] }}
           >
-            <PerformanceRingsCard
-              title={t('todaySnapshot')}
-              subtitle={currentDate}
-              summaryLabel={language === 'th' ? 'ความคืบหน้ารวม' : t('overallProgress')}
-              summaryHint={
-                language === 'th'
-                  ? 'คำนวณจากความคืบหน้าของโภชนาการ น้ำ การออกกำลังกาย และการพักฟื้นในวันนี้'
-                  : t('overallProgressHint')
-              }
-              metrics={[
-                {
-                  label: t('nut'),
-                  percent: Math.round(calPercent),
-                  value: `${calTotal}/${adjustedCalGoal} kcal`,
-                  tone: 'nutrition',
-                },
-                {
-                  label: t('hyd'),
-                  percent: Math.round(waterPercent),
-                  value: `${waterGlasses}/${hydrationGoal} ${t('glasses')}`,
-                  tone: 'hydration',
-                },
-                {
-                  label: t('fit'),
-                  percent: Math.round(exercisePercent),
-                  value: `${exerciseToday}/${exerciseGoal} ${t('unitMin')}`,
-                  tone: 'fitness',
-                },
-                {
-                  label: t('rec'),
-                  percent: Math.round(sleepPercent),
-                  value: `${Math.round(sleepToday * 10) / 10}/8 ${t('unitHr')}`,
-                  tone: 'recovery',
-                },
-              ]}
-            />
+            {dashboardData?.dailyBrief && (
+              <ProactiveBriefCard brief={dashboardData.dailyBrief} />
+            )}
+
+            {dashboardData?.sevenDayInsight && (
+              <SevenDayInsightCard insight={dashboardData.sevenDayInsight} />
+            )}
 
             <GoalsDashboard
               dailyTargetsLabel={t('dailyTargets')}

@@ -11,6 +11,8 @@ const API_BASE = (process.env.NEXT_PUBLIC_API_URL && process.env.NEXT_PUBLIC_API
     : "http://localhost:8080/api";
 
 const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID?.trim() || "";
+const DEMO_EMAIL = process.env.NEXT_PUBLIC_DEMO_USER_EMAIL?.trim() || "demo@somdun.local";
+const DEMO_PASSWORD = process.env.NEXT_PUBLIC_DEMO_USER_PASSWORD?.trim() || "Demo12345!";
 
 type AuthApiResponse = {
     token?: string;
@@ -87,6 +89,17 @@ export default function LoginPage() {
         trustFast: isThai ? "เข้าใช้งานได้ไว" : "Fast access",
         trustNoSpam: isThai ? "ไม่มีสแปม" : "No spam",
         legalPrefix: isThai ? "อ่านรายละเอียดเพิ่มเติมได้ใน" : "Read the full details in our",
+    };
+
+    const demoCopy = {
+        title: isThai ? "ลองดูเดโมที่พร้อมใช้งาน" : "Explore a ready demo",
+        text: isThai
+            ? "เข้าสู่บัญชีตัวอย่างที่มีข้อมูลอาหาร การพักฟื้น เป้าหมาย และ insight ครบ 7 วัน"
+            : "Sign in to the seeded demo account with 7 days of meals, recovery, goals, and AI-ready insights.",
+        button: isThai ? "ลองบัญชีเดโม" : "Try demo account",
+        missing: isThai
+            ? "ยังไม่พบบัญชีเดโม ให้รัน `go run ./cmd/seed_demo` ใน backend ก่อน"
+            : "Demo account is not available yet. Run `go run ./cmd/seed_demo` in the backend first.",
     };
 
     const loginFeatures = [
@@ -199,6 +212,34 @@ export default function LoginPage() {
                 setError(copy.authFailed);
             } else {
                 setError(data.error || copy.authFailed);
+            }
+        } catch {
+            setError(copy.networkTryAgain);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleDemoLogin = async () => {
+        setIsLogin(true);
+        setLoading(true);
+        setError(null);
+        setEmail(DEMO_EMAIL);
+        setPassword(DEMO_PASSWORD);
+
+        try {
+            const res = await fetch(`${API_BASE}/auth/login`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ email: DEMO_EMAIL, password: DEMO_PASSWORD }),
+            });
+
+            const data = await readAuthResponse(res);
+
+            if (res.ok && isSuccessfulAuthPayload(data)) {
+                login(data.token, data.user);
+            } else {
+                setError(data.error || demoCopy.missing);
             }
         } catch {
             setError(copy.networkTryAgain);
@@ -322,6 +363,29 @@ export default function LoginPage() {
                 {/* Error */}
                 {error && (
                     <div className="login-error">{error}</div>
+                )}
+
+                {isLogin && (
+                    <div className="login-demo-panel">
+                        <div className="login-demo-copy">
+                            <p className="login-demo-title">{demoCopy.title}</p>
+                            <p className="login-demo-text">{demoCopy.text}</p>
+                        </div>
+                        <button
+                            type="button"
+                            className="login-demo-btn"
+                            onClick={handleDemoLogin}
+                            disabled={loading}
+                        >
+                            <span className="login-demo-btn-icon" aria-hidden="true">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                                    <path d="M5 12h14" />
+                                    <path d="m12 5 7 7-7 7" />
+                                </svg>
+                            </span>
+                            {loading ? t("loading") : demoCopy.button}
+                        </button>
+                    </div>
                 )}
 
                 {/* Form */}

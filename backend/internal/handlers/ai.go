@@ -212,6 +212,182 @@ func rewriteResponseInRequestedLanguage(ctx context.Context, content string, lan
 	})
 }
 
+func buildCoachMemorySnapshot(user models.User, goals models.Goals, foods []models.Food, waters []models.WaterIntake, exercises []models.ExerciseRecord, sleeps []models.SleepRecord) string {
+	if len(foods) == 0 && len(waters) == 0 && len(exercises) == 0 && len(sleeps) == 0 {
+		memory := []string{
+			"AI coach memory:",
+			"- Not enough behavioral data yet. Start with simple repeatable logs before making aggressive coaching changes.",
+		}
+
+		if user.DietaryPreferences != "" || user.Allergies != "" || user.FoodDislikes != "" {
+			memory = append(memory, fmt.Sprintf("- Respect saved preferences: dietary=%s; allergies=%s; dislikes=%s.", fallbackText(user.DietaryPreferences, "none"), fallbackText(user.Allergies, "none"), fallbackText(user.FoodDislikes, "none")))
+		}
+		if user.TonePreference != "" {
+			memory = append(memory, fmt.Sprintf("- Preferred coaching tone: %s.", user.TonePreference))
+		}
+
+		return strings.Join(memory, "\n")
+	}
+
+	end := time.Now().In(time.Local)
+	start := end.AddDate(0, 0, -13)
+	start = time.Date(start.Year(), start.Month(), start.Day(), 0, 0, 0, 0, start.Location())
+
+	type dayTotals struct {
+		calories float64
+		protein  float64
+		water    float64
+		sleep    float64
+		exercise float64
+		foodLogs int
+	}
+
+	days := map[string]*dayTotals{}
+	for i := 0; i < 14; i++ {
+		dayKey := start.AddDate(0, 0, i).Format("2006-01-02")
+		days[dayKey] = &dayTotals{}
+	}
+
+	for _, food := range foods {
+		dayKey := food.Date.In(time.Local).Format("2006-01-02")
+		if day, ok := days[dayKey]; ok {
+			day.calories += food.Calories
+			day.protein += models.SafeFloat(food.Protein)
+			day.foodLogs++
+		}
+	}
+
+	for _, water := range waters {
+		if day, ok := days[water.Date]; ok {
+			day.water = float64(water.Glasses)
+		}
+	}
+
+	for _, exercise := range exercises {
+		dayKey := exercise.Date.In(time.Local).Format("2006-01-02")
+		if day, ok := days[dayKey]; ok {
+			day.exercise += float64(exercise.DurationMinutes)
+		}
+	}
+
+	for _, sleep := range sleeps {
+		dayKey := sleep.Date.In(time.Local).Format("2006-01-02")
+		if day, ok := days[dayKey]; ok && sleep.DurationHours > day.sleep {
+			day.sleep = sleep.DurationHours
+		}
+	}
+
+	proteinGoal := goals.Protein
+	if proteinGoal <= 0 {
+		proteinGoal = 150
+	}
+	exerciseGoal := float64(goals.ExerciseMinutesGoal)
+	if exerciseGoal <= 0 {
+		exerciseGoal = 30
+	}
+	waterGoal := 8.0
+
+	proteinHitDays := 0
+	hydrationHitDays := 0
+	activeDays := 0
+	loggedDays := 0
+	var totalSleep float64
+	var weekendCalories float64
+	var weekdayCalories float64
+	weekendDays := 0
+	weekdayDays := 0
+
+	for i := 0; i < 14; i++ {
+		dayTime := start.AddDate(0, 0, i)
+		dayKey := dayTime.Format("2006-01-02")
+		day := days[dayKey]
+		if day == nil {
+			continue
+		}
+
+		if day.foodLogs > 0 {
+			loggedDays++
+		}
+		if day.protein >= proteinGoal {
+			proteinHitDays++
+		}
+		if day.water >= waterGoal {
+			hydrationHitDays++
+		}
+		if day.exercise >= exerciseGoal || day.exercise > 0 {
+			activeDays++
+		}
+
+		totalSleep += day.sleep
+
+		if dayTime.Weekday() == time.Saturday || dayTime.Weekday() == time.Sunday {
+			weekendDays++
+			weekendCalories += day.calories
+		} else {
+			weekdayDays++
+			weekdayCalories += day.calories
+		}
+	}
+
+	avgSleep := totalSleep / 14
+	weekendDelta := 0.0
+	if weekendDays > 0 && weekdayDays > 0 {
+		weekendAvg := weekendCalories / float64(weekendDays)
+		weekdayAvg := weekdayCalories / float64(weekdayDays)
+		if weekdayAvg > 0 {
+			weekendDelta = ((weekendAvg - weekdayAvg) / weekdayAvg) * 100
+		}
+	}
+
+	memory := []string{"AI coach memory:"}
+
+	if user.DietaryPreferences != "" || user.Allergies != "" || user.FoodDislikes != "" {
+		memory = append(memory, fmt.Sprintf("- Respect saved preferences: dietary=%s; allergies=%s; dislikes=%s.", fallbackText(user.DietaryPreferences, "none"), fallbackText(user.Allergies, "none"), fallbackText(user.FoodDislikes, "none")))
+	}
+	if user.TonePreference != "" {
+		memory = append(memory, fmt.Sprintf("- Preferred coaching tone: %s.", user.TonePreference))
+	}
+	if user.LongTermContext != "" {
+		memory = append(memory, fmt.Sprintf("- Durable user context to honor: %s.", user.LongTermContext))
+	}
+
+	if loggedDays <= 5 {
+		memory = append(memory, fmt.Sprintf("- Logging consistency is low (%d/14 food-log days). Prioritize low-friction habits and simple repeatable actions over strict plans.", loggedDays))
+	}
+	if proteinHitDays <= 4 {
+		memory = append(memory, fmt.Sprintf("- Protein target hit only %d/14 days. Default toward protein anchors, easier first-meal structure, and next-meal protein suggestions.", proteinHitDays))
+	}
+	if hydrationHitDays <= 4 {
+		memory = append(memory, fmt.Sprintf("- Hydration target hit only %d/14 days. Treat under-hydration as a recurring issue and recommend practical water routines.", hydrationHitDays))
+	}
+	if avgSleep > 0 && avgSleep < 7 {
+		memory = append(memory, fmt.Sprintf("- Average sleep is %s hours across the last 14 days. Recovery is likely limiting consistency, appetite control, or training quality.", briefNumber(avgSleep)))
+	}
+	if weekendDelta >= 12 {
+		memory = append(memory, fmt.Sprintf("- Weekend calorie intake runs about %s%% above weekdays. Watch for relaxed weekend eating patterns when making recommendations.", briefNumber(weekendDelta)))
+	}
+	if activeDays >= 8 {
+		memory = append(memory, fmt.Sprintf("- Activity is fairly consistent (%d/14 active days). Coaching can be slightly more performance-oriented, not just compliance-focused.", activeDays))
+	} else if activeDays <= 3 {
+		memory = append(memory, fmt.Sprintf("- Activity volume is low (%d/14 active days). Keep exercise suggestions compact, realistic, and easy to start.", activeDays))
+	}
+
+	if len(memory) == 1 {
+		memory = append(memory, "- Recent behavior looks relatively stable. Focus coaching on optimization and maintaining momentum rather than large corrections.")
+	}
+
+	memory = append(memory, "- Use these patterns to personalize recommendations, but do not quote this memory block verbatim unless the user asks about patterns or trends.")
+	return strings.Join(memory, "\n")
+}
+
+func fallbackText(value, fallback string) string {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return fallback
+	}
+	return trimmed
+}
+
 // AnalyzeImage analyzes food from an uploaded image
 func AnalyzeImage(c echo.Context) error {
 	apiKey := os.Getenv("GROQ_API_KEY")
@@ -614,6 +790,7 @@ func ConsultAI(c echo.Context) error {
 	if u.DietaryPreferences != "" || u.Allergies != "" || u.FoodDislikes != "" || u.TonePreference != "" {
 		preferenceStr = fmt.Sprintf("Prefs:%s; Allergies:%s; Dislikes:%s; Tone:%s", u.DietaryPreferences, u.Allergies, u.FoodDislikes, u.TonePreference)
 	}
+	coachMemory := buildCoachMemorySnapshot(u, g, foods, nil, exercises, sleeps)
 
 	groqReq := GroqChatRequest{
 		Model:       "openai/gpt-oss-120b",
@@ -626,6 +803,7 @@ func ConsultAI(c echo.Context) error {
 				Content: "Persona: Elite Clinical Dietitian & Performance Consultant. " +
 					langInstruction +
 					"Analyze trends for " + startStr + " to " + endStr + ".\n\n" +
+					"--- AI COACH MEMORY ---\n" + coachMemory + "\n" +
 					"--- 30-DAY TRENDS ---\n" + trendStr + "\n" +
 					"--- PERIOD SUMMARY ---\n" + summaryStr + "\n" +
 					"Profile: " + fmt.Sprintf("W:%.1fkg H:%.1fcm Age:%d", u.Weight, u.Height, u.Age) + "\n" +
@@ -953,6 +1131,14 @@ func ChatAI(c echo.Context) error {
 	goalsCh := make(chan string, 1)
 	userCh := make(chan string, 1)
 	trendCh := make(chan string, 1)
+	coachFoodsCh := make(chan []models.Food, 1)
+	coachExercisesCh := make(chan []models.ExerciseRecord, 1)
+	coachSleepsCh := make(chan []models.SleepRecord, 1)
+	coachWatersCh := make(chan []models.WaterIntake, 1)
+	var fetchedUser models.User
+	var fetchedGoals models.Goals
+	coachWindowStart := startOfToday.AddDate(0, 0, -13)
+	coachWindowStartDate := coachWindowStart.Format("2006-01-02")
 
 	// Fetch Weight History (Last 5)
 	go func() {
@@ -1018,6 +1204,59 @@ func ChatAI(c echo.Context) error {
 		waterCh <- sb.String()
 	}()
 
+	// Fetch behavioral history for AI coach memory (last 14 days)
+	go func() {
+		var recentFoods []models.Food
+		cursor, err := db.FoodsCollection.Find(ctx, bson.M{
+			"userId": userID,
+			"date":   bson.M{"$gte": coachWindowStart, "$lte": now},
+		}, options.Find().SetSort(bson.D{{Key: "date", Value: -1}}))
+		if err == nil && cursor != nil {
+			defer cursor.Close(ctx)
+			cursor.All(ctx, &recentFoods)
+		}
+		coachFoodsCh <- recentFoods
+	}()
+
+	go func() {
+		var recentExercises []models.ExerciseRecord
+		cursor, err := db.ExerciseCollection.Find(ctx, bson.M{
+			"userId": userID,
+			"date":   bson.M{"$gte": coachWindowStart, "$lte": now},
+		}, options.Find().SetSort(bson.D{{Key: "date", Value: -1}}))
+		if err == nil && cursor != nil {
+			defer cursor.Close(ctx)
+			cursor.All(ctx, &recentExercises)
+		}
+		coachExercisesCh <- recentExercises
+	}()
+
+	go func() {
+		var recentSleeps []models.SleepRecord
+		cursor, err := db.SleepCollection.Find(ctx, bson.M{
+			"userId": userID,
+			"date":   bson.M{"$gte": coachWindowStart, "$lte": now},
+		}, options.Find().SetSort(bson.D{{Key: "date", Value: -1}}))
+		if err == nil && cursor != nil {
+			defer cursor.Close(ctx)
+			cursor.All(ctx, &recentSleeps)
+		}
+		coachSleepsCh <- recentSleeps
+	}()
+
+	go func() {
+		var recentWaters []models.WaterIntake
+		cursor, err := db.WaterCollection.Find(ctx, bson.M{
+			"userId": userID,
+			"date":   bson.M{"$gte": coachWindowStartDate, "$lte": now.Format("2006-01-02")},
+		}, options.Find().SetSort(bson.D{{Key: "date", Value: -1}}))
+		if err == nil && cursor != nil {
+			defer cursor.Close(ctx)
+			cursor.All(ctx, &recentWaters)
+		}
+		coachWatersCh <- recentWaters
+	}()
+
 	// Fetch Body Measurements (Last 3)
 	go func() {
 		var sb strings.Builder
@@ -1040,6 +1279,7 @@ func ChatAI(c echo.Context) error {
 		goalsStr := "Not set"
 		objectiveStr := "Not set"
 		if err := db.GoalsCollection.FindOne(ctx, bson.M{"userId": userID}).Decode(&g); err == nil {
+			fetchedGoals = g
 			goalsStr = fmt.Sprintf("Cal:%.0f, Pro:%.1f, Carb:%.1f, Fat:%.1f", g.Calories, g.Protein, g.Carbs, g.Fat)
 			if g.Objective != "" {
 				objectiveStr = g.Objective
@@ -1055,6 +1295,7 @@ func ChatAI(c echo.Context) error {
 		preferenceStr := "Not provided"
 		longTermContext := ""
 		if err := db.UserCollection.FindOne(ctx, bson.M{"_id": userID}).Decode(&u); err == nil {
+			fetchedUser = u
 			userStr = fmt.Sprintf("Name: %s, Age: %d, Current W: %.1fkg, H: %.1fcm, Sex: %s", u.Name, u.Age, u.Weight, u.Height, u.Sex)
 			longTermContext = u.LongTermContext
 			if u.DietaryPreferences != "" || u.Allergies != "" || u.FoodDislikes != "" || u.TonePreference != "" {
@@ -1079,6 +1320,10 @@ func ChatAI(c echo.Context) error {
 	goalsData := <-goalsCh
 	userData := <-userCh
 	trendSummary := <-trendCh
+	coachFoods := <-coachFoodsCh
+	coachExercises := <-coachExercisesCh
+	coachSleeps := <-coachSleepsCh
+	coachWaters := <-coachWatersCh
 
 	goalsParts := strings.Split(goalsData, "||")
 	goalsStr, objectiveStr := goalsParts[0], goalsParts[1]
@@ -1092,11 +1337,13 @@ func ChatAI(c echo.Context) error {
 	if len(userParts) > 2 {
 		longTermContext = userParts[2]
 	}
+	coachMemory := buildCoachMemorySnapshot(fetchedUser, fetchedGoals, coachFoods, coachWaters, coachExercises, coachSleeps)
 
 	contextPrompt := "Persona: Elite Clinical Dietitian & Health Consultant. " +
 		langInstruction +
 		"\n\n--- CURRENT DATE/TIME ---\n" + now.Format("Monday, 2006-01-02 15:04 MST") + "\n\n" +
 		"--- LONG-TERM CONTEXT ---\n" + longTermContext + "\n\n" +
+		"--- AI COACH MEMORY ---\n" + coachMemory + "\n\n" +
 		"--- 30-DAY TREND DATA ---\n" + trendSummary + "\n\n" +
 		"CRITICAL NUTRITION ACCURACY RULES: \n" +
 		"- DO NOT hallucinate health benefits. If a food is unhealthy, fatty (e.g., pork neck / คอหมูย่าง, fried foods), or sugary, state facts firmly. DO NOT call high-fat foods 'balanced fat'.\n" +
@@ -1114,6 +1361,7 @@ func ChatAI(c echo.Context) error {
 		"1. ALWAYS START your response with a <think> ... </think> block. Inside this block, meticulously analyze the context, perform step-by-step mathematical calculations for any macronutrients you will suggest, and cross-check that Calories >= (P*4)+(C*4)+(F*9).\n" +
 		"2. Connect the dots logically (e.g., accurately assess if their meal matches their exercise).\n" +
 		"3. Provide precise and highly accurate nutritional breakdowns.\n" +
+		"3.5. Treat the AI coach memory as durable behavioral context. Use it to personalize advice across sessions, especially when choosing priorities, meal ideas, and coaching tone.\n" +
 		fmt.Sprintf("4. If you recommend or they mention a food, append a special tag at the VERY END (AFTER the think block): `[ADD: %s | 100 | 10 | 20 | 2]` (Format: [ADD: Name | Calories | Protein | Carbs | Fat])\n", foodExampleName) +
 		"5. Ensure macronutrients STRICTLY sum up realistically, and the name is in " + foodNameLang + " language.\n" +
 		"6. Use Markdown, emojis, and clear spacing AFTER the think block. " +

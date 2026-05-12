@@ -23,7 +23,6 @@ RUN apk --no-cache add ca-certificates
 
 # Copy the binary from builder
 COPY --from=builder /app/main .
-COPY --from=builder /app/.env.example ./.env
 
 # Create uploads directory
 RUN mkdir uploads

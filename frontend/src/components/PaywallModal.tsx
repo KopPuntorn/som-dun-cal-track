@@ -13,8 +13,8 @@ export default function PaywallModal() {
   const [isLifting, setIsLifting] = useState(false);
 
   useEffect(() => {
-    const handleTrigger = (e: any) => {
-      const code = e.detail?.code;
+    const handleTrigger = (event: Event) => {
+      const code = event instanceof CustomEvent ? event.detail?.code : undefined;
       if (code === "LIMIT_REACHED") setReason("limit");
       else if (code === "PRO_REQUIRED") setReason("pro");
       setIsOpen(true);

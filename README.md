@@ -94,6 +94,7 @@ backend/
 - Node.js 20+
 - Go 1.25+
 - MongoDB
+- A local `.env` file for backend secrets. Do not commit real service keys.
 
 ### Setup
 
@@ -118,12 +119,39 @@ cd frontend
 npm run dev
 ```
 
+### Seed Demo Data
+
+To create a portfolio-ready demo account with 7 days of realistic activity:
+
+```bash
+cd backend
+go run ./cmd/seed_demo
+```
+
+Default demo credentials:
+
+- Email: `demo@somdun.local`
+- Password: `Demo12345!`
+
+You can override them with `DEMO_USER_EMAIL` and `DEMO_USER_PASSWORD`.
+
 ## Quality Checks
 
 The repository includes CI checks for:
 
 - `go test ./...` in the backend
 - `npx tsc --noEmit` in the frontend
+
+Recommended checks before sharing a demo:
+
+```bash
+cd backend
+go test ./...
+
+cd ../frontend
+npx tsc --noEmit
+npx eslint --quiet
+```
 
 ## Demo
 
@@ -133,6 +161,15 @@ Suggested format:
 
 - Frontend: `https://your-frontend-url`
 - Backend: `https://your-api-url`
+
+### Demo Readiness Checklist
+
+- Rotate any service keys that were ever committed or shared, then keep real values only in local or deployment environment variables.
+- Add a seeded demo account with realistic meals, hydration, sleep, exercise, goals, and body measurements.
+- Make the first screen show useful data immediately: daily brief, 7-day insight, recent logs, and goal progress.
+- Confirm the bilingual flow in both English and Thai, especially AI brief/action copy.
+- Record a short GIF or video of the core loop: log food, scan barcode or analyze meal photo, then view dashboard insight.
+- Add production URLs and screenshots to this README before using the project in applications.
 
 ## Screenshots To Add Before Applying
 

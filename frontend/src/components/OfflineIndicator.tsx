@@ -1,30 +1,25 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useSyncExternalStore } from "react";
+
+function subscribeToOnlineStatus(onStoreChange: () => void) {
+    window.addEventListener("offline", onStoreChange);
+    window.addEventListener("online", onStoreChange);
+
+    return () => {
+        window.removeEventListener("offline", onStoreChange);
+        window.removeEventListener("online", onStoreChange);
+    };
+}
+
+function getOnlineStatus() {
+    return typeof navigator === "undefined" ? true : navigator.onLine;
+}
 
 export default function OfflineIndicator() {
-    const [mounted, setMounted] = useState(false);
-    const [isOffline, setIsOffline] = useState(false);
+    const isOnline = useSyncExternalStore(subscribeToOnlineStatus, getOnlineStatus, () => true);
 
-    useEffect(() => {
-        setMounted(true);
-        if (typeof navigator !== "undefined") {
-            setIsOffline(!navigator.onLine);
-        }
-
-        const goOffline = () => setIsOffline(true);
-        const goOnline = () => setIsOffline(false);
-
-        window.addEventListener("offline", goOffline);
-        window.addEventListener("online", goOnline);
-
-        return () => {
-            window.removeEventListener("offline", goOffline);
-            window.removeEventListener("online", goOnline);
-        };
-    }, []);
-
-    if (!mounted || !isOffline) return null;
+    if (isOnline) return null;
 
     return (
         <div style={{

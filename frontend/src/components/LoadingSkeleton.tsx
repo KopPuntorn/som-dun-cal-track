@@ -5,6 +5,14 @@ type SkeletonProps = {
     count?: number;
 };
 
+const chartSkeletonHeights = [
+    ["62%", "44%", "78%", "55%", "36%", "68%", "49%"],
+    ["48%", "73%", "41%", "64%", "86%", "52%", "70%"],
+    ["76%", "58%", "33%", "81%", "46%", "66%", "39%"],
+    ["54%", "88%", "61%", "47%", "72%", "57%", "83%"],
+    ["69%", "42%", "74%", "51%", "63%", "37%", "79%"],
+];
+
 function ShimmerBlock({ width, height, borderRadius = "12px", style }: { width: string; height: string; borderRadius?: string; style?: React.CSSProperties }) {
     return (
         <div
@@ -91,13 +99,13 @@ export function SkeletonChart() {
                 <ShimmerBlock width="80px" height="40px" borderRadius="10px" />
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', height: 'calc(100% - 80px)' }}>
-                {[...Array(5)].map((_, i) => (
+                {chartSkeletonHeights.map((row, i) => (
                     <div key={i} style={{ display: 'flex', alignItems: 'flex-end', gap: '8px', height: '100%' }}>
-                        {[...Array(7)].map((_, j) => (
+                        {row.map((height, j) => (
                             <ShimmerBlock 
                                 key={j} 
                                 width="100%" 
-                                height={`${30 + Math.random() * 60}%`} 
+                                height={height}
                                 borderRadius="6px 6px 2px 2px"
                                 style={{ flex: 1 }}
                             />
