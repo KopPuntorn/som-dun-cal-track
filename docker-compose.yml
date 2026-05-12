@@ -21,8 +21,9 @@ services:
       - DATABASE_URL=mongodb://mongodb:27017/calotrack
       - PORT=8080
       - FRONTEND_URL=http://localhost:3000
-      - JWT_SECRET=your-secret-here-for-local-dev
+      - JWT_SECRET=${JWT_SECRET}
       - GROQ_API_KEY=${GROQ_API_KEY}
+      - GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
     depends_on:
       - mongodb
     volumes:
@@ -37,7 +38,8 @@ services:
     ports:
       - "3000:3000"
     environment:
-      - NEXT_PUBLIC_API_URL=http://localhost:8080/api
+      - NEXT_PUBLIC_API_URL=${NEXT_PUBLIC_API_URL:-http://backend:8080/api}
+      - NEXT_PUBLIC_GOOGLE_CLIENT_ID=${GOOGLE_CLIENT_ID}
     depends_on:
       - backend
     restart: unless-stopped

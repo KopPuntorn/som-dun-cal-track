@@ -1,6 +1,6 @@
 "use client";
 
-import React, { createContext, useContext, useState, useEffect } from "react";
+import React, { createContext, useContext, useState, useEffect, useCallback } from "react";
 import { useRouter, usePathname } from "next/navigation";
 
 export type UserProfile = {
@@ -24,7 +24,7 @@ export type UserProfile = {
     };
 };
 
-async function safeReadJson(response: Response): Promise<any> {
+async function safeReadJson(response: Response): Promise<unknown> {
     const contentType = response.headers.get("content-type") || "";
     if (!contentType.includes("application/json")) {
         return null;
@@ -34,6 +34,34 @@ async function safeReadJson(response: Response): Promise<any> {
         return await response.clone().json();
     } catch {
         return null;
+    }
+}
+
+function isPaywallResponse(data: unknown): data is { code: "LIMIT_REACHED" | "PRO_REQUIRED" } {
+    return (
+        typeof data === "object" &&
+        data !== null &&
+        "code" in data &&
+        (data.code === "LIMIT_REACHED" || data.code === "PRO_REQUIRED")
+    );
+}
+
+const API_BASE = (process.env.NEXT_PUBLIC_API_URL && process.env.NEXT_PUBLIC_API_URL !== "undefined")
+    ? process.env.NEXT_PUBLIC_API_URL
+    : "http://localhost:8080/api";
+
+function isJwtExpired(token: string): boolean {
+    try {
+        const [, payload] = token.split(".");
+        if (!payload) return true;
+
+        const normalizedPayload = payload.replace(/-/g, "+").replace(/_/g, "/");
+        const decodedPayload = JSON.parse(window.atob(normalizedPayload));
+        const expiresAt = typeof decodedPayload.exp === "number" ? decodedPayload.exp * 1000 : 0;
+
+        return !expiresAt || Date.now() >= expiresAt;
+    } catch {
+        return true;
     }
 }
 
@@ -65,12 +93,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (typeof window === "undefined") return null;
         return localStorage.getItem("auth_token");
     });
-    const [isLoading] = useState(false);
+    const [isLoading, setIsLoading] = useState(true);
     const router = useRouter();
     const pathname = usePathname();
     const publicRoutes = new Set(["/login", "/privacy", "/terms", "/forgot-password"]);
     const isPublicRoute = pathname ? publicRoutes.has(pathname) : false;
     const isAuthEntryRoute = pathname === "/login";
+
+    const forceLogout = useCallback((redirect = true) => {
+        localStorage.removeItem("auth_token");
+        localStorage.removeItem("auth_user");
+        setToken(null);
+        setUser(null);
+
+        if (redirect && window.location.pathname !== "/login") {
+            window.location.href = "/login";
+        }
+    }, []);
 
     useEffect(() => {
         // Setup global fetch interceptor
@@ -100,12 +139,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
                 if (response.status === 401 || (response.status === 404 && url.includes('/api/user'))) {
                     console.warn(`Auth failure (${response.status}) at ${url}. Logging out...`);
-                    handleForceLogout();
+                    forceLogout();
                 }
 
                 if (response.status === 403) {
                     const data = await safeReadJson(response);
-                    if (data?.code === "LIMIT_REACHED" || data?.code === "PRO_REQUIRED") {
+                    if (isPaywallResponse(data)) {
                         // Trigger global paywall UI
                         window.dispatchEvent(new CustomEvent("trigger-paywall", { detail: data }));
                     }
@@ -118,20 +157,54 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             }
         };
 
-        const handleForceLogout = () => {
-            localStorage.removeItem("auth_token");
-            localStorage.removeItem("auth_user");
-            setToken(null);
-            setUser(null);
-            if (window.location.pathname !== "/login") {
-                window.location.href = "/login";
-            }
-        };
-
         return () => {
             window.fetch = originalFetch || window.fetch;
         };
-    }, []);
+    }, [forceLogout]);
+
+    useEffect(() => {
+        let isActive = true;
+
+        const validateSession = async () => {
+            const storedToken = localStorage.getItem("auth_token");
+            if (!storedToken || isJwtExpired(storedToken)) {
+                forceLogout(!isPublicRoute);
+                if (isActive) setIsLoading(false);
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/user`, {
+                    headers: {
+                        "Authorization": `Bearer ${storedToken}`,
+                    },
+                });
+
+                if (!response.ok) {
+                    forceLogout(!isPublicRoute);
+                    return;
+                }
+
+                const freshUser = await response.json();
+                if (!isActive) return;
+
+                setToken(storedToken);
+                setUser(freshUser);
+                localStorage.setItem("auth_user", JSON.stringify(freshUser));
+            } catch (err) {
+                console.error("Failed to validate auth session:", err);
+                forceLogout(!isPublicRoute);
+            } finally {
+                if (isActive) setIsLoading(false);
+            }
+        };
+
+        validateSession();
+
+        return () => {
+            isActive = false;
+        };
+    }, [forceLogout, isPublicRoute]);
 
     useEffect(() => {
         if (!isLoading) {
@@ -155,24 +228,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         localStorage.setItem("auth_user", JSON.stringify(newUser));
         setToken(newToken);
         setUser(newUser);
+        setIsLoading(false);
         router.push("/");
     };
 
     const logout = () => {
-        localStorage.removeItem("auth_token");
-        localStorage.removeItem("auth_user");
-        setToken(null);
-        setUser(null);
+        forceLogout(false);
         router.push("/login"); // Immediately send user out
     };
 
     const refreshUser = async () => {
         const currentToken = typeof window !== 'undefined' ? localStorage.getItem("auth_token") : null;
         if (!currentToken) return;
-
-        const API_BASE = (process.env.NEXT_PUBLIC_API_URL && process.env.NEXT_PUBLIC_API_URL !== "undefined") 
-            ? process.env.NEXT_PUBLIC_API_URL 
-            : "http://localhost:8080/api";
 
         try {
             const response = await fetch(`${API_BASE}/user`, {

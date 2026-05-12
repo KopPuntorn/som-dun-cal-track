@@ -13,23 +13,20 @@ export default function BottomNav({ aiNotificationCount = 0 }: BottomNavProps) {
     const pathname = usePathname();
     const searchParams = useSearchParams();
     const { t, language, setLanguage } = useLanguage();
-    const [moreMenuOpen, setMoreMenuOpen] = useState(false);
+    const [moreMenuState, setMoreMenuState] = useState({ isOpen: false, pathname });
     const menuRef = useRef<HTMLDivElement>(null);
     const isAddActive = pathname === '/' && searchParams?.get('add') === 'true';
+    const moreMenuOpen = moreMenuState.isOpen && moreMenuState.pathname === pathname;
 
     useEffect(() => {
         function handleClickOutside(event: MouseEvent) {
             if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
-                setMoreMenuOpen(false);
+                setMoreMenuState((current) => ({ ...current, isOpen: false }));
             }
         }
         document.addEventListener('mousedown', handleClickOutside);
         return () => document.removeEventListener('mousedown', handleClickOutside);
     }, []);
-
-    useEffect(() => {
-        setMoreMenuOpen(false);
-    }, [pathname]);
 
     if (pathname === '/login' || pathname === '/signup' || pathname === '/onboarding' || pathname === '/ai-chat') {
         return null;
@@ -96,7 +93,7 @@ export default function BottomNav({ aiNotificationCount = 0 }: BottomNavProps) {
                 </Link>
                 <button 
                     className={`nav-item more-menu-btn ${moreMenuOpen ? 'active' : ''}`}
-                    onClick={() => setMoreMenuOpen(!moreMenuOpen)}
+                    onClick={() => setMoreMenuState({ isOpen: !moreMenuOpen, pathname })}
                     aria-label="More options"
                     aria-expanded={moreMenuOpen}
                     aria-haspopup="true"
@@ -108,15 +105,15 @@ export default function BottomNav({ aiNotificationCount = 0 }: BottomNavProps) {
                 </button>
                 {moreMenuOpen && (
                     <div className="bottom-nav-menu" ref={menuRef} role="menu">
-                        <Link href="/profile" className="bottom-nav-menu-item" role="menuitem" onClick={() => setMoreMenuOpen(false)}>
+                        <Link href="/profile" className="bottom-nav-menu-item" role="menuitem" onClick={() => setMoreMenuState((current) => ({ ...current, isOpen: false }))}>
                             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
                             <span>{t('navProfile')}</span>
                         </Link>
-                        <Link href="/player-card" className="bottom-nav-menu-item" role="menuitem" onClick={() => setMoreMenuOpen(false)}>
+                        <Link href="/player-card" className="bottom-nav-menu-item" role="menuitem" onClick={() => setMoreMenuState((current) => ({ ...current, isOpen: false }))}>
                             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect><line x1="8" y1="21" x2="16" y2="21"></line><line x1="12" y1="17" x2="12" y2="21"></line></svg>
                             <span>{t('navPlayerCard')}</span>
                         </Link>
-                        <button className="bottom-nav-menu-item" role="menuitem" onClick={() => { setLanguage(language === 'en' ? 'th' : 'en'); setMoreMenuOpen(false); }}>
+                        <button className="bottom-nav-menu-item" role="menuitem" onClick={() => { setLanguage(language === 'en' ? 'th' : 'en'); setMoreMenuState((current) => ({ ...current, isOpen: false })); }}>
                             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="2" y1="12" x2="22" y2="12"></line><path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path></svg>
                             <span>{language === 'en' ? 'ภาษาไทย' : 'English'}</span>
                         </button>

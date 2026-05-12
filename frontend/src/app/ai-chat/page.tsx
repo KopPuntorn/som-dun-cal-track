@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { useLanguage } from "@/context/LanguageContext";
 import { format } from 'date-fns';
@@ -46,6 +46,7 @@ MarkdownRenderer.displayName = 'MarkdownRenderer';
 
 export default function AiChatPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { user } = useAuth();
   const { language } = useLanguage();
 
@@ -65,6 +66,7 @@ export default function AiChatPage() {
   const [showScrollToBottom, setShowScrollToBottom] = useState(false);
   const [sessionQuery, setSessionQuery] = useState("");
   const lastFetchedSessionId = useRef<string | null>(null);
+  const autoPromptHandledRef = useRef<string | null>(null);
 
   const chatMessagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -146,7 +148,7 @@ export default function AiChatPage() {
     return localStorage.getItem('app_lang') || 'th';
   }, []);
 
-  const fetchChatSessions = async () => {
+  const fetchChatSessions = useCallback(async () => {
     if (!user?.id) return;
     try {
       const token = getAuthToken();
@@ -160,7 +162,7 @@ export default function AiChatPage() {
     } catch (error) {
       console.error("Failed to fetch chat sessions:", error);
     }
-  };
+  }, [getAuthToken, user?.id]);
 
   const createNewSession = () => {
     setActiveSessionId(null);
@@ -264,7 +266,7 @@ export default function AiChatPage() {
 
   useEffect(() => {
     if (user?.id) { fetchChatSessions(); }
-  }, [user]);
+  }, [fetchChatSessions, user?.id]);
 
   const groupChatByDate = useCallback((sessionsToGroup: typeof chatSessions) => {
     const groups: { [key: string]: typeof chatSessions } = {
@@ -305,7 +307,7 @@ export default function AiChatPage() {
     return isSameDay ? format(date, 'HH:mm') : format(date, 'MMM d');
   };
 
-  const extractQuickAddFromResponse = (assistantContent: string) => {
+  const extractQuickAddFromResponse = useCallback((assistantContent: string) => {
     const simpleAddRegex = /\[ADD:\s*([^|\]]+?)\s*[|｜]\s*(\d+)(?:\s*kcal)?(?:\s*[|｜]\s*([\d.]+))?(?:\s*[|｜]\s*([\d.]+))?(?:\s*[|｜]\s*([\d.]+))?\s*\]/gi;
     const foodDataRegex = /\[FOOD_DATA:\s*(\{[\s\S]*?\})\s*\]/gi;
     const simpleMatches = [...assistantContent.matchAll(simpleAddRegex)];
@@ -353,9 +355,9 @@ export default function AiChatPage() {
           : ''
       )
     };
-  };
+  }, [language]);
 
-  const runChatPrompt = async (prompt: string) => {
+  const runChatPrompt = useCallback(async (prompt: string) => {
     const messageToSend = prompt.trim();
     if (!messageToSend || !user?.id) return;
 
@@ -435,14 +437,14 @@ export default function AiChatPage() {
     } finally {
       setIsAiLoading(false);
     }
-  };
+  }, [activeSessionId, extractQuickAddFromResponse, fetchChatSessions, getAppLang, getAuthToken, language, user?.id]);
 
   const handleChatKeyDown = useCallback((e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       void runChatPrompt(chatInput);
     }
-  }, [chatInput]);
+  }, [chatInput, runChatPrompt]);
 
   const handleRefineQuickAdd = () => {
     if (!showQuickAdd) return;
@@ -491,6 +493,29 @@ export default function AiChatPage() {
     if (!messageToSend || !user?.id) return;
     await runChatPrompt(messageToSend);
   };
+
+  useEffect(() => {
+    if (!mounted || !user?.id) return;
+
+    const promptFromQuery = searchParams.get("prompt")?.trim();
+    if (!promptFromQuery) {
+      autoPromptHandledRef.current = null;
+      return;
+    }
+
+    if (autoPromptHandledRef.current === promptFromQuery) return;
+
+    autoPromptHandledRef.current = promptFromQuery;
+    lastFetchedSessionId.current = null;
+    setActiveSessionId(null);
+    setChatMessages([]);
+    localStorage.removeItem("active_chat_session");
+
+    window.requestAnimationFrame(() => {
+      void runChatPrompt(promptFromQuery);
+      router.replace("/ai-chat");
+    });
+  }, [mounted, router, runChatPrompt, searchParams, user?.id]);
 
   const suggestionChips = useMemo(() => [
     { 

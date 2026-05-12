@@ -21,11 +21,12 @@ import {
     PieChart,
     Pie,
 } from 'recharts';
-import { format, subDays, startOfDay, endOfDay, isBefore, eachDayOfInterval } from 'date-fns';
+import { format, subDays, startOfDay, endOfDay, eachDayOfInterval } from 'date-fns';
 import { useAuth } from "@/context/AuthContext";
 import { useLanguage } from "@/context/LanguageContext";
 import PageHeader from "@/components/PageHeader";
 import { SkeletonChart } from "@/components/LoadingSkeleton";
+import SevenDayInsightCard from "@/components/home/SevenDayInsightCard";
 
 type Food = {
     id: string;
@@ -84,13 +85,35 @@ type BodyMeasurement = {
     progressPhotoUrl?: string;
 };
 
+type DashboardSummary = {
+    goals?: Partial<Goals>;
+    user?: UserProfile;
+    todayFoods?: Food[];
+    weightRecent?: WeightRecord[];
+    measurementsRecent?: BodyMeasurement[];
+    exerciseRecent?: ExerciseRecord[];
+    sleepRecent?: SleepRecord[];
+    sevenDayInsight?: {
+        eyebrow: string;
+        title: string;
+        summary: string;
+        stats: Array<{
+            label: string;
+            value: string;
+            tone: string;
+        }>;
+        ctaLabel: string;
+        prompt: string;
+    };
+};
+
 const API_BASE = (process.env.NEXT_PUBLIC_API_URL && process.env.NEXT_PUBLIC_API_URL !== "undefined")
     ? process.env.NEXT_PUBLIC_API_URL
     : "http://localhost:8080/api";
 
 const fetcher = (url: string) => fetch(url, {
     headers: {
-        "Authorization": `Bearer ${localStorage.getItem('auth_token')}`
+        "Authorization": `Bearer ${localStorage.getItem('auth_token') || ""}`
     }
 }).then(res => {
     if (!res.ok) throw new Error("Failed to fetch data");
@@ -156,6 +179,24 @@ const DASHBOARD_THEME = {
     },
 };
 
+const parseValidDate = (value: string | Date): Date | null => {
+    const date = value instanceof Date ? value : new Date(value);
+    return Number.isNaN(date.getTime()) ? null : date;
+};
+
+const formatDateOrFallback = (value: string | Date, formatString: string, fallback = "-") => {
+    const date = parseValidDate(value);
+    return date ? format(date, formatString) : fallback;
+};
+
+const getSafeDateInterval = (start: Date, end: Date) => {
+    if (start.getTime() > end.getTime()) {
+        return { start: end, end: start };
+    }
+
+    return { start, end };
+};
+
 const getToggleButtonStyle = (active: boolean, color: string, glow: string) => ({
     padding: '6px 12px',
     fontSize: '12px',
@@ -174,7 +215,7 @@ const getToggleButtonStyle = (active: boolean, color: string, glow: string) => (
 });
 
 export default function DashboardPage() {
-    const { logout, isLoading: authLoading } = useAuth();
+    const { user: authUser, token, logout, isLoading: authLoading } = useAuth();
     const { language, setLanguage, t } = useLanguage();
     const [foods, setFoods] = useState<Food[]>([]);
     const [goals, setGoals] = useState<Goals>({ calories: 2000, protein: 150, carbs: 250, fat: 70 });
@@ -201,7 +242,7 @@ export default function DashboardPage() {
     const [healthView, setHealthView] = useState<'exercise' | 'sleep'>('exercise');
 
     const dashboardKey = useMemo(() => {
-        if (authLoading) return null;
+        if (authLoading || !authUser || !token) return null;
         const now = new Date();
         let start: Date | null = null;
         let end: Date = endOfDay(now);
@@ -211,22 +252,27 @@ export default function DashboardPage() {
             case 'week': start = startOfDay(subDays(now, 6)); break;
             case 'month': start = startOfDay(subDays(now, 29)); break;
             case 'custom':
-                if (customStart && customEnd) {
-                    start = startOfDay(new Date(customStart));
-                    end = endOfDay(new Date(customEnd));
-                } else {
-                    start = startOfDay(now);
+                {
+                    const parsedStart = parseValidDate(customStart);
+                    const parsedEnd = parseValidDate(customEnd);
+                    if (parsedStart && parsedEnd) {
+                        start = startOfDay(parsedStart);
+                        end = endOfDay(parsedEnd);
+                    } else {
+                        start = startOfDay(now);
+                    }
                 }
                 break;
         }
-        let url = `${API_BASE}/dashboard/summary`;
+        const params = new URLSearchParams({ lang: language });
         if (start) {
-            url += `?start=${start.toISOString()}&end=${end.toISOString()}`;
+            params.set("start", start.toISOString());
+            params.set("end", end.toISOString());
         }
-        return url;
-    }, [range, customStart, customEnd, authLoading]);
+        return `${API_BASE}/dashboard/summary?${params.toString()}`;
+    }, [range, customStart, customEnd, authLoading, authUser, token, language]);
 
-    const { data: dashboardData, error: dashboardError, isLoading: dashboardLoading } = useSWR(dashboardKey, fetcher, { revalidateOnFocus: true });
+    const { data: dashboardData, error: dashboardError, isLoading: dashboardLoading } = useSWR<DashboardSummary>(dashboardKey, fetcher, { revalidateOnFocus: true });
 
     const handleGetAiAdvice = async () => {
         setAiLoading(true);
@@ -333,7 +379,8 @@ export default function DashboardPage() {
     const chartData = useMemo(() => {
         if (!foods.length) return [];
         const grouped = foods.reduce<Record<string, { date: string; sortKey: string; calories: number; protein: number; carbs: number; fat: number }>>((acc, food) => {
-            const dateObj = new Date(food.date);
+            const dateObj = parseValidDate(food.date);
+            if (!dateObj) return acc;
             const dateStr = format(dateObj, 'MMM dd');
             const sortKey = format(dateObj, 'yyyy-MM-dd');
             if (!acc[sortKey]) acc[sortKey] = { date: dateStr, sortKey: sortKey, calories: 0, protein: 0, carbs: 0, fat: 0 };
@@ -345,9 +392,11 @@ export default function DashboardPage() {
         }, {});
 
         if (range === 'week' || range === 'month' || (range === 'custom' && customStart && customEnd)) {
-            const start = range === 'week' ? startOfDay(subDays(new Date(), 6)) : range === 'month' ? startOfDay(subDays(new Date(), 29)) : startOfDay(new Date(customStart));
-            const end = range === 'custom' ? endOfDay(new Date(customEnd)) : endOfDay(new Date());
-            const allDays = eachDayOfInterval({ start, end });
+            const customStartDate = parseValidDate(customStart);
+            const customEndDate = parseValidDate(customEnd);
+            const start = range === 'week' ? startOfDay(subDays(new Date(), 6)) : range === 'month' ? startOfDay(subDays(new Date(), 29)) : startOfDay(customStartDate || new Date());
+            const end = range === 'custom' ? endOfDay(customEndDate || new Date()) : endOfDay(new Date());
+            const allDays = eachDayOfInterval(getSafeDateInterval(start, end));
             return allDays.map(d => {
                 const sortKey = format(d, 'yyyy-MM-dd');
                 return grouped[sortKey] || { date: format(d, 'MMM dd'), sortKey, calories: 0, protein: 0, carbs: 0, fat: 0 };
@@ -358,19 +407,25 @@ export default function DashboardPage() {
 
     const chartDataMeasurements = useMemo(() => {
         if (!measurements.length) return [];
-        return measurements.map(m => ({
-            date: format(new Date(m.date), 'MMM dd'),
-            sortKey: format(new Date(m.date), 'yyyy-MM-dd'),
-            weight: m.weight,
-            waist: m.waistCircumference,
-            bodyFat: m.bodyFatPercentage
-        })).sort((a, b) => a.sortKey.localeCompare(b.sortKey));
+        return measurements.flatMap(m => {
+            const dateObj = parseValidDate(m.date);
+            if (!dateObj) return [];
+
+            return [{
+                date: format(dateObj, 'MMM dd'),
+                sortKey: format(dateObj, 'yyyy-MM-dd'),
+                weight: m.weight,
+                waist: m.waistCircumference,
+                bodyFat: m.bodyFatPercentage
+            }];
+        }).sort((a, b) => a.sortKey.localeCompare(b.sortKey));
     }, [measurements]);
 
     const chartDataExercise = useMemo(() => {
         if (!exercises.length) return [];
         const grouped = exercises.reduce<Record<string, { date: string; sortKey: string; duration: number; calories: number }>>((acc, ex) => {
-            const dateObj = new Date(ex.date);
+            const dateObj = parseValidDate(ex.date);
+            if (!dateObj) return acc;
             const dateStr = format(dateObj, 'MMM dd');
             const sortKey = format(dateObj, 'yyyy-MM-dd');
             if (!acc[sortKey]) acc[sortKey] = { date: dateStr, sortKey, duration: 0, calories: 0 };
@@ -380,9 +435,11 @@ export default function DashboardPage() {
         }, {});
 
         if (range === 'week' || range === 'month' || (range === 'custom' && customStart && customEnd)) {
-            const start = range === 'week' ? startOfDay(subDays(new Date(), 6)) : range === 'month' ? startOfDay(subDays(new Date(), 29)) : startOfDay(new Date(customStart));
-            const end = range === 'custom' ? endOfDay(new Date(customEnd)) : endOfDay(new Date());
-            const allDays = eachDayOfInterval({ start, end });
+            const customStartDate = parseValidDate(customStart);
+            const customEndDate = parseValidDate(customEnd);
+            const start = range === 'week' ? startOfDay(subDays(new Date(), 6)) : range === 'month' ? startOfDay(subDays(new Date(), 29)) : startOfDay(customStartDate || new Date());
+            const end = range === 'custom' ? endOfDay(customEndDate || new Date()) : endOfDay(new Date());
+            const allDays = eachDayOfInterval(getSafeDateInterval(start, end));
             return allDays.map(d => {
                 const sortKey = format(d, 'yyyy-MM-dd');
                 return grouped[sortKey] || { date: format(d, 'MMM dd'), sortKey, duration: 0, calories: 0 };
@@ -394,7 +451,8 @@ export default function DashboardPage() {
     const chartDataSleep = useMemo(() => {
         if (!sleeps.length) return [];
         const grouped = sleeps.reduce<Record<string, { date: string; sortKey: string; duration: number; quality: string }>>((acc, sl) => {
-            const dateObj = new Date(sl.date);
+            const dateObj = parseValidDate(sl.date);
+            if (!dateObj) return acc;
             const dateStr = format(dateObj, 'MMM dd');
             const sortKey = format(dateObj, 'yyyy-MM-dd');
             if (!acc[sortKey]) acc[sortKey] = { date: dateStr, sortKey, duration: 0, quality: sl.quality || 'Good' };
@@ -404,9 +462,11 @@ export default function DashboardPage() {
         }, {});
 
         if (range === 'week' || range === 'month' || (range === 'custom' && customStart && customEnd)) {
-            const start = range === 'week' ? startOfDay(subDays(new Date(), 6)) : range === 'month' ? startOfDay(subDays(new Date(), 29)) : startOfDay(new Date(customStart));
-            const end = range === 'custom' ? endOfDay(new Date(customEnd)) : endOfDay(new Date());
-            const allDays = eachDayOfInterval({ start, end });
+            const customStartDate = parseValidDate(customStart);
+            const customEndDate = parseValidDate(customEnd);
+            const start = range === 'week' ? startOfDay(subDays(new Date(), 6)) : range === 'month' ? startOfDay(subDays(new Date(), 29)) : startOfDay(customStartDate || new Date());
+            const end = range === 'custom' ? endOfDay(customEndDate || new Date()) : endOfDay(new Date());
+            const allDays = eachDayOfInterval(getSafeDateInterval(start, end));
             return allDays.map(d => {
                 const sortKey = format(d, 'yyyy-MM-dd');
                 return grouped[sortKey] || { date: format(d, 'MMM dd'), sortKey, duration: 0, quality: 'N/A' };
@@ -460,7 +520,7 @@ export default function DashboardPage() {
     };
     const selectedRangeLabel =
         range === 'custom'
-            ? `${format(new Date(customStart), 'MMM d')} - ${format(new Date(customEnd), 'MMM d')}`
+            ? `${formatDateOrFallback(customStart, 'MMM d')} - ${formatDateOrFallback(customEnd, 'MMM d')}`
             : rangeLabels[range];
     const currentMacroTheme =
         macroView === 'protein'
@@ -482,7 +542,7 @@ export default function DashboardPage() {
                 ? DASHBOARD_THEME.protein
                 : DASHBOARD_THEME.recovery;
 
-    if (dashboardLoading || loading) {
+    if (authLoading || !authUser || !token || dashboardLoading || loading) {
         return (
             <div className="page-shell">
                 <div className="floating-blob floating-blob-1" />
@@ -570,6 +630,10 @@ export default function DashboardPage() {
                         </div>
                     )}
                 </section>
+
+                {dashboardData?.sevenDayInsight && (
+                    <SevenDayInsightCard insight={dashboardData.sevenDayInsight} />
+                )}
 
                 <section className="glass-panel dashboard-insight-card">
                     <div className="dashboard-insight-header">

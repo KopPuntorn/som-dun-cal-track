@@ -39,3 +39,13 @@ frontend/build/
 frontend/.vercel/
 frontend/*.tsbuildinfo
 frontend/next-env.d.ts
+
+# Scratch / debug files
+**/scratch_*.go
+**/scratch_*.js
+**/scratch_*.ts
+tmp/
+*.log
+
+# Backup files from tools
+*.560817036205714398

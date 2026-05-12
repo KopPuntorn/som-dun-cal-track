@@ -2,6 +2,7 @@
 
 import React, { useRef, useState } from "react";
 import { motion, useMotionValue, useSpring, useTransform } from "framer-motion";
+import type { MotionStyle, MotionValue } from "framer-motion";
 
 interface TiltCardProps {
   children: React.ReactNode;
@@ -11,6 +12,11 @@ interface TiltCardProps {
   intensity?: number; // How "snappy" the spring is
   glareOpacity?: number; // Max opacity of the glare
 }
+
+type TiltCardMotionStyle = MotionStyle & {
+  "--x"?: MotionValue<string>;
+  "--y"?: MotionValue<string>;
+};
 
 export default function TiltCard({
   children,
@@ -37,6 +43,21 @@ export default function TiltCard({
   // Transform values for Glare effect (translates mouse position to background position)
   const glareX = useTransform(mouseXSpring, [-0.5, 0.5], [0, 100]);
   const glareY = useTransform(mouseYSpring, [-0.5, 0.5], [0, 100]);
+  const cssX = useTransform(mouseXSpring, [-0.5, 0.5], ["0%", "100%"]);
+  const cssY = useTransform(mouseYSpring, [-0.5, 0.5], ["0%", "100%"]);
+  const glareBackground = useTransform(
+    [glareX, glareY],
+    ([x, y]) => `radial-gradient(farthest-corner at ${x}% ${y}%, rgba(255, 255, 255, 0.8) 0%, rgba(255, 255, 255, 0) 60%)`
+  );
+  const motionStyle: TiltCardMotionStyle = {
+    ...style,
+    rotateX,
+    rotateY,
+    transformStyle: "preserve-3d",
+    // Pass mouse position to children via CSS variables
+    "--x": cssX,
+    "--y": cssY,
+  };
 
   const [isHovered, setIsHovered] = useState(false);
 
@@ -72,15 +93,7 @@ export default function TiltCard({
       onMouseMove={handleMouseMove}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
-      style={{
-        ...style,
-        rotateX,
-        rotateY,
-        transformStyle: "preserve-3d",
-        // Pass mouse position to children via CSS variables
-        "--x": useTransform(mouseXSpring, [-0.5, 0.5], ["0%", "100%"]),
-        "--y": useTransform(mouseYSpring, [-0.5, 0.5], ["0%", "100%"]),
-      } as any}
+      style={motionStyle}
       className={`relative overflow-hidden ${className}`}
       // Spring bounce on tap/click
       whileHover={{ scale: 1.02 }}
@@ -92,10 +105,7 @@ export default function TiltCard({
         className="pointer-events-none absolute inset-0 z-50 rounded-inherit"
         style={{
           opacity: isHovered ? glareOpacity : 0,
-          background: useTransform(
-            [glareX, glareY],
-            ([x, y]) => `radial-gradient(farthest-corner at ${x}% ${y}%, rgba(255, 255, 255, 0.8) 0%, rgba(255, 255, 255, 0) 60%)`
-          ),
+          background: glareBackground,
           transition: "opacity 0.3s ease",
         }}
       />
